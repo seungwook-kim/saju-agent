@@ -1,0 +1,9 @@
+[project]
+name = "love-fortune"
+version = "0.2.0"
+description = "Local daily love-fortune agent (Korean saju + Ziwei + astrology, offline, fun only)"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

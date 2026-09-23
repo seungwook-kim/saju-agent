@@ -1,0 +1,12 @@
+# 파이썬·도구 부산물
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+uv.lock
+
+# 실행 기록·개인 리포트 (개인정보가 들어갈 수 있다)
+watchdog.log
+report_*.md
+match_*.md
+pick_*.md

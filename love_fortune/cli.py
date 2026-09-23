@@ -1,0 +1,731 @@
+"""cli.py, 터미널 CLI + 하루 리포트 생성. 로컬 전용, PII는 메모리에만."""
+from __future__ import annotations
+
+import argparse
+from datetime import date, datetime, timedelta
+
+from .manseryuk import four_pillars, day_pillar, ganzhi_str
+from .rules import love_score, headline, branch_relation
+from .advise import build_advice
+from .synthesis import detailed_reading
+from .narrate import (_rel_text as _rel_talk, ziwei_puli, astro_puli,
+                      match_puli, narrate_palace, narrate_slice_row,
+                      STAR_TALK, HUA_TALK, AUX_TALK, GUO_NAME, GOD_SHORT)
+from .lifetime import MAIN14
+from .domains import CAREER_STAR, MONEY_STAR
+from .narrate import _eun as _eun_word
+from .glossary import TERMS
+
+DISCLAIMER = ("[정통 계산] 사주·자미두수·점성술의 전통 공식 그대로 계산한 상세 해석입니다. "
+              "생년월일 등 개인정보는 파일에 저장하지 않고 메모리에만 둡니다.")
+
+DOMAINS = ("total", "love", "career", "money", "all")
+
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(
+        prog="love_fortune",
+        description="종합 사주 (로컬·정통 계산). "
+                    "인자 없이 실행하면 대화형 입력 모드, "
+                    "`form` 서브커맨드로 브라우저 입력폼을 열 수 있다.")
+    p.add_argument("--birth", help="양력 생년월일 YYYY-MM-DD")
+    p.add_argument("--birth-time", default="12:00",
+                   help="태어난 시간 HH:MM, 모르면 '모름' (시주 제외·자미/하우스 제외하고 3기둥으로 계산)")
+    p.add_argument("--sex", default="male", choices=["male", "female"],
+                   help="성별 (자미두수 순행/역행 구분용으로만 사용)")
+    p.add_argument("--city", default="서울", help="태어난 도시 (출력 문구 분위기용)")
+    p.add_argument("--tomorrow", action="store_true", help="내일 리포트")
+    p.add_argument("--date", help="기준일 YYYY-MM-DD (기본: 오늘, 테스트·재현용)")
+    p.add_argument("--no-save", action="store_true", help="md 파일 저장 안 함")
+    p.add_argument("--interactive", action="store_true", help="대화형 입력 모드")
+    p.add_argument("--domain", default="all", choices=DOMAINS,
+                   help="출력 영역: total(총운)·love(연애)·career(직장)·money(금전)·all(전체)")
+    p.add_argument("--lifetime", action="store_true",
+                   help="평생 운세 타임라인(연대별·연도별) 추가")
+    sub = p.add_subparsers(dest="cmd")
+    f = sub.add_parser("form", help="홈페이지식 로컬 웹 + 채팅 에이전트 열기 (localhost, 저장 없음)")
+    f.add_argument("--port", type=int, default=8765)
+    mm = sub.add_parser("match", help="두 사람 궁합 보기 (로컬 계산, 저장 없음)")
+    mm.add_argument("--birth", required=True, help="내 양력 생년월일 YYYY-MM-DD")
+    mm.add_argument("--birth-time", default="12:00", help="모르면 '모름'")
+    mm.add_argument("--sex", default="male", choices=["male", "female"])
+    mm.add_argument("--city", default="서울")
+    mm.add_argument("--birth2", required=True, help="상대 양력 생년월일 YYYY-MM-DD")
+    mm.add_argument("--birth2-time", default="12:00", help="모르면 '모름'")
+    mm.add_argument("--sex2", default="female", choices=["male", "female"])
+    mm.add_argument("--city2", default="서울")
+    mm.add_argument("--no-save", action="store_true")
+    pk = sub.add_parser("pick", help="기간 내 길일 고르기 (로컬 계산)")
+    pk.add_argument("--birth", required=True, help="양력 생년월일 YYYY-MM-DD")
+    pk.add_argument("--birth-time", default="12:00", help="모르면 '모름'")
+    pk.add_argument("--sex", default="male", choices=["male", "female"])
+    pk.add_argument("--city", default="서울")
+    pk.add_argument("--from", dest="from_date", required=True, help="시작일 YYYY-MM-DD")
+    pk.add_argument("--to", dest="to_date", required=True, help="끝일 YYYY-MM-DD (최대 62일)")
+    pk.add_argument("--domain", default="total", choices=("total", "love", "career", "money"),
+                    help="목적별 정렬")
+    pk.add_argument("--top", type=int, default=5, help="상위 몇 개 상세 표시")
+    pk.add_argument("--no-save", action="store_true")
+    return p.parse_args(argv)
+
+
+def interactive_ask() -> dict:
+    print(DISCLAIMER)
+    birth = input("양력 생년월일 (YYYY-MM-DD): ").strip()
+    bt = input("태어난 시간 (HH:MM, 모르면 '모름' 입력): ").strip() or "모름"
+    sex = input("성별 (male/female, Enter → male): ").strip() or "male"
+    city = input("태어난 도시 (Enter → 서울): ").strip() or "서울"
+    return {"birth": birth, "birth_time": bt, "sex": sex, "city": city}
+
+
+def build_report(birth: date, hour: int | None, minute: int, sex: str,
+                 city: str, target: date, domain: str = "all",
+                 lifetime: bool = False) -> tuple[str, str]:
+    """(터미널 텍스트, md 텍스트) 반환. PII(생년월일·시간·성별·도시)는 포함하지 않음."""
+    natal = four_pillars(birth, hour, minute, city)
+    ds = natal["ilgan_stem"]
+    branches = [s for _, s in (natal["pillars"][k] for k in ("year", "month", "day", "hour"))
+                if s is not None]
+    # 오늘(타깃일) 일진
+    ts, tb = day_pillar(target)
+    seed_extra = target.isoformat()
+    score, reasons, today_elem = love_score(ds, branches, ts, tb, seed_extra)
+    head = headline(score)
+    adv = build_advice(natal["ilgan"], today_elem, target, birth)
+    ma = detailed_reading(birth, hour, minute, sex, city, target)
+    ast = ma["astro"]
+    zw = ma["ziwei"]
+    rels = branch_relation(natal["day_branch"], tb)
+    show = lambda *ds: domain == "all" or domain in ds
+
+    L = []
+    L.append("=" * 46)
+    L.append(f"  종합 사주 ({target.isoformat()}), {city}의 흐름")
+    L.append(DISCLAIMER)
+    L.append("=" * 46)
+    L.append(f"\n[사주 4기둥] 일간(나): {natal['ilgan']} ({natal['ilgan_element']} 기운)")
+    for k, v in natal["strings"].items():
+        L.append(f"  - {k}: {v}")
+    L.append(f"  - 오늘 일진: {ganzhi_str(ts, tb)}"
+             + (f" / 나와 오늘은 {_rel_talk(rels)} 사이야" if rels
+                else " / 나와 오늘은 특별히 부딪치지도 손잡지도 않는 날이야"))
+    if natal["hour_unknown"]:
+        L.append("  · 시간 미상이라 진태양시 미표기 · 자시(23시 이후) 출생이면 일주가 하루 차이날 수 있어")
+        L.append(f"  · 안내: {ma['time_notice']}")
+    else:
+        L.append(f"  · 진태양시 {natal['true_solar']} (보정 {natal['corr_min']}분)"
+                 + (" · 야자시 적용" if natal["night_zi"] else ""))
+
+    if show("total"):
+        t = ma["total"]
+        L.append(f"\n[오늘 총운] {t['score']}점 / 100점 (연애 {t['love']}·직장 {t['career']}·금전 {t['money']})")
+        L.append(f"  한 줄 총평: {t['head']}")
+        for p in ma["stories"]["total"]:
+            L.append(f"  {p}")
+        for r in t["reasons"]:
+            L.append(f"  · {r}")
+        L.append(f"  · 오늘의 키워드: {', '.join(t['keywords'])}")
+        for line in ma["dist"]:
+            L.append(f"  · {line}")
+        L.append("  · 일운 30일 (매일 간지와 영역 점수):")
+        for row in ma["ilun"]:
+            L.append(f"    - {row['line']}")
+        L.append(f"  · 풀이: {ma['month_line']}")
+        L.append("\n[행운 요소]")
+        L.append(f"  · 행운의 색: {adv['color']} / 행운의 번호: {adv['number']}")
+        L.append(f"  · 길한 방향: {adv['direction']} / 좋은 시간대: {adv['time']}")
+        L.append(f"  · 추천 장소 TOP3: {', '.join(adv['places'])}")
+        L.append("\n[오늘의 점괘 뽑기 (결정적, 같은 날 같은 결과)]")
+        L.append(f"  · 타로: {adv['tarot']}, {adv['tarot_line']}")
+        L.append(f"  · 주역: {adv['gua']} / 효 {', '.join(adv['yao'])}, {adv['gua_line']}")
+        L.append(f"  · 오미쿠지: {adv['omikuji']}, {adv['omikuji_line']}")
+
+    if show("love"):
+        L.append(f"\n[오늘 연애운] {score}점 / 100점")
+        L.append(f"  한 줄 총평: {head}")
+        for p in ma["stories"]["love"]:
+            L.append(f"  {p}")
+        for r in reasons:
+            L.append(f"  · {r}")
+        L.append("  · 데이트 대화 팁 3:")
+        for x in adv["talk"]:
+            L.append(f"    - {x}")
+        L.append(f"  · 오늘 피할 것 1: {adv['avoid']}")
+        L.append("\n[자미두수 정통 명반]")
+        L.append(f"  · {ma['lunar_line']}")
+        L.append(f"  · {ma['guo_line']}")
+        zw = ma["ziwei"]
+        if zw is None:
+            L.append("  · 시간 미상이라 명반 상세 배치·12궁은 제외, 위 안내로 봐.")
+        else:
+            L.append(f"  · 풀이: 명반 전체 바탕은 {GUO_NAME[zw['guo']]} 기운이야. "
+                     f"나를 보는 명궁({zw['mingong']} 자리)에는 {zw['ming_main']}이 앉아 있어. "
+                     f"{STAR_TALK.get(zw['ming_main'], '자기 자리를 지키는 별이야')}")
+            _peach_talk_else = ""
+            if ma["peach"]:
+                _peach_talk_else = " 여기에 " + ", ".join(
+                    f"{p}({AUX_TALK.get(p, '매력 기운이다')})" for p in ma["peach"]) + "도 함께 있어."
+            L.append(f"  · 부처궁(배우자) 주성 {ma['ziwei_main']}"
+                     + (f" (무주성·대궁 {ma['ziwei_borrowed']} 차용)" if ma["ziwei_borrowed"] else "")
+                     + (f" · 도화성 {', '.join(ma['peach'])}" if ma["peach"] else ""))
+            L.append(f"  · 풀이: 배우자를 보는 부처궁에는 {ma['ziwei_main']}이 앉아 있어. "
+                     f"{STAR_TALK.get(ma['ziwei_main'], '자기 색이 분명한 별이야')}{_peach_talk_else}")
+            L.append(f"  · 생년사화: {'; '.join(ma['sihua_lines'])}")
+            for _h, _s in (("록", zw["sihua"]["록"]), ("권", zw["sihua"]["권"]),
+                           ("과", zw["sihua"]["과"]), ("기", zw["sihua"]["기"])):
+                _pal = next((p["name"] for p in zw["palaces"] if _s in p["stars"]), "어딘가")
+                L.append(f"  · 풀이: 태어난 해의 기운으로 {_s}에는 {HUA_TALK[_h]} {_pal} 쪽 일이 풀리기 쉬워.")
+            L.append(f"  · {ma['daxian_line']}")
+            L.append(f"  · {ma['liunian_line']}")
+            _cur = next((p for p in zw["palaces"]
+                         if p["daxian"] and p["daxian"][0] <= zw["xusui"] <= p["daxian"][1]), None)
+            if _cur:
+                _mains = [s for s in _cur["stars"] if s in MAIN14]
+                L.append(f"  · 풀이: {narrate_palace(_cur, _mains, zw['xusui'])}")
+            for line in ziwei_puli(ma):
+                L.append(f"  · 풀이: {line}")
+            L.append("\n[자미두수 12궁 배치]")
+            for p in ma["ziwei"]["palaces"]:
+                mains = [s for s in p["stars"] if s in MAIN14]
+                L.append(f"  · {narrate_palace(p, mains, zw['xusui'])}")
+        L.append("\n[사주 대운·신살]")
+        L.append(f"  · {ma['dayun_line']}")
+        for s in ma["shensha_lines"]:
+            L.append(f"  · {s}")
+        L.append("\n[서양 점성술 실측 차트]")
+        L.append(f"  · 태양 {ast['sun']['sign']}({ast['sun']['planet']}) · "
+                 f"달 {ast['moon']['sign']} · 금성 {ast['venus']['sign']}")
+        _rtr = " ".join(ast["retro_notes"]) or "역행 중인 행성은 없어"
+        _csp = " ".join(ast["cusp_notes"]) or ""
+        if ma["hour_unknown"]:
+            L.append(f"  · 풀이: 시간 미상이라 상승궁·중천 제외. "
+                     f"{_rtr}.{_csp and ' ' + _csp + '.' or ''}")
+        else:
+            L.append(f"  · 풀이: 상승궁(첫인상 자리)은 {ast['ascendant']}이야. "
+                     f"중천(직업 자리)은 {ast['mc']}이야. {_rtr}.{_csp and ' ' + _csp + '.' or ''}")
+        L.append(f"  · {ast['compat_line']}")
+        L.append(f"  · 생명수 {adv['life_path']}(생년월일을 다 더한 인생 숫자), {adv['life_path_vibe']}")
+        for line in astro_puli(ma):
+            L.append(f"  · 풀이: {line}")
+        L.append("\n[만날 인연 아키타입, 정통 계산 기반 상세]")
+        L.append(f"  · 배우자궁(배우자를 보는 자리)에는 '{ma['god']}'({GOD_SHORT[ma['god']]}) 기운이 앉아 있어. {ma['side']}")
+        L.append(f"  · 관계 에너지: {ma['god_vibe']} / 관계 팁: {ma['god_tip']}")
+        L.append(f"  · 어울리는 직업군: {ma['god_job']}")
+        L.append(f"  · {ma['star_line']}")
+        L.append(f"  · 일주 십이운성 '{ma['stage']}'(기운의 12단계 중 하나): {ma['stage_love']}")
+        for d in ma["dohwa_lines"]:
+            L.append(f"  · {d}")
+        L.append(f"  · {ma['hong_line']}")
+        if ma["jindohwa"]:
+            L.append("  · 진도화 일주, 매력이 정통으로 드러나기 쉬운 흐름으로 전해짐")
+        zd = ma["ziwei_detail"]
+        if ma["hour_unknown"]:
+            L.append("  · 자미두수 부처궁 풀이는 시간 미상이라 제외.")
+        else:
+            L.append(f"  · 자미두수 부처궁(배우자를 보는 자리) '{ma['ziwei_main']}': 여기엔 {ma['ziwei_main']}이 앉아 있어. "
+                     f"{STAR_TALK.get(ma['ziwei_main'], '자기 색이 분명한 별이야')}")
+            L.append(f"    인상: {zd['look']} {zd['mind']}")
+            L.append(f"    직업군: {zd['job']} / 만남: {zd['meet']}")
+            L.append(f"    관계 팁: {zd['tip']}")
+        vd = ma["venus_detail"]
+        L.append(f"  · 금성(사랑과 취향) {ma['venus']}, 연애 스타일: {vd['style']}")
+        L.append(f"    끌리는 상대: {vd['ideal']} / 통하는 법: {vd['how']}")
+        L.append(f"  · 달(감정) {ma['moon']}, {ma['moon_need']}")
+        L.append(f"  · 만나기 쉬운 자리 TOP3: {', '.join(ma['meet_top3'])}")
+        L.append(f"  · 올해 시기: {ma['timing']}")
+        for line in ma["love_extra"]:
+            L.append(f"  · {line}")
+        for line in match_puli(ma):
+            L.append(f"  · 풀이: {line}")
+
+    if show("career"):
+        c = ma["career"]
+        L.append(f"\n[오늘 직장운] {c['score']}점 / 100점")
+        L.append(f"  한 줄 총평: {c['head']}")
+        for p in ma["stories"]["career"]:
+            L.append(f"  {p}")
+        for r in c["reasons"]:
+            L.append(f"  · {r}")
+        L.append(f"  · 관록궁 주성 {c['guanlu_main']}: 일을 보는 자리에 {c['guanlu_main']}{_eun_word(c['guanlu_main'])} "
+                 f"{STAR_TALK.get(c['guanlu_main'], '자기 자리를 지키는 별이야')} {CAREER_STAR.get(c['guanlu_main'], '')}"
+                 if not ma["hour_unknown"] else
+                 "  · 관록궁 주성 풀이는 시간 미상이라 제외, 원국 관성과 대운으로 봐.")
+        L.append(f"  · {c['guan_line']}")
+        L.append(f"  · {ma['daxian_line']}")
+        L.append("  · 관록궁 삼방사정 (같은 명반 기반):")
+        for x in c["palaces"]:
+            L.append(f"    - {narrate_slice_row(x)}")
+        for line in ma["career_extra"]:
+            L.append(f"  · {line}")
+        L.append("  · 월별 직장 흐름 (이번 해 월간 계획용):")
+        for row in ma["monthly"]:
+            L.append(f"    - {row['career_line']}")
+        L.append("  · 일의 팁 3:")
+        for x in c["tips"]:
+            L.append(f"    - {x}")
+        L.append(f"  · 오늘 피할 것 1: {c['avoid']}")
+
+    if show("money"):
+        m = ma["money"]
+        L.append(f"\n[오늘 금전운] {m['score']}점 / 100점")
+        L.append(f"  한 줄 총평: {m['head']}")
+        for p in ma["stories"]["money"]:
+            L.append(f"  {p}")
+        for r in m["reasons"]:
+            L.append(f"  · {r}")
+        L.append(f"  · 재백궁 주성 {m['caibo_main']}: 돈을 보는 자리에 {m['caibo_main']}{_eun_word(m['caibo_main'])} "
+                 f"{STAR_TALK.get(m['caibo_main'], '자기 자리를 지키는 별이야')} {MONEY_STAR.get(m['caibo_main'], '')}"
+                 if not ma["hour_unknown"] else
+                 "  · 재백궁 주성 풀이는 시간 미상이라 제외, 원국 재성과 대운으로 봐.")
+        L.append(f"  · {m['cai_line']}")
+        L.append("  · 재백궁 삼방사정 (같은 명반 기반):")
+        for x in m["palaces"]:
+            L.append(f"    - {narrate_slice_row(x)}")
+        for line in ma["money_extra"]:
+            L.append(f"  · {line}")
+        L.append("  · 월별 금전 흐름 (이번 해 월간 계획용):")
+        for row in ma["monthly"]:
+            L.append(f"    - {row['money_line']}")
+        L.append("  · 돈의 팁 3:")
+        for x in m["tips"]:
+            L.append(f"    - {x}")
+        L.append(f"  · 오늘 피할 것 1: {m['avoid']}")
+
+    L.append("\n" + DISCLAIMER)
+    if lifetime:
+        lt = ma["lifetime"]
+        L.append("\n[평생 운세 타임라인]")
+        _yb = ma["yongsin"]
+        _ya3 = _yb["analysis"]
+        L.append("  · 타고난 바탕:")
+        L.append(f"    - 타고난 기질: {_yb['ilgang']}")
+        L.append(f"    - 신강약 추정: {_ya3['score']}점, {_ya3['strong_label']} "
+                 f"(득령 {'있음' if _ya3['deukryeong'] else '없음'} · "
+                 f"통근 {', '.join(_ya3['tonggeun']) or '없음'} · "
+                 f"투출 {', '.join(_ya3['tuchul']).replace('일간 ', '') or '없음'}, 점수화는 간략 추정)")
+        L.append(f"    - 격국: {_ya3['geguk']}, {_ya3['geguk_mean']}")
+        L.append(f"    - 용신: {_ya3['yongsin']} (강약에 맞춘 간략법으로 본 것)")
+        for p in lt["phases"]:
+            L.append(f"  · {p['line']}")
+        L.append(f"  · 지금 연대: {lt['current']['short']}")
+        L.append("  · 연대별:")
+        for d in lt["decades"]:
+            parts = d["parts"]
+            L.append(f"    - {parts[0]}")
+            for sub in parts[1:]:
+                L.append(f"      · {sub}")
+        L.append("  · 대운 풀이 (8스텝):")
+        for line in ma["yongsin"]["dayun_narr"]:
+            L.append(f"    - {line}")
+        L.append("  · 연도별:")
+        for y in lt["years"]:
+            L.append(f"    - {y['line']}")
+    L.append("\n[용어 풀이, 처음 보는 사람을 위한 설명]")
+    for term, desc in TERMS.items():
+        L.append(f"  · {term}: {desc}")
+    text = "\n".join(L)
+
+    M = []
+    M.append(f"# 종합 사주 ({target.isoformat()})")
+    M.append("")
+    M.append("> " + DISCLAIMER)
+    M.append("> 이 파일에는 생년월일·태어난 시간·성별·도시를 저장하지 않습니다.")
+    M.append("")
+    M.append(f"- 일간(나): {natal['ilgan']} ({natal['ilgan_element']})")
+    M.append(f"- 오늘 일진: {ganzhi_str(ts, tb)}")
+    M.append("")
+    if show("total"):
+        t = ma["total"]
+        M.append("## 오늘 총운")
+        if ma["hour_unknown"]:
+            M.append(f"- 안내: {ma['time_notice']}")
+        M.append(f"- 오늘 총운: **{t['score']}점 / 100점** (연애 {t['love']}·직장 {t['career']}·금전 {t['money']}), {t['head']}")
+        for p in ma["stories"]["total"]:
+            M.append(f"- [이야기] {p}")
+        for r in t["reasons"]:
+            M.append(f"- {r}")
+        M.append(f"- 오늘의 키워드: {', '.join(t['keywords'])}")
+        for line in ma["dist"]:
+            M.append(f"- {line}")
+        M.append("- 일운 30일 (매일 간지와 영역 점수):")
+        for row in ma["ilun"]:
+            M.append(f"- [일운] {row['line']}")
+        M.append(f"- 풀이: {ma['month_line']}")
+        M.append("")
+        M.append("## 행운 요소")
+        M.append(f"- 행운의 색: {adv['color']} / 번호: {adv['number']}")
+        M.append(f"- 방향: {adv['direction']} / 시간대: {adv['time']}")
+        M.append(f"- 장소: {', '.join(adv['places'])}")
+        M.append("")
+        M.append("## 오늘의 점괘")
+        M.append(f"- 타로 {adv['tarot']}: {adv['tarot_line']}")
+        M.append(f"- 주역 {adv['gua']}: {adv['gua_line']}")
+        M.append(f"- 오미쿠지 {adv['omikuji']}: {adv['omikuji_line']}")
+        M.append("")
+    if show("love"):
+        M.append(f"## 오늘 연애운 ({score}점)")
+        for p in ma["stories"]["love"]:
+            M.append(f"- [이야기] {p}")
+        for r in reasons:
+            M.append(f"- {r}")
+        M.append(f"- 한 줄 총평: {head}")
+        M.append(f"- 대화 팁: {'; '.join(adv['talk'])}")
+        M.append(f"- 피할 것: {adv['avoid']}")
+        M.append("")
+        M.append("## 자미두수·사주운·점성술")
+        M.append(f"- {ma['lunar_line_safe']}")
+        M.append(f"- {ma['guo_line']}")
+        _peach_md = (" 여기에 " + ", ".join(
+            f"{p}({AUX_TALK.get(p, '매력 기운이다')})" for p in ma["peach"]) + "도 함께 있어.") if ma["peach"] else ""
+        if zw is None:
+            M.append("- 시간 미상이라 명반 상세 배치·12궁은 제외, 위 안내로 봐.")
+        else:
+            M.append(f"- 풀이: 명반 전체 바탕은 {GUO_NAME[zw['guo']]} 기운이야. "
+                     f"나를 보는 명궁({zw['mingong']} 자리)에는 {zw['ming_main']}이 앉아 있어. "
+                     f"{STAR_TALK.get(zw['ming_main'], '자기 자리를 지키는 별이야')}")
+        M.append(f"- 부처궁 주성 {ma['ziwei_main']}, {ma['ziwei_detail']['look']} / {ma['ziwei_detail']['mind']}")
+        M.append(f"- 풀이: 배우자를 보는 부처궁에는 {ma['ziwei_main']}이 앉아 있어. "
+                 f"{STAR_TALK.get(ma['ziwei_main'], '자기 색이 분명한 별이야')}{_peach_md}")
+        M.append(f"- 생년사화: {'; '.join(ma['sihua_lines'])}")
+        if zw is not None:
+            for _h2, _s2 in (("록", zw["sihua"]["록"]), ("권", zw["sihua"]["권"]),
+                             ("과", zw["sihua"]["과"]), ("기", zw["sihua"]["기"])):
+                _pal2 = next((p["name"] for p in zw["palaces"] if _s2 in p["stars"]), "어딘가")
+                M.append(f"- 풀이: 태어난 해의 기운으로 {_s2}에는 {HUA_TALK[_h2]} {_pal2} 쪽 일이 풀리기 쉬워.")
+        M.append(f"- {ma['daxian_line']}")
+        M.append(f"- {ma['liunian_line']}")
+        _cur_md = next((p for p in zw["palaces"]
+                        if p["daxian"] and p["daxian"][0] <= zw["xusui"] <= p["daxian"][1]),
+                       None) if zw else None
+        if _cur_md:
+            M.append(f"- 풀이: {narrate_palace(_cur_md, [s for s in _cur_md['stars'] if s in MAIN14], zw['xusui'])}")
+        for line in ziwei_puli(ma):
+            M.append(f"- 풀이: {line}")
+        M.append(f"- {ma['dayun_line']}")
+        M.append(f"- {ast['compat_line']}")
+        if ma["hour_unknown"]:
+            M.append("- 상승궁·중천 제외 (시간 미상)")
+        else:
+            M.append(f"- 상승궁(첫인상 자리)은 {ast['ascendant']}이야. "
+                     f"중천(직업 자리)은 {ast['mc']}이야.")
+        for line in astro_puli(ma):
+            M.append(f"- 풀이: {line}")
+        M.append(f"- 생명수 {adv['life_path']}(생년월일을 다 더한 인생 숫자), {adv['life_path_vibe']}")
+        M.append("")
+        M.append("## 만날 인연 아키타입 (정통 계산)")
+        M.append(f"- 배우자궁 십성 '{ma['god']}'({GOD_SHORT[ma['god']]}): {ma['side']}")
+        M.append(f"- 관계 에너지: {ma['god_vibe']} / 팁: {ma['god_tip']}")
+        M.append(f"- 어울리는 직업군: {ma['god_job']}")
+        M.append(f"- {ma['star_line']}")
+        M.append(f"- 일주 십이운성 '{ma['stage']}'(기운의 12단계 중 하나): {ma['stage_love']}")
+        for d in ma["dohwa_lines"]:
+            M.append(f"- {d}")
+        M.append(f"- {ma['hong_line']}")
+        zd = ma["ziwei_detail"]
+        if ma["hour_unknown"]:
+            M.append("- 자미두수 부처궁 풀이는 시간 미상이라 제외.")
+        else:
+            M.append(f"- 자미두수 부처궁 '{ma['ziwei_main']}': 배우자를 보는 자리에 {ma['ziwei_main']}이 앉아 있어. "
+                     f"{STAR_TALK.get(ma['ziwei_main'], '자기 색이 분명한 별이야')} {zd['look']} {zd['mind']}")
+            M.append(f"  직업군: {zd['job']} / 만남: {zd['meet']} / 팁: {zd['tip']}")
+        vd = ma["venus_detail"]
+        M.append(f"- 금성(사랑과 취향) {ma['venus']}, {vd['style']} / 끌리는 상대: {vd['ideal']} / 통하는 법: {vd['how']}")
+        M.append(f"- 달(감정) {ma['moon']}, {ma['moon_need']}")
+        M.append(f"- 만나기 쉬운 자리 TOP3: {', '.join(ma['meet_top3'])}")
+        M.append(f"- 올해 시기: {ma['timing']}")
+        for line in ma["love_extra"]:
+            M.append(f"- {line}")
+        for line in match_puli(ma):
+            M.append(f"- 풀이: {line}")
+        M.append("")
+        M.append("## 자미두수 12궁 풀이")
+        if zw is None:
+            M.append("- 시간 미상이라 12궁 풀이 제외.")
+        else:
+            for p in ma["ziwei"]["palaces"]:
+                mains = [s for s in p["stars"] if s in MAIN14]
+                M.append(f"- {narrate_palace(p, mains, zw['xusui'])}")
+        M.append("")
+    if show("career"):
+        c = ma["career"]
+        M.append(f"## 오늘 직장운 ({c['score']}점)")
+        for p in ma["stories"]["career"]:
+            M.append(f"- [이야기] {p}")
+        M.append(f"- 한 줄 총평: {c['head']}")
+        for r in c["reasons"]:
+            M.append(f"- {r}")
+        M.append(f"- 관록궁 주성 {c['guanlu_main']}: 일을 보는 자리에 {c['guanlu_main']}{_eun_word(c['guanlu_main'])} "
+                 f"{STAR_TALK.get(c['guanlu_main'], '자기 자리를 지키는 별이야')} {CAREER_STAR.get(c['guanlu_main'], '')}"
+                 if not ma["hour_unknown"] else
+                 "- 관록궁 주성 풀이는 시간 미상이라 제외, 원국 관성과 대운으로 봐.")
+        M.append(f"- {c['guan_line']}")
+        M.append(f"- {ma['daxian_line']}")
+        for x in c["palaces"]:
+            M.append(f"- 관록궁 삼방: {narrate_slice_row(x)}")
+        for line in ma["career_extra"]:
+            M.append(f"- {line}")
+        M.append("- 월별 직장 흐름 (이번 해 월간 계획용):")
+        for row in ma["monthly"]:
+            M.append(f"- {row['career_line']}")
+        M.append(f"- 일의 팁: {'; '.join(c['tips'])}")
+        M.append(f"- 피할 것: {c['avoid']}")
+        M.append("")
+    if show("money"):
+        m = ma["money"]
+        M.append(f"## 오늘 금전운 ({m['score']}점)")
+        for p in ma["stories"]["money"]:
+            M.append(f"- [이야기] {p}")
+        M.append(f"- 한 줄 총평: {m['head']}")
+        for r in m["reasons"]:
+            M.append(f"- {r}")
+        M.append(f"- 재백궁 주성 {m['caibo_main']}: 돈을 보는 자리에 {m['caibo_main']}{_eun_word(m['caibo_main'])} "
+                 f"{STAR_TALK.get(m['caibo_main'], '자기 자리를 지키는 별이야')} {MONEY_STAR.get(m['caibo_main'], '')}"
+                 if not ma["hour_unknown"] else
+                 "- 재백궁 주성 풀이는 시간 미상이라 제외, 원국 재성과 대운으로 봐.")
+        M.append(f"- {m['cai_line']}")
+        for x in m["palaces"]:
+            M.append(f"- 재백궁 삼방: {narrate_slice_row(x)}")
+        for line in ma["money_extra"]:
+            M.append(f"- {line}")
+        M.append("- 월별 금전 흐름 (이번 해 월간 계획용):")
+        for row in ma["monthly"]:
+            M.append(f"- {row['money_line']}")
+        M.append(f"- 돈의 팁: {'; '.join(m['tips'])}")
+        M.append(f"- 피할 것: {m['avoid']}")
+        M.append("")
+    if lifetime:
+        lt = ma["lifetime"]
+        M.append("## 평생 운세")
+        for p in ma["stories"]["life"]:
+            M.append(f"- [이야기] {p}")
+        _yb2 = ma["yongsin"]
+        _ya4 = _yb2["analysis"]
+        M.append(f"- [바탕] 타고난 기질: {_yb2['ilgang']}")
+        M.append(f"- [바탕] 신강약 추정: {_ya4['score']}점, {_ya4['strong_label']} "
+                 f"(득령 {'있음' if _ya4['deukryeong'] else '없음'} · "
+                 f"통근 {', '.join(_ya4['tonggeun']) or '없음'} · "
+                 f"투출 {', '.join(_ya4['tuchul']).replace('일간 ', '') or '없음'}, 점수화는 간략 추정)")
+        M.append(f"- [바탕] 격국: {_ya4['geguk']}, {_ya4['geguk_mean']}")
+        M.append(f"- [바탕] 용신: {_ya4['yongsin']} (강약에 맞춘 간략법으로 본 것)")
+        for p in lt["phases"]:
+            M.append(f"- {p['line']}")
+        M.append(f"- 지금 연대: {lt['current']['short']}")
+        for d in lt["decades"]:
+            M.append(f"- [연대] {d['line']}")
+        for line in ma["yongsin"]["dayun_narr"]:
+            M.append(f"- [대운] {line}")
+        for y in lt["years"]:
+            M.append(f"- [해] {y['line']}")
+        M.append("")
+    M.append("## 용어 풀이")
+    for term, desc in TERMS.items():
+        M.append(f"- {term}: {desc}")
+    M.append("")
+    md = "\n".join(M) + "\n"
+    return text, md
+
+
+def build_match_report(a_birth: date, a_h: int, a_m: int, a_sex: str,
+                       a_city: str, b_birth: date, b_h: int, b_m: int,
+                       b_sex: str, b_city: str, r: dict | None = None) -> tuple[str, str]:
+    """(터미널 텍스트, md 텍스트) 반환. 두 사람의 개인정보는 포함하지 않음."""
+    from .matchmaking import compatibility
+    if r is None:
+        r = compatibility(a_birth, a_h, a_m, a_sex, a_city,
+                          b_birth, b_h, b_m, b_sex, b_city)
+    L = []
+    L.append("=" * 46)
+    L.append(f"  두 사람 궁합 ({r['score']}점 / 100점)")
+    L.append(DISCLAIMER)
+    L.append("=" * 46)
+    L.append(f"\n[종합] {r['head']}")
+    for p in r["story"]:
+        L.append(f"  {p}")
+    L.append(f"  · 나: 일간 {r['a_ilgan']}, 일지 {r['a_day_branch']}, "
+             f"띠 {r['a_animal']}, 명궁 {r['a_mingong']}, 태양 {r['a_sun']}")
+    L.append(f"  · 상대: 일간 {r['b_ilgan']}, 일지 {r['b_day_branch']}, "
+             f"띠 {r['b_animal']}, 명궁 {r['b_mingong']}, 태양 {r['b_sun']}")
+    L.append("\n[잘 맞는 점]")
+    for x in r["strengths"] or ["특별히 도드라지는 점 없이 잔잔하게 맞는 흐름"]:
+        L.append(f"  · {x}")
+    if r["minus"]:
+        L.append("\n[조심할 점]")
+        for x in r["cautions"]:
+            L.append(f"  · {x}")
+    if r["info"]:
+        L.append("\n[참고]")
+        for x in r["info"]:
+            L.append(f"  · {x}")
+    L.append("\n" + DISCLAIMER)
+    text = "\n".join(L)
+
+    M = []
+    M.append("# 두 사람 궁합")
+    M.append("")
+    M.append("> " + DISCLAIMER)
+    M.append("> 이 파일에는 두 사람의 생년월일·시간·성별·도시를 저장하지 않습니다.")
+    M.append("")
+    M.append(f"- 궁합 점수: **{r['score']}점 / 100점**, {r['head']}")
+    M.append("")
+    M.append("## 두 사람 이야기")
+    for p in r["story"]:
+        M.append(f"- [이야기] {p}")
+    M.append("")
+    M.append("## 잘 맞는 점")
+    for x in r["strengths"] or ["특별히 도드라지는 점 없이 잔잔하게 맞는 흐름"]:
+        M.append(f"- {x}")
+    if r["minus"]:
+        M.append("")
+        M.append("## 조심할 점")
+        for x in r["cautions"]:
+            M.append(f"- {x}")
+    if r["info"]:
+        M.append("")
+        M.append("## 참고")
+        for x in r["info"]:
+            M.append(f"- {x}")
+    md = "\n".join(M) + "\n"
+    return text, md
+
+
+def build_pick_report(birth: date, hour: int, minute: int, sex: str,
+                      city: str, start: date, end: date,
+                      domain: str = "total", top: int = 5,
+                      r: dict | None = None) -> tuple[str, str]:
+    """(터미널 텍스트, md 텍스트) 반환. 개인정보는 포함하지 않음."""
+    from .taekil import pick_dates
+    if r is None:
+        r = pick_dates(birth, hour, minute, sex, city, start, end, domain)
+    dom_name = {"total": "총운", "love": "연애", "career": "직장", "money": "금전"}[domain]
+    L = []
+    L.append("=" * 46)
+    L.append(f"  길일 고르기 ({r['start']}~{r['end']}, {dom_name} 기준)")
+    L.append(DISCLAIMER)
+    L.append("=" * 46)
+    L.append(f"\n[상위 {top}일]")
+    for p in r["story"]:
+        L.append(f"  {p}")
+    for row in r["rows"][:top]:
+        L.append(f"  {row['rank']}위: {row['label']} {row['ganzhi']} "
+                 f"(연애 {row['love']}·직장 {row['career']}·금전 {row['money']})")
+    L.append("\n[전체 표]")
+    for row in r["rows"]:
+        L.append(f"  - {row['label']} {row['ganzhi']}: 연애 {row['love']}점·"
+                 f"직장 {row['career']}점·금전 {row['money']}점")
+    L.append("\n" + DISCLAIMER)
+    text = "\n".join(L)
+
+    M = []
+    M.append(f"# 길일 고르기 ({r['start']}~{r['end']}, {dom_name} 기준)")
+    M.append("")
+    M.append("> " + DISCLAIMER)
+    M.append("> 이 파일에는 생년월일·시간·성별·도시를 저장하지 않습니다.")
+    M.append("")
+    M.append("## 상위 일자")
+    for p in r["story"]:
+        M.append(f"- [이야기] {p}")
+    M.append("")
+    for row in r["rows"][:top]:
+        M.append(f"- {row['rank']}위: {row['label']} {row['ganzhi']} "
+                 f"(연애 {row['love']}·직장 {row['career']}·금전 {row['money']})")
+    M.append("")
+    M.append("## 전체 표")
+    for row in r["rows"]:
+        best = max((("연애", row["love"]), ("직장", row["career"]), ("금전", row["money"])),
+                   key=lambda t: t[1])[0]
+        M.append(f"- [길일] {row['date']} | {row['ganzhi']} | 연애 {row['love']} | "
+                 f"직장 {row['career']} | 금전 {row['money']} | 으뜸 {best}")
+    md = "\n".join(M) + "\n"
+    return text, md
+
+
+def _parse_hm(value: str) -> tuple[int | None, int]:
+    """HH:MM 또는 '모름' → (시|None, 분)."""
+    if value.strip() in ("모름", "unknown", "모름시간", ""):
+        return None, 0
+    h, m = value.split(":")
+    return int(h), int(m)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    if args.cmd == "form":
+        from .web import serve
+        serve(args.port)
+        return
+    if args.cmd == "match":
+        try:
+            ab = datetime.strptime(args.birth, "%Y-%m-%d").date()
+            bb = datetime.strptime(args.birth2, "%Y-%m-%d").date()
+            ah, am = _parse_hm(args.birth_time)
+            bh, bm = _parse_hm(args.birth2_time)
+        except (ValueError, TypeError):
+            raise SystemExit("날짜·시간 형식이 잘못됐습니다. 예: --birth 1995-02-28 --birth2 1997-06-15")
+        text, md = build_match_report(ab, ah, am, args.sex, args.city,
+                                      bb, bh, bm, args.sex2, args.city2)
+        print(text)
+        if not args.no_save:
+            fname = f"match_{date.today().strftime('%Y%m%d')}.md"
+            with open(fname, "w", encoding="utf-8") as f:
+                f.write(md)
+            print(f"\n[저장] {fname} (개인정보 제외)")
+        return
+    if args.cmd == "pick":
+        try:
+            birth = datetime.strptime(args.birth, "%Y-%m-%d").date()
+            hh, mm = _parse_hm(args.birth_time)
+            start = datetime.strptime(args.from_date, "%Y-%m-%d").date()
+            end = datetime.strptime(args.to_date, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            raise SystemExit("날짜·시간 형식이 잘못됐습니다. 예: --birth 1995-02-28 --from 2026-10-01 --to 2026-10-31")
+        try:
+            text, md = build_pick_report(birth, hh, mm, args.sex, args.city,
+                                         start, end, args.domain, args.top)
+        except ValueError as e:
+            raise SystemExit(str(e))
+        print(text)
+        if not args.no_save:
+            fname = f"pick_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.md"
+            with open(fname, "w", encoding="utf-8") as f:
+                f.write(md)
+            print(f"\n[저장] {fname} (개인정보 제외)")
+        return
+    if args.interactive or not args.birth:
+        if not args.birth and not args.interactive:
+            # 인자 없이 실행 → 대화형으로 유도 (단, --birth 없으면 에러 대신 질문)
+            ans = interactive_ask()
+            args.birth = ans["birth"]
+            args.birth_time = ans["birth_time"]
+            args.sex = ans["sex"]
+            args.city = ans["city"]
+        elif args.interactive:
+            ans = interactive_ask()
+            args.birth = ans["birth"]
+            args.birth_time = ans["birth_time"]
+            args.sex = ans["sex"]
+            args.city = ans["city"]
+
+    try:
+        birth = datetime.strptime(args.birth, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        raise SystemExit("birth 형식이 잘못됐습니다. 예: --birth 1995-02-28")
+    try:
+        hh, mm = _parse_hm(args.birth_time)
+    except ValueError:
+        raise SystemExit("birth-time 형식이 잘못됐습니다. 예: --birth-time 12:00 또는 모름")
+
+    if args.date:
+        target = datetime.strptime(args.date, "%Y-%m-%d").date()
+    else:
+        target = date.today()
+    if args.tomorrow:
+        target = target + timedelta(days=1)
+
+    text, md = build_report(birth, hh, mm, args.sex, args.city, target,
+                            args.domain, args.lifetime)
+    print(text)
+    if not args.no_save:
+        fname = f"report_{target.strftime('%Y%m%d')}.md"
+        with open(fname, "w", encoding="utf-8") as f:
+            f.write(md)
+        print(f"\n[저장] {fname} (개인정보 제외)")
