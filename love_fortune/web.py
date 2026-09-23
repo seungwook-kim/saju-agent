@@ -5,8 +5,8 @@
 구성:
 - 홈페이지: 입력폼 + 리포트 카드(점수 게이지·행운요소·사주·자미두수·점성술·점괘)
 - 채팅 패널: 오늘 리포트를 아는 상담 에이전트와 대화
-  * 기본 = Claude 구독 모델(Sonnet 5)을 로컬 `claude` 명령으로 호출 (API 키 불필요).
-    claude 명령이 없거나 실패하면 로컬 규칙 에이전트가 대신 답한다.
+  * 기본 = 구독 AI 모델을 로컬 CLI 명령으로 호출 (API 키 불필요).
+    CLI 명령이 없거나 실패하면 로컬 규칙 에이전트가 대신 답한다.
   * 선택 = OpenAI 호환 엔드포인트 연결 (채팅창 설정에서 endpoint/key/model 입력,
     브라우저 localStorage에만 저장, 서버에 저장 안 함)
   * LLM 에 보내는 건 개인정보를 뺀 리포트 요약과 대화뿐이다.
@@ -39,9 +39,11 @@ CONTEXT_TTL = 6 * 3600      # 리포트 요약을 들고 있는 시간(초)
 CONTEXT_MAX = 300           # 동시에 들고 있는 최대 개수
 MAX_BODY = 64_000           # 요청 본문 상한(바이트)
 
-# 채팅 기본 모델. 구독 인증을 쓰는 로컬 claude 명령으로 부른다.
-CLAUDE_MODEL = os.environ.get("LOVE_FORTUNE_CLAUDE_MODEL", "claude-sonnet-5")
-CLAUDE_TIMEOUT = 120
+# 채팅 기본 모델. 구독 인증을 쓰는 로컬 AI CLI 명령으로 부른다.
+AI_CLI = os.environ.get("LOVE_FORTUNE_AI_CLI", "claude")          # 실행할 명령 이름
+AI_MODEL = os.environ.get("LOVE_FORTUNE_AI_MODEL", "claude-sonnet-5")
+AI_LABEL = "구독 AI 모델"                                          # 화면에 보이는 이름
+AI_TIMEOUT = 120
 
 
 def _truthy(v) -> bool:
@@ -427,21 +429,21 @@ def llm_chat(endpoint: str, api_key: str, model: str,
         raise RuntimeError(f"LLM 응답 형식 오류: {str(data)[:200]}")
 
 
-def claude_available() -> bool:
-    return shutil.which("claude") is not None
+def cli_available() -> bool:
+    return shutil.which(AI_CLI) is not None
 
 
-def claude_chat(summary: str, history: list[dict], message: str) -> str:
-    """Claude 구독 모델(기본 Sonnet 5)로 답한다. 로컬 claude 명령을 부른다.
+def cli_chat(summary: str, history: list[dict], message: str) -> str:
+    """구독 AI 모델로 답한다. 로컬 AI CLI 명령을 부른다.
 
     - 도구는 전부 끈다 (--tools ""). 상담 답변만 받는다.
     - 대화 기록은 남기지 않는다 (--no-session-persistence).
     - 요약이 길어 명령줄 길이 제한에 걸리지 않게, 시스템 프롬프트는 임시 파일로,
       질문은 표준입력으로 넘긴다. 임시 파일에는 개인정보를 뺀 요약만 들어간다.
     """
-    exe = shutil.which("claude")
+    exe = shutil.which(AI_CLI)
     if not exe:
-        raise RuntimeError("claude 명령을 찾지 못했어요")
+        raise RuntimeError("AI 명령을 찾지 못했어요")
     lines = [("사용자" if h["role"] == "user" else "상담사") + ": " + h["content"]
              for h in history]
     prompt = (("지금까지 나눈 대화:\n" + "\n".join(lines) + "\n\n") if lines else "") \
@@ -451,34 +453,34 @@ def claude_chat(summary: str, history: list[dict], message: str) -> str:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(system)
-        cmd = [exe, "-p", "--model", CLAUDE_MODEL, "--output-format", "json",
+        cmd = [exe, "-p", "--model", AI_MODEL, "--output-format", "json",
                "--system-prompt-file", sys_path, "--tools", "",
                "--no-session-persistence", "--strict-mcp-config"]
         try:
             proc = subprocess.run(
                 cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=CLAUDE_TIMEOUT, cwd=tempfile.gettempdir(),
+                errors="replace", timeout=AI_TIMEOUT, cwd=tempfile.gettempdir(),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except subprocess.TimeoutExpired:
-            raise RuntimeError(f"Claude 응답이 {CLAUDE_TIMEOUT}초 안에 오지 않았어요") from None
+            raise RuntimeError(f"AI 응답이 {AI_TIMEOUT}초 안에 오지 않았어요") from None
         except OSError as e:
-            raise RuntimeError(f"Claude 실행 실패: {e}") from None
+            raise RuntimeError(f"AI 실행 실패: {e}") from None
     finally:
         try:
             os.remove(sys_path)
         except OSError:
             pass
     if proc.returncode != 0:
-        raise RuntimeError(f"Claude 호출 실패 (종료코드 {proc.returncode})")
+        raise RuntimeError(f"AI 호출 실패 (종료코드 {proc.returncode})")
     try:
         env = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        raise RuntimeError("Claude 응답을 읽지 못했어요") from None
+        raise RuntimeError("AI 응답을 읽지 못했어요") from None
     if env.get("is_error"):
-        raise RuntimeError(f"Claude 오류: {str(env.get('result', ''))[:200]}")
+        raise RuntimeError(f"AI 오류: {str(env.get('result', ''))[:200]}")
     reply = str(env.get("result", "")).strip()
     if not reply:
-        raise RuntimeError("Claude 가 빈 답을 보냈어요")
+        raise RuntimeError("AI 가 빈 답을 보냈어요")
     return reply
 
 
@@ -561,7 +563,7 @@ HOME_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <button type="submit">길일 보기</button></form></div>
 <div class="card"><h2>💬 상담 에이전트</h2>
 <p>리포트를 먼저 조회하면, 그 내용을 아는 상담 에이전트와 채팅할 수 있어요.
-기본은 Claude 구독 모델(Sonnet 5)이 답하고, 연결이 안 되면 로컬 에이전트가 답해요.</p></div></main>
+기본은 구독 AI 모델이 답하고, 연결이 안 되면 로컬 에이전트가 답해요.</p></div></main>
 <footer>정통 공식 기반 상세 해석 · 네트워크 전송 없음.</footer></body></html>"""
 
 REPORT_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -633,8 +635,8 @@ REPORT_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div class="card"><h2>💬 상담 에이전트와 채팅</h2>
 <div id="chat"><div id="msgs"></div>
 <div class="row"><input id="q" placeholder="예: 오늘 직장운 어때, 금전운 알려줘"><button onclick="send()">전송</button></div>
-<details><summary>⚙️ LLM 연결 (선택, 미설정 시 Claude Sonnet 5)</summary>
-<p>기본은 Claude 구독 모델(Sonnet 5)이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
+<details><summary>⚙️ LLM 연결 (선택, 미설정 시 구독 AI 모델)</summary>
+<p>기본은 구독 AI 모델이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
 <label>Endpoint <input id="ep" placeholder="http://localhost:11434/v1"></label>
 <label>API Key <input id="key" type="password" placeholder="(비워두면 로컬 에이전트)"></label>
 <label>Model <input id="model" placeholder="gpt-4o-mini"></label>
@@ -689,8 +691,8 @@ MATCH_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div class="card"><h2>💬 상담 에이전트와 채팅</h2>
 <div id="chat"><div id="msgs"></div>
 <div class="row"><input id="q" placeholder="예: 우리 궁합 어때"><button onclick="send()">전송</button></div>
-<details><summary>⚙️ LLM 연결 (선택, 미설정 시 Claude Sonnet 5)</summary>
-<p>기본은 Claude 구독 모델(Sonnet 5)이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
+<details><summary>⚙️ LLM 연결 (선택, 미설정 시 구독 AI 모델)</summary>
+<p>기본은 구독 AI 모델이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
 <label>Endpoint <input id="ep" placeholder="http://localhost:11434/v1"></label>
 <label>API Key <input id="key" type="password" placeholder="(비워두면 로컬 에이전트)"></label>
 <label>Model <input id="model" placeholder="gpt-4o-mini"></label>
@@ -736,8 +738,8 @@ PICK_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div class="card"><h2>💬 상담 에이전트와 채팅</h2>
 <div id="chat"><div id="msgs"></div>
 <div class="row"><input id="q" placeholder="예: 다음 주 좋은 날 알려줘"><button onclick="send()">전송</button></div>
-<details><summary>⚙️ LLM 연결 (선택, 미설정 시 Claude Sonnet 5)</summary>
-<p>기본은 Claude 구독 모델(Sonnet 5)이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
+<details><summary>⚙️ LLM 연결 (선택, 미설정 시 구독 AI 모델)</summary>
+<p>기본은 구독 AI 모델이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
 <label>Endpoint <input id="ep" placeholder="http://localhost:11434/v1"></label>
 <label>API Key <input id="key" type="password" placeholder="(비워두면 로컬 에이전트)"></label>
 <label>Model <input id="model" placeholder="gpt-4o-mini"></label>
@@ -1535,7 +1537,7 @@ function chatCard(token,boxId,inputId){
   '<div class="chatbox"><div class="msgs" id="'+boxId+'"></div>'+
   '<div class="chatrow"><input id="'+inputId+'" placeholder="예: 오늘 직장운 어때" maxlength="200">'+
   '<button class="go" style="width:auto" data-chat="'+token+'|'+boxId+'|'+inputId+'">전송</button></div>'+
-  '<p class="muted small">리포트를 아는 상담 에이전트(Claude Sonnet 5)가 답합니다. 연결이 안 되면 로컬 에이전트가 답합니다. 생년월일은 보내지 않고, 단정적 예언은 하지 않습니다.</p></div></div>';
+  '<p class="muted small">리포트를 아는 AI 상담 에이전트가 답합니다. 연결이 안 되면 로컬 에이전트가 답합니다. 생년월일은 보내지 않고, 단정적 예언은 하지 않습니다.</p></div></div>';
 }
 const CHAT_HIST={};
 document.addEventListener('click',async e=>{
@@ -1946,17 +1948,17 @@ class Handler(BaseHTTPRequestHandler):
         api_key = str(q.get("api_key", "") or "")
         model = str(q.get("model", "") or "gpt-4o-mini")
         backend = str(q.get("backend", "") or "").strip().lower()
-        if backend not in ("claude", "openai", "local"):
-            # 기본: 직접 연결한 엔드포인트가 있으면 그쪽, 없으면 Claude 구독(Sonnet 5),
-            # claude 명령이 없으면 로컬 규칙 에이전트
+        if backend not in ("cli", "openai", "local"):
+            # 기본: 직접 연결한 엔드포인트가 있으면 그쪽, 없으면 구독 AI 모델(CLI),
+            # CLI 명령이 없으면 로컬 규칙 에이전트
             backend = ("openai" if endpoint and api_key
-                       else "claude" if claude_available() else "local")
+                       else "cli" if cli_available() else "local")
         try:
             if backend == "openai":
                 reply, mode, used = llm_chat(endpoint, api_key, model, summary,
                                              history, message), "llm", model
-            elif backend == "claude":
-                reply, mode, used = claude_chat(summary, history, message), "claude", CLAUDE_MODEL
+            elif backend == "cli":
+                reply, mode, used = cli_chat(summary, history, message), "cli", AI_LABEL
             else:
                 reply, mode, used = local_agent_reply(message, summary), "local", "로컬 규칙 에이전트"
         except RuntimeError as e:
@@ -1974,7 +1976,7 @@ def serve(port: int = 8765, host: str = "127.0.0.1"):
     """로컬 웹 서버. 기본은 이 컴퓨터에서만 열린다.
 
     예전엔 0.0.0.0 으로 열려서 같은 와이파이의 누구나 접속할 수 있었다. 채팅이
-    Claude 구독으로 답하게 되면서 남이 내 사용량을 쓰는 통로도 되므로 막는다.
+    구독 AI 모델로 답하게 되면서 남이 내 사용량을 쓰는 통로도 되므로 막는다.
     휴대폰 등 다른 기기에서 보려면 --host 0.0.0.0 으로 직접 연다.
     """
     print(DISCLAIMER)

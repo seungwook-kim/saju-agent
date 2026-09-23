@@ -61,7 +61,9 @@ def kill_port() -> None:
 def start_server() -> None:
     try:
         subprocess.Popen(
-            [UV, "run", "--python", "3.14", "python", "-m", "love_fortune", "form"],
+            # 휴대폰 등 같은 네트워크의 기기에서도 보도록 모든 주소로 연다 (사용자 요청)
+            [UV, "run", "--python", "3.14", "python", "-m", "love_fortune", "form",
+             "--host", "0.0.0.0"],
             cwd=HERE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
