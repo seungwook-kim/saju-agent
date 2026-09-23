@@ -378,3 +378,19 @@ def test_every_month_branch_gets_a_report():
 
 def test_year_pillar_helper_still_accepts_datetime():
     assert year_pillar(datetime(2026, 9, 20, 12)) == (2, 6)   # 병오
+
+
+def test_zi_mode_next_and_split():
+    # 1995-02-28 서울 23:50 은 진태양시 23:25. lunar-python 정자시(1)·야자시(2) 결과와 같다
+    from love_fortune.manseryuk import zi_mode
+    with zi_mode("next"):
+        fp = four_pillars(date(1995, 2, 28), 23, 50, "서울")
+    assert (fp["strings"]["day"], fp["strings"]["hour"]) == ("신묘", "무자")
+    with zi_mode("split"):
+        fp = four_pillars(date(1995, 2, 28), 23, 50, "서울")
+        z = ziwei_chart(date(1995, 2, 28), 23, 50, "male", "서울")
+    assert (fp["strings"]["day"], fp["strings"]["hour"]) == ("경인", "무자")
+    assert z["lunar"] == (1995, 1, 29, False)          # 야자시면 음력 날짜도 그날 그대로
+    assert any("야자시" in x for x in time_notes(fp))
+    fp = four_pillars(date(1995, 2, 28), 23, 50, "서울")   # 기본값은 다시 정자시
+    assert fp["strings"]["day"] == "신묘"

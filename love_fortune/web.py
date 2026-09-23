@@ -1384,6 +1384,7 @@ APP_BODY = """
         <label class="f">태어난 시간<input name="birth_time" type="time" value="12:00"></label>
         <label class="check"><input name="unknown_time" type="checkbox" value="1"> 모름</label>
       </div>
+      <label class="f">밤 11시~12시 출생 기준<select name="zi"><option value="next">다음날로 보기 (정자시, 기본)</option><option value="split">그날로 보기 (야자시)</option></select></label>
       <div class="row2">
         <label class="f">성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
         <label class="f">태어난 도시<input name="city" value="부산"></label>
@@ -1412,6 +1413,7 @@ APP_BODY = """
         <label class="check"><input name="unknown_time" type="checkbox" value="1"> 내 시간 모름</label>
         <label class="check"><input name="unknown_time2" type="checkbox" value="1"> 상대 시간 모름</label>
       </div>
+      <label class="f">밤 11시~12시 출생 기준<select name="zi"><option value="next">다음날로 보기 (정자시, 기본)</option><option value="split">그날로 보기 (야자시)</option></select></label>
       <div class="row2">
         <label class="f">내 성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
         <label class="f">상대 성별<select name="sex2"><option value="female">여자</option><option value="male">남자</option></select></label>
@@ -1435,6 +1437,7 @@ APP_BODY = """
         <label class="f">태어난 시간<input name="birth_time" type="time" value="12:00"></label>
         <label class="check"><input name="unknown_time" type="checkbox" value="1"> 모름</label>
       </div>
+      <label class="f">밤 11시~12시 출생 기준<select name="zi"><option value="next">다음날로 보기 (정자시, 기본)</option><option value="split">그날로 보기 (야자시)</option></select></label>
       <div class="row2">
         <label class="f">성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
         <label class="f">태어난 도시<input name="city" value="부산"></label>
@@ -2021,8 +2024,10 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             self._fail(400, "요청 형식 오류")
             return
+        from .manseryuk import zi_mode
         try:
-            route(q)
+            with zi_mode(str(q.get("zi") or "next")):
+                route(q)
         except ValueError as e:
             self._fail(400, str(e))
         except Exception as e:  # noqa: BLE001  계산 오류가 나도 서버는 살아 있게

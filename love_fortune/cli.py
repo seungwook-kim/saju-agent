@@ -40,6 +40,8 @@ def parse_args(argv=None):
                    help="성별 male/female (남/여도 됨). 대운 방향과 연애운 해석에 쓴다")
     p.add_argument("--city", default="서울",
                    help="태어난 도시 (진태양시·당시 표준시·서머타임 보정에 쓴다, 해외 주요 도시 가능)")
+    p.add_argument("--zi", default="next", choices=["next", "split"],
+                   help="밤 11시~12시 출생 기준: next=다음날로(정자시, 기본), split=일주는 그날(야자시)")
     p.add_argument("--tomorrow", action="store_true", help="내일 리포트")
     p.add_argument("--date", help="기준일 YYYY-MM-DD (기본: 오늘, 테스트·재현용)")
     p.add_argument("--no-save", action="store_true", help="md 파일 저장 안 함")
@@ -67,6 +69,8 @@ def parse_args(argv=None):
     mm.add_argument("--sex2", default="female", type=_sex_arg)
     mm.add_argument("--city2", default="서울")
     mm.add_argument("--no-save", action="store_true")
+    mm.add_argument("--zi", choices=["next", "split"], default=argparse.SUPPRESS,
+                    help="밤 11시~12시 출생 기준 (next=정자시, split=야자시)")
     pk = sub.add_parser("pick", help="기간 내 길일 고르기 (로컬 계산)")
     pk.add_argument("--birth", required=True, help="생년월일 YYYY-MM-DD")
     pk.add_argument("--calendar", default="solar", choices=["solar", "lunar"])
@@ -80,6 +84,8 @@ def parse_args(argv=None):
                     help="목적별 정렬")
     pk.add_argument("--top", type=int, default=5, help="상위 몇 개 상세 표시")
     pk.add_argument("--no-save", action="store_true")
+    pk.add_argument("--zi", choices=["next", "split"], default=argparse.SUPPRESS,
+                    help="밤 11시~12시 출생 기준 (next=정자시, split=야자시)")
     return p.parse_args(argv)
 
 
@@ -139,7 +145,7 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
         L.append(f"  · 안내: {ma['time_notice']}")
     else:
         L.append(f"  · 진태양시 {natal['true_solar']} (보정 {natal['corr_min']}분)"
-                 + (" · 야자시 적용" if natal["night_zi"] else ""))
+                 )
         for _note in time_notes(natal):
             L.append(f"  · {_note}")
 
@@ -686,6 +692,12 @@ def _sex_arg(value: str) -> str:
 
 def main(argv=None):
     args = parse_args(argv)
+    from .manseryuk import zi_mode
+    with zi_mode(getattr(args, "zi", "next")):
+        _main(args)
+
+
+def _main(args):
     if args.cmd == "form":
         from .web import serve
         serve(args.port, args.host)

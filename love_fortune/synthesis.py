@@ -119,9 +119,9 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         ly, lm, ld, lp = zw["lunar"]
         lunar_line = (f"음력 {ly}년 {lm}월 {ld}일{' (윤달)' if lp else ''} · "
                       f"진태양시 {zw['true_solar']} (보정 {zw['corr_min']}분)"
-                      + (" · 야자시로 다음날 자시 적용" if zw["night_zi"] else ""))
+                     )
         lunar_line_safe = (f"진태양시 보정 {zw['corr_min']}분 적용"
-                           + (" · 야자시로 다음날 자시 적용" if zw["night_zi"] else ""))
+                          )
         for _note in time_notes(natal):
             lunar_line += f" · {_note}"
             lunar_line_safe += f" · {_note}"

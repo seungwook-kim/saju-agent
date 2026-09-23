@@ -13,6 +13,8 @@
 """
 from __future__ import annotations
 
+import contextvars
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 
 from .astronomy import solar_term_moment, month_branch_exact, JIE_LON
@@ -48,6 +50,26 @@ KONGWANG = [(10, 11), (8, 9), (6, 7), (4, 5), (2, 3), (0, 1)]
 KUIGANG = {(6, 4), (6, 10), (8, 4), (4, 10)}  # 경진·경술·임진·무술일
 GUCHEN_AT = {(2, 3, 4): (5, 1), (5, 6, 7): (8, 4),
              (8, 9, 10): (11, 7), (11, 0, 1): (2, 10)}
+
+
+# 밤 11시~12시(진태양시) 출생을 어떻게 볼지. 명리학계에서도 결론이 나지 않은 문제라
+# 전문 사이트마다 다르다 (2026-09 조사: 사주만세는 야자시, 정해 만세력은 23시에 다음날).
+#   "next"  : 23시부터 다음날로 본다 (정자시설, 기본)
+#   "split" : 일주는 그날 그대로, 시주만 다음날 자시로 본다 (야자시설)
+# 요청마다 부르는 쪽(cli·web)이 zi_mode() 로 정한다. 스레드·요청끼리 섞이지 않는다.
+ZI_MODE: contextvars.ContextVar[str] = contextvars.ContextVar("zi_mode", default="next")
+ZI_MODES = {"next": "밤 11시부터 다음날로 보기 (정자시)",
+            "split": "일주는 그날 두고 시주만 다음날 자시로 보기 (야자시)"}
+
+
+@contextmanager
+def zi_mode(mode: str | None):
+    mode = mode if mode in ZI_MODES else "next"
+    token = ZI_MODE.set(mode)
+    try:
+        yield mode
+    finally:
+        ZI_MODE.reset(token)
 
 
 def normalize_sex(sex: str | None) -> str:
@@ -112,16 +134,22 @@ def four_pillars(birth: date, hour: int | None = 12, minute: int = 0,
     true_dt, corr = bm["true_solar"], bm["corr_min"]
     eff = true_dt.date()
     night_zi = False
-    if true_dt.hour >= 23:
-        eff = eff + timedelta(days=1)
+    split = False
+    if true_dt.hour >= 23 and hour is not None:
         night_zi = True
+        if ZI_MODE.get() == "split":
+            split = True                 # 야자시: 일주는 그날 그대로
+        else:
+            eff = eff + timedelta(days=1)
     ys, yb = year_pillar(bm["kst"])
     ms, mb = month_pillar(bm["kst"])
     ds, db = day_pillar(eff)
     if hour is None:
         hs = hb = None
     else:
-        hs, hb = hour_pillar(ds, true_dt.hour)
+        # 야자시면 시주 천간은 다음날 일간 기준의 자시로 붙인다
+        base = day_pillar(eff + timedelta(days=1))[0] if split else ds
+        hs, hb = hour_pillar(base, true_dt.hour)
     pillars = {"year": (ys, yb), "month": (ms, mb),
                "day": (ds, db), "hour": (hs, hb)}
     strings = {k: ganzhi_str(s, b) for k, (s, b) in pillars.items()
@@ -145,6 +173,7 @@ def four_pillars(birth: date, hour: int | None = 12, minute: int = 0,
         "offset_h": bm["offset_h"],
         "zone": bm["zone"],
         "night_zi": night_zi,
+        "zi_mode": ZI_MODE.get(),
     }
 
 
@@ -166,6 +195,11 @@ def time_notes(natal: dict) -> list[str]:
         notes.append(f"그때 한국 표준시는 {_fmt_offset(off)} 였어서 그 기준으로 계산했어")
     elif zone not in ("Asia/Seoul", "Asia/Pyongyang"):
         notes.append(f"현지 표준시 {_fmt_offset(off)} 기준으로 계산했어")
+    if natal.get("night_zi"):
+        notes.append("밤 11시대 출생이라 "
+                     + ("일주는 그날로 두고 시주만 다음날 자시로 봤어 (야자시 기준)"
+                        if natal.get("zi_mode") == "split"
+                        else "다음날 일주로 봤어 (정자시 기준). 야자시로 보려면 기준을 바꿔 봐"))
     if not natal.get("city_ok", True):
         notes.append("태어난 도시를 목록에서 찾지 못해 남한 중앙 경도로 어림했어. "
                      "가까운 큰 도시 이름을 넣으면 시주가 더 정확해져")

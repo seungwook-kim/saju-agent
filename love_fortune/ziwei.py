@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from .lunar import solar_to_lunar, birth_moment
-from .manseryuk import STEMS_KR, BRANCHES_KR, STEM_ELEMENT, normalize_sex
+from .manseryuk import STEMS_KR, BRANCHES_KR, STEM_ELEMENT, normalize_sex, ZI_MODE
 
 MAIN_STARS = ["자미", "천기", "태양", "무곡", "천동", "염정",
               "천부", "태음", "탐랑", "거문", "천상", "천량", "칠살", "파군"]
@@ -144,8 +144,9 @@ def ziwei_chart(birth: date, hour: int | None = 12, minute: int = 0,
     eff_date = true_dt.date()
     night_zi = False
     if true_dt.hour >= 23:
-        eff_date = eff_date + timedelta(days=1)
         night_zi = True
+        if ZI_MODE.get() != "split":     # 야자시면 음력 날짜는 그날 그대로 (iztro 의 늦은 자시와 같다)
+            eff_date = eff_date + timedelta(days=1)
     hb = ((true_dt.hour + 1) // 2) % 12  # 자시=0
 
     ly, lm, ld, is_leap = solar_to_lunar(eff_date.year, eff_date.month, eff_date.day)
