@@ -526,51 +526,6 @@ table.life td,table.life th{border:1px solid #ddd;padding:.3em .5em;text-align:c
 @media (max-width:640px){.card{padding:.8em}table.life{font-size:.72em}}
 """
 
-HOME_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>종합 사주 (로컬·정통 계산)</title><style>{css}</style></head><body>
-<header><h1>💫 종합 사주</h1>
-<p>[정통 계산] 사주·자미두수·점성술 전통 공식 그대로 · 입력값은 파일에 저장되지 않음</p></header>
-<main><div class="card"><h2>🔮 오늘의 운세 보기</h2>
-<form method="post" action="/report"><div class="form-grid">
-<label>생년월일<input name="birth" type="text" value="1995-02-28" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
-<label>태어난 시간<input name="birth_time" type="time" value="12:00">
-<span style="font-size:.85em"><input name="unknown_time" type="checkbox" value="1" style="width:auto"> 모름</span></label>
-<label>성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
-<label>태어난 도시<input name="city" value="부산"></label>
-</div><p><label><input name="tomorrow" type="checkbox" value="1" style="width:auto"> 내일 운세 보기</label></p>
-<button type="submit">운세 보기</button></form></div>
-<div class="card"><h2>💞 두 사람 궁합 보기</h2>
-<form method="post" action="/match"><div class="form-grid">
-<label>내 생년월일<input name="birth" type="text" value="1995-02-28" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
-<label>내가 태어난 시간<input name="birth_time" type="time" value="12:00">
-<span style="font-size:.85em"><input name="unknown_time" type="checkbox" value="1" style="width:auto"> 모름</span></label>
-<label>내 성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
-<label>내가 태어난 도시<input name="city" value="부산"></label>
-<label>상대 생년월일<input name="birth2" type="text" value="1997-06-15" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar2"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap2" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
-<label>상대가 태어난 시간<input name="birth2_time" type="time" value="12:00">
-<span style="font-size:.85em"><input name="unknown_time2" type="checkbox" value="1" style="width:auto"> 모름</span></label>
-<label>상대 성별<select name="sex2"><option value="female">여자</option><option value="male">남자</option></select></label>
-<label>상대가 태어난 도시<input name="city2" value="서울"></label>
-</div>
-<button type="submit">궁합 보기</button></form></div>
-<div class="card"><h2>📅 길일 고르기</h2>
-<form method="post" action="/pick"><div class="form-grid">
-<label>생년월일<input name="birth" type="text" value="1995-02-28" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
-<label>태어난 시간<input name="birth_time" type="time" value="12:00">
-<span style="font-size:.85em"><input name="unknown_time" type="checkbox" value="1" style="width:auto"> 모름</span></label>
-<label>성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
-<label>태어난 도시<input name="city" value="부산"></label>
-<label>시작일<input name="from_date" type="date" value="2026-10-01" required></label>
-<label>끝일<input name="to_date" type="date" value="2026-10-31" required></label>
-<label>목적<select name="domain"><option value="total">총운</option><option value="love">연애</option><option value="career">직장</option><option value="money">금전</option></select></label>
-</div>
-<button type="submit">길일 보기</button></form></div>
-<div class="card"><h2>💬 상담 에이전트</h2>
-<p>리포트를 먼저 조회하면, 그 내용을 아는 상담 에이전트와 채팅할 수 있어요.
-기본은 구독 AI 모델이 답하고, 연결이 안 되면 로컬 에이전트가 답해요.</p></div></main>
-<footer>정통 공식 기반 상세 해석 · 네트워크 전송 없음.</footer></body></html>"""
-
 REPORT_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>종합 사주 결과</title><style>{css}</style></head><body>
@@ -1333,6 +1288,44 @@ details.acc .body p{margin:.4rem 0;font-size:.92rem}
 #sheet.on{display:block;animation:fade .22s var(--ease)}
 #sheet h3{margin:.2rem 0 .5rem}
 .scrim{position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.4);display:none}
+div.f{display:grid;gap:.3rem;font-size:.85rem;color:var(--muted)}
+.datebtn{width:100%;min-height:44px;display:flex;justify-content:space-between;align-items:center;
+  gap:.5rem;background:#221c16;border:1px solid var(--line);border-radius:10px;color:var(--ink);
+  font:inherit;font-size:1rem;padding:.55rem .7rem;cursor:pointer;text-align:left}
+.datebtn::after{content:"▾";color:var(--muted)}
+.datebtn:hover,.datebtn:focus-visible{border-color:var(--accent);outline:none}
+#dpScrim{z-index:45}
+#dp{position:fixed;z-index:50;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 32px);overflow-y:auto;display:none;
+  background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:1rem 1.1rem 1.1rem;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+#dp.on{display:block;animation:dpin .18s var(--ease)}
+@keyframes dpin{from{opacity:0}to{opacity:1}}
+@media (max-width:520px){#dp{top:auto;bottom:0;left:0;transform:none;width:100%;
+  border-radius:16px 16px 0 0;max-height:88vh}}
+.dp-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.dp-head h3{margin:0;font-size:1.1rem}
+.dp-cal{font-size:.8rem;border:1px solid var(--accent);color:var(--accent-hi);border-radius:99px;padding:.1rem .65rem}
+.dp-crumbs{display:flex;gap:.4rem;margin:.75rem 0 .2rem;flex-wrap:wrap}
+.dp-crumbs button{background:var(--card2);border:1px solid var(--line);border-radius:99px;color:var(--ink);
+  font:inherit;font-size:.9rem;padding:.3rem .8rem;min-height:36px;cursor:pointer}
+.dp-crumbs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.dp-crumbs button:disabled{opacity:.4;cursor:default}
+.dp-sub{font-size:.82rem;color:var(--muted);margin:.8rem 0 .4rem}
+.dp-grid{display:grid;gap:.4rem}
+.dp-g4{grid-template-columns:repeat(4,1fr)}.dp-g5{grid-template-columns:repeat(5,1fr)}
+.dp-g7{grid-template-columns:repeat(7,1fr)}
+.dp-grid button{min-height:46px;background:var(--card2);border:1px solid var(--line);border-radius:10px;
+  color:var(--ink);font:inherit;font-size:1rem;cursor:pointer;padding:.2rem}
+.dp-grid button:hover:not(:disabled),.dp-grid button:focus-visible{border-color:var(--accent);outline:none}
+.dp-grid button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.dp-grid button:disabled{opacity:.28;cursor:default}
+.dp-grid button.leap{border-style:dashed}
+.dp-grid button small{display:block;font-size:.7rem;color:var(--muted);line-height:1.1}
+.dp-grid button.on small{color:#fff}
+.dp-grid .sun{color:#ef8a74}.dp-grid .on.sun{color:#fff}
+.dp-wk{font-size:.75rem;text-align:center;color:var(--muted);padding:.1rem 0}
+.dp-wk.sun{color:#ef8a74}
 .scrim.on{display:block}
 footer.site{max-width:720px;margin:0 auto;padding:0 1rem 2.5rem;color:var(--faint);font-size:.8rem}
 @media print{.top,.chatbox,button.go,button.ghost,.dtabs,.btnrow{display:none}main{padding:0}body{background:#fff}.card{break-inside:avoid}}
@@ -1384,10 +1377,9 @@ APP_BODY = """
   <div class="card"><h2><span class="num">1</span>오늘의 운세 보기</h2>
     <form class="grid" id="fFortune">
       <div class="row2">
-        <label class="f">생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+        <div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1995-02-28</button><input type="hidden" name="birth" value="1995-02-28"><input type="hidden" name="leap" value=""></div>
         <label class="f">달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
       </div>
-      <label class="check"><input name="leap" type="checkbox" value="1"> 음력 윤달 생일</label>
       <div class="row2">
         <label class="f">태어난 시간<input name="birth_time" type="time" value="12:00"></label>
         <label class="check"><input name="unknown_time" type="checkbox" value="1"> 모름</label>
@@ -1405,16 +1397,12 @@ APP_BODY = """
   <div class="card"><h2><span class="num">2</span>두 사람 궁합 보기</h2>
     <form class="grid" id="fMatch">
       <div class="row2">
-        <label class="f">내 생년월일<input name="birth" type="date" value="1995-02-28" required></label>
-        <label class="f">상대 생년월일<input name="birth2" type="date" value="1997-06-15" required></label>
+        <div class="f"><span>내 생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1995-02-28</button><input type="hidden" name="birth" value="1995-02-28"><input type="hidden" name="leap" value=""></div>
+        <div class="f"><span>상대 생년월일</span><button type="button" class="datebtn" data-dp="birth2" aria-haspopup="dialog">1997-06-15</button><input type="hidden" name="birth2" value="1997-06-15"><input type="hidden" name="leap2" value=""></div>
       </div>
       <div class="row2">
         <label class="f">내 생일 달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
         <label class="f">상대 생일 달력<select name="calendar2" data-cal="birth2"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
-      </div>
-      <div class="row2">
-        <label class="check"><input name="leap" type="checkbox" value="1"> 내 생일 윤달</label>
-        <label class="check"><input name="leap2" type="checkbox" value="1"> 상대 생일 윤달</label>
       </div>
       <div class="row2">
         <label class="f">내가 태어난 시간<input name="birth_time" type="time" value="12:00"></label>
@@ -1440,10 +1428,9 @@ APP_BODY = """
   <div class="card"><h2><span class="num">3</span>길일 고르기</h2>
     <form class="grid" id="fPick">
       <div class="row2">
-        <label class="f">생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+        <div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1995-02-28</button><input type="hidden" name="birth" value="1995-02-28"><input type="hidden" name="leap" value=""></div>
         <label class="f">달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
       </div>
-      <label class="check"><input name="leap" type="checkbox" value="1"> 음력 윤달 생일</label>
       <div class="row2">
         <label class="f">태어난 시간<input name="birth_time" type="time" value="12:00"></label>
         <label class="check"><input name="unknown_time" type="checkbox" value="1"> 모름</label>
@@ -1464,6 +1451,13 @@ APP_BODY = """
 </main>
 <footer class="site">정통 공식 기반 상세 해석. 단정적 예언이 아니라 흐름으로 읽습니다.</footer>
 <div class="scrim" id="scrim"></div>
+<div class="scrim" id="dpScrim"></div>
+<div id="dp" role="dialog" aria-modal="true" aria-labelledby="dpTitle">
+  <div class="dp-head"><h3 id="dpTitle">생년월일 선택</h3><span class="dp-cal" id="dpCal">양력</span></div>
+  <div class="dp-crumbs" id="dpCrumbs"></div>
+  <div id="dpBody"></div>
+  <button class="ghost" id="dpClose" type="button" style="margin-top:.9rem;width:100%">닫기</button>
+</div>
 <div id="sheet"><h3 id="sheetTitle"></h3><div id="sheetBody"></div>
 <button class="ghost" id="sheetClose" style="margin-top:.8rem;width:100%">닫기</button></div>
 """
@@ -1732,14 +1726,163 @@ async function submitForm(formId,outId,url,render){
     btn.disabled=false;
   });
 }
-// 음력을 고르면 날짜 칸을 글자 입력으로 바꾼다. 음력에는 2월 30일처럼
-// 양력 달력 위젯이 받지 못하는 날짜가 있기 때문이다.
-document.querySelectorAll('select[data-cal]').forEach(sel=>sel.addEventListener('change',()=>{
-  const inp=sel.form.querySelector('input[name="'+sel.dataset.cal+'"]');
-  const lunar=sel.value==='lunar';
-  inp.type=lunar?'text':'date';
-  inp.placeholder=lunar?'음력 YYYY-MM-DD':'';
-}));
+// ---------------- 생년월일 캘린더 선택기 ----------------
+// 글자로 입력하지 않고 연대, 연도, 월, 일 순서로 눌러서 고른다.
+// 음력은 그해 실제 달 목록(윤달 포함)과 그달 일수를 서버에서 받아 보여 준다.
+const DP={form:null,name:'',cal:'solar',y:0,m:0,d:0,leap:false,step:'year',decade:1990,cache:{}};
+const NOW=new Date(), THIS_Y=NOW.getFullYear(), MIN_Y=1900;
+const WK=['일','월','화','수','목','금','토'];
+const pad=n=>String(n).padStart(2,'0');
+function dpF(form,name){
+  const n2=name==='birth2'?'2':'';
+  return {val:form.querySelector('input[name="'+name+'"]'),leap:form.querySelector('input[name="leap'+n2+'"]'),
+    cal:form.querySelector('select[name="calendar'+n2+'"]'),btn:form.querySelector('[data-dp="'+name+'"]')};
+}
+function dpText(cal,v,leap,ym){
+  const head=cal==='lunar'?'음력 ':'양력 ';
+  if(!v&&ym){const p=ym.split('-').map(Number);return head+p[0]+'년 '+p[1]+'월 · 날짜를 다시 골라 주세요';}
+  if(!v) return '눌러서 선택';
+  const p=v.split('-').map(Number);
+  return head+p[0]+'년 '+(leap?'윤':'')+p[1]+'월 '+p[2]+'일';
+}
+function dpRefresh(form,name){
+  const f=dpF(form,name);
+  f.btn.textContent=dpText(f.cal.value,f.val.value,f.leap.value==='1',f.val.dataset.ym);
+}
+async function lunarMonths(y){
+  if(!DP.cache[y]){
+    const r=await fetch('/api/lunar-year?y='+y);
+    if(!r.ok) throw new Error('음력 달력을 불러오지 못했어요');
+    DP.cache[y]=(await r.json()).months;
+  }
+  return DP.cache[y];
+}
+function dpOpen(form,name){
+  const f=dpF(form,name);
+  Object.assign(DP,{form,name,cal:f.cal.value,y:0,m:0,d:0,leap:false,step:'year'});
+  const v=f.val.value||f.val.dataset.ym||'';
+  if(v){
+    const p=v.split('-').map(Number);
+    DP.y=p[0];DP.m=p[1];DP.d=p[2]||0;DP.leap=f.leap.value==='1';
+    if(!DP.d) DP.step='day';          // 연·월은 살아 있고 날짜만 다시 고를 때
+  }
+  DP.decade=Math.floor((DP.y||1990)/10)*10;
+  $('dpCal').textContent=DP.cal==='lunar'?'음력':'양력';
+  $('dp').classList.add('on');$('dpScrim').classList.add('on');
+  dpRender();
+}
+function dpClose(){
+  $('dp').classList.remove('on');$('dpScrim').classList.remove('on');
+  const f=DP.form&&dpF(DP.form,DP.name);if(f) f.btn.focus();
+}
+function dpBtn(label,attrs,cls,sub){
+  return '<button type="button" class="'+(cls||'')+'" '+attrs+'>'+esc(label)+(sub?'<small>'+esc(sub)+'</small>':'')+'</button>';
+}
+async function dpRender(){
+  const c=[];
+  c.push(dpBtn(DP.y?DP.y+'년':'연도','data-go="year"',DP.step==='year'?'on':''));
+  c.push(dpBtn(DP.m?(DP.leap?'윤':'')+DP.m+'월':'월','data-go="month"'+(DP.y?'':' disabled'),DP.step==='month'?'on':''));
+  c.push(dpBtn(DP.d&&DP.step!=='year'&&DP.step!=='month'?DP.d+'일':'일','data-go="day"'+(DP.m?'':' disabled'),DP.step==='day'?'on':''));
+  $('dpCrumbs').innerHTML=c.join('');
+  let h='';
+  if(DP.step==='year'){
+    h+='<div class="dp-sub">연대를 먼저 고르세요</div><div class="dp-grid dp-g4">';
+    for(let dc=MIN_Y;dc<=THIS_Y;dc+=10) h+=dpBtn(dc+'년대','data-dec="'+dc+'"',dc===DP.decade?'on':'');
+    h+='</div><div class="dp-sub">'+DP.decade+'년대에서 태어난 해</div><div class="dp-grid dp-g5">';
+    for(let y=DP.decade;y<DP.decade+10;y++) h+=dpBtn(y,'data-y="'+y+'"'+(y>THIS_Y?' disabled':''),y===DP.y?'on':'');
+    h+='</div>';
+  }else if(DP.step==='month'){
+    h+='<div class="dp-sub">'+DP.y+'년 '+(DP.cal==='lunar'?'음력 ':'')+'태어난 달</div><div class="dp-grid dp-g4">';
+    if(DP.cal==='lunar'){
+      let ms;
+      try{ms=await lunarMonths(DP.y);}catch(e){$('dpBody').innerHTML='<div class="err">'+esc(e.message)+'</div>';return;}
+      ms.forEach(x=>{h+=dpBtn((x.leap?'윤':'')+x.m+'월','data-m="'+x.m+'" data-leap="'+(x.leap?1:0)+'"',
+        (x.leap?'leap ':'')+(x.m===DP.m&&x.leap===DP.leap?'on':''),x.days+'일');});
+    }else{
+      for(let m=1;m<=12;m++){
+        const future=DP.y===THIS_Y&&m>NOW.getMonth()+1;
+        h+=dpBtn(m+'월','data-m="'+m+'" data-leap="0"'+(future?' disabled':''),m===DP.m?'on':'');
+      }
+    }
+    h+='</div>';
+  }else{
+    h+='<div class="dp-sub">'+DP.y+'년 '+(DP.cal==='lunar'?'음력 ':'')+(DP.leap?'윤':'')+DP.m+'월에서 태어난 날</div>';
+    if(DP.cal==='lunar'){
+      const ms=await lunarMonths(DP.y);
+      const mo=ms.find(x=>x.m===DP.m&&x.leap===DP.leap);
+      const n=mo?mo.days:30;
+      h+='<div class="dp-grid dp-g7">';
+      for(let d=1;d<=n;d++) h+=dpBtn(d,'data-d="'+d+'"',d===DP.d?'on':'');
+      h+='</div><div class="dp-sub">이 달은 '+n+'일까지 있어요. 음력 날짜라 요일은 표시하지 않아요.</div>';
+    }else{
+      const first=new Date(DP.y,DP.m-1,1).getDay(), n=new Date(DP.y,DP.m,0).getDate();
+      h+='<div class="dp-grid dp-g7">'+WK.map((w,i)=>'<div class="dp-wk'+(i===0?' sun':'')+'">'+w+'</div>').join('');
+      for(let i=0;i<first;i++) h+='<div></div>';
+      for(let d=1;d<=n;d++){
+        const future=new Date(DP.y,DP.m-1,d)>NOW;
+        const sun=(first+d-1)%7===0;
+        h+=dpBtn(d,'data-d="'+d+'"'+(future?' disabled':''),(sun?'sun ':'')+(d===DP.d?'on':''));
+      }
+      h+='</div>';
+    }
+  }
+  $('dpBody').innerHTML=h;
+  const on=$('dpBody').querySelector('.dp-g5 .on, .dp-g7 .on')||$('dpBody').querySelector('button:not(:disabled)');
+  if(on) on.focus({preventScroll:true});
+}
+$('dp').addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(!b||b.disabled) return;
+  if(b.dataset.go){DP.step=b.dataset.go;dpRender();return;}
+  if(b.dataset.dec){DP.decade=+b.dataset.dec;dpRender();return;}
+  if(b.dataset.y){DP.y=+b.dataset.y;DP.m=0;DP.d=0;DP.leap=false;DP.step='month';dpRender();return;}
+  if(b.dataset.m){DP.m=+b.dataset.m;DP.leap=b.dataset.leap==='1';DP.d=0;DP.step='day';dpRender();return;}
+  if(b.dataset.d){
+    DP.d=+b.dataset.d;
+    const f=dpF(DP.form,DP.name);
+    f.val.value=DP.y+'-'+pad(DP.m)+'-'+pad(DP.d);
+    delete f.val.dataset.ym;
+    f.leap.value=DP.leap?'1':'';
+    dpRefresh(DP.form,DP.name);
+    dpClose();
+  }
+});
+$('dpClose').addEventListener('click',dpClose);
+$('dpScrim').addEventListener('click',dpClose);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('dp').classList.contains('on')) dpClose();});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-dp]');
+  if(b) dpOpen(b.form,b.dataset.dp);
+});
+// 양력과 음력을 바꿔도 고른 연·월·일 숫자는 그대로 두고 해석만 바꾼다.
+// (예전엔 같은 날의 다른 달력 날짜로 바꿔서, 고른 날짜가 사라진 것처럼 보였다)
+// 바꾼 달력에 그 날이 없으면 연·월은 두고 날짜만 다시 고르게 캘린더를 연다.
+async function dayExists(cal,y,m,d){
+  if(cal==='lunar'){
+    try{const mo=(await lunarMonths(y)).find(x=>x.m===m&&!x.leap);return !!mo&&d<=mo.days;}
+    catch(e){return true;}          // 확인을 못 하면 그대로 두고 서버 검사에 맡긴다
+  }
+  const dt=new Date(y,m-1,d);
+  return dt.getMonth()===m-1&&dt<=NOW;
+}
+document.querySelectorAll('select[data-cal]').forEach(sel=>{
+  sel.addEventListener('change',async()=>{
+    const form=sel.form,name=sel.dataset.cal,f=dpF(form,name);
+    f.leap.value='';                  // 윤달 표시는 음력 캘린더에서 윤달을 고를 때만 붙는다
+    const v=f.val.value;
+    if(v){
+      const p=v.split('-').map(Number);
+      if(!(await dayExists(sel.value,p[0],p[1],p[2]))){
+        f.val.value='';f.val.dataset.ym=p[0]+'-'+pad(p[1]);
+        dpRefresh(form,name);
+        dpOpen(form,name);
+        return;
+      }
+    }
+    dpRefresh(form,name);
+  });
+});
+document.querySelectorAll('[data-dp]').forEach(b=>dpRefresh(b.form,b.dataset.dp));
 submitForm('fFortune','rFortune','/api/report',renderFortune);
 submitForm('fMatch','rMatch','/api/match',renderMatch);
 submitForm('fPick','rPick','/api/pick',renderPick);
@@ -1791,12 +1934,28 @@ class Handler(BaseHTTPRequestHandler):
                        "text/html; charset=utf-8")
         elif self.path == "/healthz":
             self._send(b'{"ok":true}', "application/json")
+        elif self.path.split("?")[0] == "/api/lunar-year":
+            self._lunar_year()
         elif self.path == "/api/glossary":
             from .glossary import TERMS
             body = json.dumps(TERMS, ensure_ascii=False).encode("utf-8")
             self._send(body, "application/json; charset=utf-8")
         else:
             self.send_error(404)
+
+    def _lunar_year(self):
+        """그해 음력 달 목록 (캘린더 선택기용). ?y=1995"""
+        from urllib.parse import parse_qs, urlparse
+        from .lunar import MIN_YEAR, MAX_YEAR, _months
+        try:
+            y = int(parse_qs(urlparse(self.path).query).get("y", [""])[0])
+            if not MIN_YEAR <= y <= MAX_YEAR:
+                raise ValueError
+        except ValueError:
+            self._fail(400, f"연도는 {MIN_YEAR}~{MAX_YEAR} 사이여야 해")
+            return
+        months = [{"m": m, "leap": leap, "days": days} for m, leap, days in _months(y)]
+        self._json({"year": y, "months": months})
 
     def _fields(self) -> dict:
         n = int(self.headers.get("Content-Length", 0) or 0)

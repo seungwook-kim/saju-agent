@@ -275,6 +275,24 @@ def test_form_error_page_does_not_crash(server):
     assert "YYYY-MM-DD" in ei.value.read().decode("utf-8")
 
 
+def test_birth_is_picked_not_typed():
+    import re
+    from love_fortune.web import app_page
+    h = app_page()
+    # 생년월일은 글자·날짜 입력칸이 아니라 누르는 버튼 + 숨은 값이다
+    assert not re.search(r'name="birth2?" type="(?:text|date)"', h)
+    assert h.count('class="datebtn" data-dp=') == 4
+    assert 'name="leap" type="checkbox"' not in h
+
+
+def test_lunar_year_api(server):
+    with urllib.request.urlopen(server + "/api/lunar-year?y=2023", timeout=30) as r:
+        j = json.loads(r.read().decode("utf-8"))
+    assert {"m": 2, "leap": True, "days": 29} in j["months"] and len(j["months"]) == 13
+    with pytest.raises(urllib.error.HTTPError):
+        urllib.request.urlopen(server + "/api/lunar-year?y=1800", timeout=30)
+
+
 def test_chat_local_backend(server):
     code, j = _post(server, "/api/report", {"birth": "1995-02-28", "sex": "male"})
     code, j = _post(server, "/api/chat", {"token": j["token"], "message": "오늘 연애운 어때",
