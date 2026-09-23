@@ -20,12 +20,11 @@ def build_stories(natal: dict, ma: dict, adv: dict, target) -> dict:
     total = [
         f"오늘은 {target.isoformat()}일이다. "
         f"나는 일간 {ilgan}({elem} 기운), 즉 {ilgan}의 기질로 하루를 시작한다.",
-        f"오늘 총운은 {t['score']}점이다. {t['head']} "
+        f"오늘 총운은 {t['score']}점이다. {t['head']}. "
         f"연애 {t['love']}점, 직장 {t['career']}점, 금전 {t['money']}점으로, "
         f"가장 높은 영역부터 먼저 손대면 하루가 가볍다.",
-        f"오늘의 키워드는 {', '.join(t['keywords'])}이다. "
-        f"색은 {adv['color']}, 장소는 {adv['places'][0]} 쪽이 잘 맞고, "
-        f"타로는 {adv['tarot']}가 나와 {adv['tarot_line']}",
+        # 색·장소·타로는 날짜 해시로 뽑는 재미 요소라 오늘 판단 문단에서 뺐다 ('재미로 보는 점괘')
+        f"오늘의 키워드는 {', '.join(t['keywords'])}이다.",
     ]
 
     vd = ma["venus_detail"]

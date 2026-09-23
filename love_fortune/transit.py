@@ -101,7 +101,7 @@ def describe(tr: dict, limit: int = 4) -> list[str]:
         tp, np_ = planets[h["transit"]], planets[h["natal"]]
         mood = "기운이 잘 맞물리는" if h["tone"] > 0 else "긴장이 생기기 쉬운" if h["tone"] < 0 else "힘이 모이는"
         out.append(f"오늘 {tp['name']}({tp['keywords']})이 내 {np_['name']}({np_['keywords']})과 "
-                   f"{h['aspect']}({h['talk']} 각도, 오차 {h['diff']}도)을 이뤄 {mood} 흐름")
+                   f"{h['aspect']}({h['talk']} 각도, 오차 {h['diff']}도)을 이뤄 {mood} 흐름이야.")
     if not tr["hits"]:
         out.append("오늘은 내 출생 행성과 딱 맞물리는 큰 각도가 없어 하늘이 조용한 날이야.")
     if tr["retro"]:

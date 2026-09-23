@@ -13,7 +13,7 @@ def test_example_case_runs():
     assert "오늘 연애운" in text
     assert "오늘 총운" in text and "오늘 직장운" in text and "오늘 금전운" in text
     assert "일간(나)" in text
-    assert "타로" in text and "주역" in text and "오미쿠지" in text
+    assert "타로" in text and "주역" in text and "[재미로 보는 점괘]" in text   # 오미쿠지는 뺐다
     assert "자미두수" in text and "점성술" in text
 
 

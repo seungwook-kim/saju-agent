@@ -94,10 +94,11 @@ def branch_relation(a: int, b: int) -> list[str]:
 
 
 def _jitter(seed: str, lo: int = -5, hi: int = 5) -> int:
-    """결정적 지터: 같은 입력+날짜면 항상 같은 값."""
-    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()
-    span = hi - lo + 1
-    return lo + (int(h[:8], 16) % span)
+    """예전엔 날짜 해시로 ±5점을 흔들었다. 근거 없는 잡음이라 없앴다 (항상 0).
+
+    같은 날 점수 차이는 이제 사주·자미두수·점성술·택일 층(today.py)에서만 난다.
+    """
+    return 0
 
 
 # 연애운에서 오늘 기운이 '이성 인연의 별'일 때 주는 가점. 명리에서 남성에게는

@@ -26,6 +26,12 @@ from .domains import (career_score, money_score, total_score, band_headline,
                       CAREER_STAR, MONEY_STAR, _pick, _element_reasons)
 
 
+def _rs(rels) -> str:
+    """관계 설명을 '...사이' 로 끝나게 (예전엔 '무난한 사이 사이야' 처럼 겹쳤다)."""
+    t = _rel_text(rels)
+    return t if t.endswith("사이") else t + " 사이"
+
+
 def _stage(day_stem: int, day_branch: int) -> str:
     return STAGE_NAMES[TWELVE_STAGES[day_stem].index(day_branch)]
 
@@ -202,6 +208,17 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
     career_sc, career_reasons, _e2 = career_score(ds, branches, ts, tb, today.isoformat())
     money_sc, money_reasons, _e3 = money_score(ds, branches, ts, tb, today.isoformat())
 
+    # 9-1. 오늘을 세 체계(사주 층·자미 유일·점성 트랜짓)와 택일로 함께 본다 (today.py)
+    from .today import layers as _today_layers
+    from .yongsin import analyze as _ys_analyze
+    _strong = _ys_analyze(ds, stems, branches, BRANCH_BONQI, mb)["strong"]
+    today_view = _today_layers(birth, hour, minute, sex, city, today, natal, zw, _strong)
+    _clamp = lambda v: max(1, min(100, v))
+    love_sc = _clamp(love_sc + today_view["adj"]["love"])
+    career_sc = _clamp(career_sc + today_view["adj"]["career"])
+    money_sc = _clamp(money_sc + today_view["adj"]["money"])
+    love_head = headline(love_sc)
+
     def _palace_slice(palace_name: str) -> list[str]:
         if zw is None:
             return ["시간 미상이라 삼방사정 제외"]
@@ -264,6 +281,8 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
     total_sc, total_reasons, _e4, keywords = total_score(
         ds, branches, ts, tb, love_sc, career_sc, money_sc,
         daxian_hua, liunian_branch, today.isoformat())
+    total_sc = max(1, min(100, total_sc + today_view["adj"]["total"] - round(
+        sum(today_view["adj"][k] for k in ("love", "career", "money")) / 3)))
 
     career = {"score": career_sc, "head": band_headline(career_sc, "career"),
               "reasons": career_reasons,
@@ -307,22 +326,22 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
     _du_line_n = (f"지금 대운({_cur['ganzhi']}운)은 천간 {_cur['ganzhi'][0]}이 나에게 "
                   f"{GOD_SHORT[_du_god]} 기운이야. 10년 돈의 테마로 이렇게 흘러.")
     _du_land_c = (f"지금 대운 지지 {_cur['ganzhi'][1]}와 일지는 "
-                  f"{_rel_text(branch_relation(_dub, db))} 사이야. 10년 일의 터가 이렇게 놓여 있어.")
+                  f"{_rs(branch_relation(_dub, db))}야. 10년 일의 터가 이렇게 놓여 있어.")
     if _unknown:
         _lyb = tyb
         career_extra = [
             _du_line_c,
             _du_land_c,
             "시간 미상이라 관록궁 위치 관계는 제외.",
-            f"토성(책임과 과제)은 {_pos['saturn']['sign']}에 머물러 있어. "
+            f"태어날 때 토성(책임과 과제)은 {_pos['saturn']['sign']}에 있었어. "
             "시간 미상이라 하우스 칸은 제외.",
         ]
         money_extra = [
             _du_line_n,
             "시간 미상이라 재백궁 위치 관계는 제외.",
-            f"금성(취향과 돈감각)은 {_pos['venus']['sign']}에 머물러 있어. "
+            f"태어날 때 금성(취향과 돈감각)은 {_pos['venus']['sign']}에 있었어. "
             "시간 미상이라 하우스 칸은 제외.",
-            f"목성(확장과 기회)은 {_pos['jupiter']['sign']}에 머물러 넓히는 중이야.",
+            f"태어날 때 목성(확장과 기회)은 {_pos['jupiter']['sign']}에 있어 그 결로 기회를 넓히는 편이야.",
         ]
         love_extra = ["시간 미상이라 유년궁 관계는 제외."]
     else:
@@ -334,23 +353,23 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
             _du_line_c,
             _du_land_c,
             f"올해 유년 {BRANCHES_KR[_lyb]}와 관록궁은 "
-            f"{_rel_text(branch_relation(_lyb, _guanlu_b))} 사이야.",
-            f"토성(책임과 과제)은 {_pos['saturn']['sign']}에 머물러 "
-            f"{_hou['토성']}번 하우스 칸에서 다잡아주는 중이야.",
-            f"수성(말과 실무)은 {_pos['mercury']['sign']} {_hou['수성']}번 하우스 칸에서 오가고 있어.",
+            f"{_rs(branch_relation(_lyb, _guanlu_b))}야.",
+            f"태어날 때 토성(책임과 과제)은 {_pos['saturn']['sign']} {_hou['토성']}번 하우스 칸에 있어, "
+            "평생 그 영역에서 책임을 다잡게 하는 별이야.",
+            f"태어날 때 수성(말과 실무)은 {_pos['mercury']['sign']} {_hou['수성']}번 하우스 칸에 있어 그쪽에서 말과 실무가 오가기 쉬워.",
         ]
         money_extra = [
             _du_line_n,
             f"올해 유년 {BRANCHES_KR[_lyb]}와 재백궁은 "
-            f"{_rel_text(branch_relation(_lyb, _caibo_b))} 사이야.",
+            f"{_rs(branch_relation(_lyb, _caibo_b))}야.",
             f"지금 대운 지지 {_cur['ganzhi'][1]}와 재백궁은 "
-            f"{_rel_text(branch_relation(_dub, _caibo_b))} 사이야. 10년 돈의 그릇이 이렇게 놓여 있어.",
-            f"금성(취향과 돈감각)은 {_pos['venus']['sign']} {_hou['금성']}번 하우스 칸에서 가꾸는 중이야.",
-            f"목성(확장과 기회)은 {_pos['jupiter']['sign']} {_hou['목성']}번 하우스 칸에서 넓히는 중이야.",
+            f"{_rs(branch_relation(_dub, _caibo_b))}야. 10년 돈의 그릇이 이렇게 놓여 있어.",
+            f"태어날 때 금성(취향과 돈감각)은 {_pos['venus']['sign']} {_hou['금성']}번 하우스 칸에 있어 그쪽에서 돈 감각을 가꾸는 편이야.",
+            f"태어날 때 목성(확장과 기회)은 {_pos['jupiter']['sign']} {_hou['목성']}번 하우스 칸에 있어 그쪽에서 기회를 넓히기 쉬워.",
         ]
         love_extra = [
             f"올해 유년 {BRANCHES_KR[_lyb]}와 부처궁은 "
-            f"{_rel_text(branch_relation(_lyb, _spouse_b))} 사이야.",
+            f"{_rs(branch_relation(_lyb, _spouse_b))}야.",
         ]
 
     # 10b. 사주 대운 전체표 (8스텝, 각 대운의 천간 관계 풀이)
@@ -362,7 +381,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         dayun_full.append(
             f"{_st['ganzhi']}운({_st['from']}~{_st['to']}세): 천간 {_st['ganzhi'][0]}은 나에게 "
             f"{GOD_SHORT[_g2]} 기운, 지지 {_st['ganzhi'][1]}은 일지와 "
-            f"{_rel_text(branch_relation(db, _db2))} 사이야.")
+            f"{_rs(branch_relation(db, _db2))}야.")
 
     # 11. 월별 12개월 영역 운세 (월운, 해당 연도 1~12월)
     from datetime import datetime as _dt
@@ -376,8 +395,9 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         _cs, _, _ = career_score(ds, branches, _ms, _mb, _seedm)
         _ns, _, _ = money_score(ds, branches, _ms, _mb, _seedm)
         _godm = ten_god(ds, _ms)
-        _eline_c = _element_reasons(STEM_ELEMENT[ds], STEM_ELEMENT[_ms], "일")[1][0]
-        _eline_n = _element_reasons(STEM_ELEMENT[ds], STEM_ELEMENT[_ms], "돈")[1][0]
+        # 오행 설명은 오늘 기준 문장이라 '이달' 로 바꿔 쓴다
+        _eline_c = _element_reasons(STEM_ELEMENT[ds], STEM_ELEMENT[_ms], "일")[1][0].replace("오늘", "이달").replace("날이라", "달이라")
+        _eline_n = _element_reasons(STEM_ELEMENT[ds], STEM_ELEMENT[_ms], "돈")[1][0].replace("오늘", "이달").replace("날이라", "달이라")
         _best = max((("연애", _ls), ("직장", _cs), ("금전", _ns)),
                     key=lambda t: t[1])[0]
         monthly.append({
@@ -472,6 +492,9 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         "aspects_line": aspects_line,
         "dayun_line": dayun_line, "shensha_lines": shensha_lines,
         "meet_top3": meet_top3, "astro": ast, "ziwei": zw,
+        "today": today_view,
+        "today_elem": _elem,
+        "love": {"score": love_sc, "head": love_head, "reasons": love_reasons},
         "career": career, "money": money, "total": total,
         "dist": dist_lines,
         "career_extra": career_extra, "money_extra": money_extra,

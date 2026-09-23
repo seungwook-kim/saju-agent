@@ -223,7 +223,7 @@ def astro_puli(ma: dict) -> list[str]:
     if ma.get("hour_unknown"):
         out.append("시간 미상이라 하우스·상승궁 풀이는 제외, 행성 자리만 봐.")
         for body, p in ma["astro"]["positions"].items():
-            out.append(f"{BODY_KR[body]}은 {p['sign']}에 머물러 있어.")
+            out.append(f"태어날 때 {BODY_KR[body]}{_eun(BODY_KR[body])} {p['sign']}에 있었어.")
         for a in ma["astro"]["aspects"]:
             out.append(narrate_aspect(a))
         return out
@@ -296,10 +296,12 @@ def narrate_palace(p: dict, mains: list[str], xusui_now: int | None = None) -> s
 
 def narrate_planet(body_kr: str, sign: str, house: int,
                    retro: bool, cusp: bool) -> str:
-    s = (f"{body_kr}은 지금 {sign}에 머물러 {house}번 하우스 칸({HOUSE_TALK[house]})에서 "
-         f"{BODY_TALK[body_kr]} 중이야.")
+    # 출생 차트다. 예전엔 '지금 ~에 머물러 ~하는 중' 이라고 써서 오늘 하늘로 오해하게 했다.
+    from .josa import j
+    s = (f"태어날 때 {j(body_kr, '은')} {sign}, {house}번 하우스 칸({HOUSE_TALK[house]})에 있었어. "
+         f"평생 그 자리에서 {BODY_TALK[body_kr]} 별이야.")
     if retro:
-        s += " 지금은 역행 중이라 되돌아보고 고치기 좋은 때야."
+        s += " 태어날 때 역행 중이라 이 별이 맡은 일은 안으로 곱씹으며 익히는 편이라고 봐."
     if cusp:
         s += " 별자리 경계에 걸려 있어 다음 자리 기운도 살짝 섞여."
     return s

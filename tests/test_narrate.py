@@ -29,7 +29,8 @@ def test_narrate_functions():
          "daxian": (7, 16)}
     s = narrate_palace(p, ["염정"])
     assert "명궁 자리" in s and "염정" in s
-    assert narrate_planet("태양", "물고기자리", 10, False, False).startswith("태양은 지금")
+    # 출생 차트라 "지금" 이 아니라 "태어날 때" 로 말한다
+    assert narrate_planet("태양", "물고기자리", 10, False, False).startswith("태어날 때 태양은")
     assert "10번 하우스 칸" in narrate_planet("태양", "물고기자리", 10, False, False)
     assert "긴장" in narrate_aspect("태양–목성 형(85.8°)")
 

@@ -56,8 +56,8 @@ def _west_rel(a: str, b: str) -> str:
 
 
 def _jitter(seed: str) -> int:
-    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()
-    return -3 + (int(h[:8], 16) % 7)
+    """예전엔 해시로 ±3점을 흔들었다. 근거 없는 잡음이라 없앴다 (항상 0)."""
+    return 0
 
 
 def compatibility(a_birth: date, a_hour: int, a_minute: int, a_sex: str,

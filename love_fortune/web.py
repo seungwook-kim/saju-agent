@@ -110,16 +110,20 @@ def agent_context(birth: date, hour: int | None, minute: int, sex: str,
     ast = ma["astro"]
     zd = ma["ziwei_detail"]
     vd = ma["venus_detail"]
+    score, reasons = ma["love"]["score"], ma["love"]["reasons"]
+    _td = ma["today"]
+    _sys = " ; ".join(f"{x['name']}({x['signal']}) " + " ".join(x["lines"]) for x in _td["systems"])
     summary = (
         f"대상일 {target.isoformat()} / 일간 {natal['ilgan']}({natal['ilgan_element']}) / "
-        f"오늘 일진 {ganzhi_str(ts, tb)} / 점수 {score}점, {headline(score)} / "
+        f"오늘 일진 {ganzhi_str(ts, tb)} / 오늘종합 {_td['agreement']} {_td['focus']} / "
+        f"체계별 {_sys} / 오늘택일 {' '.join(_td['almanac']['lines'])} / "
+        f"점수 {score}점, {headline(score)} / "
         f"근거: {'; '.join(reasons)} / 행운의 색 {adv['color']}, 번호 {adv['number']}, "
         f"방향 {adv['direction']}, 시간대 {adv['time']}, 장소 {', '.join(adv['places'])}, "
         f"대화팁 {'; '.join(adv['talk'])}, 피할 것 {adv['avoid']} / "
         f"{ma['guo_line']} / {ast['compat_line']} / "
         f"생명수 {adv['life_path']}({adv['life_path_vibe']}) / "
         f"타로 {adv['tarot']}({adv['tarot_line']}) / 주역 {adv['gua']}({adv['gua_line']}) / "
-        f"오미쿠지 {adv['omikuji']}({adv['omikuji_line']}) / "
         f"배우자궁 {ma['god']}({ma['god_rel']}) / 상대 {ma['side']} / "
         f"관계 {ma['god_vibe']} / 관계팁 {ma['god_tip']} / 직업군 {ma['god_job']} / "
         f"{ma['star_line']} / 일주운성 {ma['stage']}({ma['stage_love']}) / "
@@ -1020,10 +1024,10 @@ def api_report_data(birth: date, hour: int | None, minute: int,
     _br = [s for _, s in (_natal["pillars"][k]
                           for k in ("year", "month", "day", "hour"))
            if s is not None]
-    _love_sc, _love_reasons, _today_elem = love_score(_natal["ilgan_stem"], _br, _ts,
-                                                      _tb, target.isoformat(), sex)
-    _adv = build_advice(_natal["ilgan"], _today_elem, target, birth)
     ma = detailed_reading(birth, hour, minute, sex, city, target)
+    _love_reasons = ma["love"]["reasons"]
+    _adv = build_advice(_natal["ilgan"], ma["today_elem"], target, birth)
+    _td = ma["today"]
     ast = ma["astro"]
     zw = ma["ziwei"]
     if zw is None:
@@ -1095,8 +1099,6 @@ def api_report_data(birth: date, hour: int | None, minute: int,
                  "tarot_line": _adv.get("tarot_line", ""),
                  "gua": _adv.get("gua", ""),
                  "gua_line": _adv.get("gua_line", ""),
-                 "omikuji": _adv.get("omikuji", ""),
-                 "omikuji_line": _adv.get("omikuji_line", ""),
                  "life_path": _adv.get("life_path", ""),
                  "life_path_vibe": _adv.get("life_path_vibe", "")},
         "ziwei": ziwei,
@@ -1128,6 +1130,13 @@ def api_report_data(birth: date, hour: int | None, minute: int,
                 "moon": ma["moon"], "moon_need": ma["moon_need"],
                 "love_extra": list(ma["love_extra"])},
         "month_line": ma["month_line"], "ilun": ilun,
+        "today": {"agreement": _td["agreement"], "focus": _td["focus"],
+                  "systems": [{"name": x["name"], "signal": x["signal"], "lines": list(x["lines"])}
+                              for x in _td["systems"]],
+                  "almanac": list(_td["almanac"]["lines"])},
+        "monthly": [{"month": r["month"], "ganzhi": r["ganzhi"], "love": r["love"],
+                     "career": r["career"], "money": r["money"], "god": r["god"]}
+                    for r in ma["monthly"]],
         "lifetime": {"phases": [{"name": p["name"], "line": p["line"]}
                                 for p in lt["phases"]],
                      "current": {"range": list(lt["current"]["range"]),
@@ -1289,6 +1298,12 @@ details.acc .body p{margin:.4rem 0;font-size:.92rem}
 #sheet h3{margin:.2rem 0 .5rem}
 .scrim{position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.4);display:none}
 div.f{display:grid;gap:.3rem;font-size:.85rem;color:var(--muted)}
+.sys{border-top:1px solid var(--line);padding-top:.55rem;margin-top:.6rem}
+.sys-h{font-weight:700;margin-bottom:.2rem}
+.sig{display:inline-block;font-size:.75rem;border-radius:99px;padding:.05rem .55rem;margin-right:.3rem;border:1px solid var(--line)}
+.sig.good{background:rgba(111,191,115,.18);border-color:#6fbf73;color:#9fd9a2}
+.sig.mid{background:var(--card2);color:var(--muted)}
+.sig.bad{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-hi)}
 .datebtn{width:100%;min-height:44px;display:flex;justify-content:space-between;align-items:center;
   gap:.5rem;background:#221c16;border:1px solid var(--line);border-radius:10px;color:var(--ink);
   font:inherit;font-size:1rem;padding:.55rem .7rem;cursor:pointer;text-align:left}
@@ -1603,7 +1618,9 @@ function dtabsHTML(){
     '<button class="dtab" data-d="love">연애</button>'+
     '<button class="dtab" data-d="career">직장</button>'+
     '<button class="dtab" data-d="money">금전</button>'+
-    '<button class="dtab" data-d="life">평생</button></div>';
+    '<button class="dtab" data-d="life">평생</button>'+
+    '<button class="dtab" data-d="natal">명식</button>'+
+    '<button class="dtab" data-d="period">기간</button></div>';
 }
 document.addEventListener('click',e=>{
   const t=e.target.closest('.dtab');
@@ -1631,6 +1648,12 @@ function renderFortune(d,token){
     barsHTML(S)+
     '<div class="chips">'+d.keywords.map(k=>'<span class="chip">'+esc(k)+'</span>').join('')+'</div>');
   if(d.hour_unknown) h+='<p class="muted small">'+esc(d.time_notice)+'</p>';
+  // 오늘 세 체계 종합: 사주·자미두수·점성술이 오늘을 어떻게 보는지, 그리고 택일
+  const T=d.today, SIG={'좋음':'good','보통':'mid','조심':'bad'};
+  h+=card('☯','오늘 세 체계 종합','<p><b>'+esc(T.agreement)+'</b></p><p>'+esc(T.focus)+'</p>'+
+    T.systems.map(x=>'<div class="sys"><div class="sys-h"><span class="sig '+(SIG[x.signal]||'mid')+'">'+
+      esc(x.signal)+'</span> '+esc(x.name)+'</div><ul class="tight">'+li(x.lines)+'</ul></div>').join('')+
+    '<div class="sys"><div class="sys-h">오늘 택일 (한국 천기대요·달력)</div><ul class="tight">'+li(T.almanac)+'</ul></div>');
   const secTotal=card('1','총운 흐름',paras(d.stories.total)+'<ul class="tight">'+li(d.reasons.total)+'</ul>'+
     '<p class="small">'+esc(d.month_line)+'</p>');
   const secLove=card('2','연애',paras(d.stories.love)+'<ul class="tight">'+li(d.reasons.love)+'</ul>'+
@@ -1641,7 +1664,8 @@ function renderFortune(d,token){
     paras(d.god.dohwa)+'<p class="small">'+esc(d.god.hong)+'</p>'+
     '<p class="small">'+esc(d.god.timing)+'</p>'+
     '<p class="small">TOP3: '+esc(d.god.meet_top3.join(', '))+'</p>'+
-    paras(d.god.love_extra));
+    paras(d.god.love_extra)+
+    '<p class="small">대화 팁: '+esc(d.luck.talk.join(' / '))+' / 피할 것: '+esc(d.luck.avoid)+'</p>');
   const secCareer=card('3','직장',paras(d.stories.career)+'<ul class="tight">'+li(d.reasons.career)+'</ul>'+
     '<p class="small">'+esc(d.career.guanlu_line)+'</p><p class="small">'+esc(d.career.guan_line)+'</p>'+
     '<p class="small">팁: '+esc(d.career.tips.join(', '))+' / 피할 것: '+esc(d.career.avoid)+'</p>'+
@@ -1659,38 +1683,46 @@ function renderFortune(d,token){
     '<details class="acc"><summary>연도별 표</summary><div class="body"><ul class="tight">'+li(d.lifetime.years.map(y=>y.line))+'</ul></div></details>'+
     '<details class="acc"><summary>사주 대운 전체</summary><div class="body"><ul class="tight">'+li(d.dayun.full.concat(d.dayun.narr))+'</ul></div></details>';
   const secLife=card('5','평생 흐름',paras(d.stories.life)+life);
+  // 명식 탭: 태어날 때 정해진 바탕 (날마다 바뀌지 않음)
   let mid='';
-  mid+=card('6','행운 요소','<p>색 '+esc(d.luck.color)+' / 번호 '+esc(d.luck.number)+
-    ' / 방향 '+esc(d.luck.direction)+' / 시간 '+esc(d.luck.time)+'</p>'+
-    '<p class="small">장소: '+esc(d.luck.places.join(', '))+'</p>'+
-    '<p class="small">대화: '+esc(d.luck.talk.join(' / '))+' / 피할 것: '+esc(d.luck.avoid)+'</p>'+
-    '<p class="small">타로 '+esc(d.luck.tarot)+': '+esc(d.luck.tarot_line)+'</p>'+
-    '<p class="small">주역 '+esc(d.luck.gua)+': '+esc(d.luck.gua_line)+'</p>'+
-    '<p class="small">오미쿠지 '+esc(d.luck.omikuji)+': '+esc(d.luck.omikuji_line)+'</p>'+
-    '<p class="small">생명수 '+esc(d.luck.life_path)+': '+esc(d.luck.life_path_vibe)+'</p>');
-  mid+=card('7','기운 분포','<ul class="tight">'+li(d.dist)+'</ul>');
+  mid+=card('1','기운 분포','<ul class="tight">'+li(d.dist)+'</ul>');
   if(d.ziwei){
     const z=d.ziwei;
-    mid+=card('8','자미두수 명반','<p>부처궁 주성 <b>'+esc(z.main)+'</b></p>'+
+    mid+=card('2','자미두수 명반','<p>부처궁 주성 <b>'+esc(z.main)+'</b></p>'+
       '<p class="small">'+esc(z.guo)+'</p><p class="small">'+esc(z.daxian)+'</p>'+
       '<p class="small">'+esc(z.liunian)+'</p><ul class="tight">'+li(z.sihua)+'</ul>'+
       z.palaces.map(p=>'<details class="acc"><summary>'+esc(p.name)+' ('+esc(p.ganzhi)+')</summary><div class="body"><p>'+esc(p.text)+'</p><p class="muted small">'+esc(p.stars.join(', '))+'</p></div></details>').join(''));
   }else{
-    mid+=card('8','자미두수 명반','<p class="muted">시간 미상이라 명반 배치 제외, 사주 대운으로 봐.</p>');
+    mid+=card('2','자미두수 명반','<p class="muted">시간 미상이라 명반 배치 제외, 사주 대운으로 봐.</p>');
   }
-  mid+=card('9','점성술 차트','<p>태양 '+esc(d.astro.sun)+' / 달 '+esc(d.astro.moon)+' / 금성 '+esc(d.astro.venus)+'</p>'+
+  mid+=card('3','점성술 출생 차트','<p class="muted small">태어난 순간의 하늘이야. 오늘 하늘은 위 세 체계 종합에 있어.</p>'+
+    '<p>태양 '+esc(d.astro.sun)+' / 달 '+esc(d.astro.moon)+' / 금성 '+esc(d.astro.venus)+'</p>'+
     '<p class="small">'+esc(d.astro.asc_line)+'</p><p class="small">'+esc(d.astro.houses_line)+'</p>'+
     '<p class="small">'+esc(d.astro.aspects_line)+'</p><p class="small">'+esc(d.astro.compat)+'</p>');
-  mid+=card('10','신살','<ul class="tight">'+li(d.shensha)+'</ul>');
-  mid+=card('11','일운 30일','<table class="grid"><tr><th>날짜</th><th>간지</th><th>연애</th><th>직장</th><th>금전</th></tr>'+
-    d.ilun.map(r=>'<tr><td>'+esc(r.label)+'</td><td>'+esc(r.ganzhi)+'</td><td>'+r.love+'</td><td>'+r.career+'</td><td>'+r.money+'</td></tr>').join('')+'</table>');
+  mid+=card('4','신살','<ul class="tight">'+li(d.shensha)+'</ul>');
+  // 기간 탭: 오늘이 아닌 날 (사주 일진·월운 기준, 계획용)
+  const period=card('1','일운 30일 (사주 일진 기준)','<p class="small">'+esc(d.month_line)+'</p>'+
+    '<table class="grid"><tr><th>날짜</th><th>간지</th><th>연애</th><th>직장</th><th>금전</th></tr>'+
+    d.ilun.map(r=>'<tr><td>'+esc(r.label)+'</td><td>'+esc(r.ganzhi)+'</td><td>'+r.love+'</td><td>'+r.career+'</td><td>'+r.money+'</td></tr>').join('')+'</table>')+
+    card('2','올해 월운 12개월','<table class="grid"><tr><th>월</th><th>간지</th><th>십신</th><th>연애</th><th>직장</th><th>금전</th></tr>'+
+    d.monthly.map(r=>'<tr><td>'+r.month+'월</td><td>'+esc(r.ganzhi)+'</td><td>'+esc(r.god)+'</td><td>'+r.love+'</td><td>'+r.career+'</td><td>'+r.money+'</td></tr>').join('')+'</table>');
+  // 재미로 보는 점괘: 세 체계 계산과 무관 (날짜로 뽑음)
+  const fun='<details class="acc"><summary>재미로 보는 점괘 (사주·자미두수·점성술 계산과 무관)</summary><div class="body">'+
+    '<p class="small">행운의 색 '+esc(d.luck.color)+' / 방향 '+esc(d.luck.direction)+' / 시간 '+esc(d.luck.time)+'</p>'+
+    '<p class="small">장소: '+esc(d.luck.places.join(', '))+'</p>'+
+    '<p class="small">타로 '+esc(d.luck.tarot)+': '+esc(d.luck.tarot_line)+'</p>'+
+    '<p class="small">주역 '+esc(d.luck.gua)+': '+esc(d.luck.gua_line)+'</p>'+
+    '<p class="small">생명수 '+esc(d.luck.life_path)+': '+esc(d.luck.life_path_vibe)+'</p></div></details>';
   return h+
     '<div data-dtabs>'+dtabsHTML()+
     '<div class="dsec on" data-s="total">'+secTotal+'</div>'+
     '<div class="dsec" data-s="love">'+secLove+'</div>'+
     '<div class="dsec" data-s="career">'+secCareer+'</div>'+
     '<div class="dsec" data-s="money">'+secMoney+'</div>'+
-    '<div class="dsec" data-s="life">'+secLife+'</div></div>'+mid+
+    '<div class="dsec" data-s="life">'+secLife+'</div>'+
+    '<div class="dsec" data-s="natal">'+mid+'</div>'+
+    '<div class="dsec" data-s="period">'+period+'</div></div>'+
+    '<div class="card">'+fun+'</div>'+
     chatCard(token,'boxF','inF')+navBtns(token,'rFortune');
 }
 function renderMatch(d,token){
