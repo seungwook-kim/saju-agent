@@ -2,7 +2,7 @@ const {astro} = require('iztro');
 const cases = JSON.parse(require('fs').readFileSync(0, 'utf8'));
 process.stdout.write(JSON.stringify(cases.map(c => {
   try {
-    const a = astro.byLunar(c.lunar, c.hb, c.sex === 'male' ? '男' : '女', c.leap, true, 'ko-KR');
+    const a = astro.byLunar(c.lunar, c.hb, c.sex === 'male' ? '\u7537' : '\u5973', c.leap, true, 'ko-KR');
     const h = a.horoscope(c.target);
     const br = i => a.palaces[i].earthlyBranch;
     return {solar: a.solarDate,

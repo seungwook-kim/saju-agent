@@ -8,8 +8,8 @@ from love_fortune.web import render_match_page, local_agent_reply
 
 A = (date(1995, 2, 28), 12, 0, "male", "부산")
 B = (date(1997, 6, 15), 9, 0, "female", "서울")
-HAN = re.compile(r"[一-鿿]")
-KANA = re.compile(r"[぀-ヿ]")
+HAN = re.compile(r"[\u4e00-\u9fff]")
+KANA = re.compile(r"[\u3040-\u30ff]")
 
 
 def _r():

@@ -9,8 +9,8 @@ from love_fortune.web import render_pick_page, local_agent_reply
 BIRTH = date(1995, 2, 28)
 S = date(2026, 10, 1)
 E = date(2026, 10, 7)
-HAN = re.compile(r"[一-鿿]")
-KANA = re.compile(r"[぀-ヿ]")
+HAN = re.compile(r"[\u4e00-\u9fff]")
+KANA = re.compile(r"[\u3040-\u30ff]")
 
 
 def test_pick_structure_and_order():

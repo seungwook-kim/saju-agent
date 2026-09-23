@@ -4,7 +4,7 @@ sys.path.insert(0, os.getcwd())
 from lunar_python import Solar
 from love_fortune.manseryuk import STEMS_KR, BRANCHES_KR
 from love_fortune.lunar import birth_moment
-HAN_S = "甲乙丙丁戊己庚辛壬癸"; HAN_B = "子丑寅卯辰巳午未申酉戌亥"
+HAN_S = "\u7532\u4e59\u4e19\u4e01\u620a\u5df1\u5e9a\u8f9b\u58ec\u7678"; HAN_B = "\u5b50\u4e11\u5bc5\u536f\u8fb0\u5df3\u5348\u672a\u7533\u9149\u620c\u4ea5"
 kr = lambda gz: STEMS_KR[HAN_S.index(gz[0])] + BRANCHES_KR[HAN_B.index(gz[1])]
 random.seed(31); out = []
 while len(out) < 240:

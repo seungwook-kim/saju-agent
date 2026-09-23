@@ -13,8 +13,8 @@ from love_fortune.lifetime import lifetime_reading
 
 BIRTH = date(1995, 2, 28)
 TARGET = date(2026, 9, 20)
-HAN = re.compile(r"[一-鿿]")
-KANA = re.compile(r"[぀-ヿ]")
+HAN = re.compile(r"[\u4e00-\u9fff]")
+KANA = re.compile(r"[\u3040-\u30ff]")
 
 
 def test_parse_hm_unknown():

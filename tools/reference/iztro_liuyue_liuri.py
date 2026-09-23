@@ -11,7 +11,7 @@ while len(cases) < 1500:
     cases.append({"lunar": f"{ly}-{m}-{d}", "leap": leap, "hb": random.randint(0, 11), "sex": random.choice(["male", "female"]),
                   "target": f"{t.year}-{t.month}-{t.day}", "_t": [ly, m, d, leap, t.isoformat()]})
 out = json.loads(subprocess.run(["node", os.path.join(IZ, "dump_md.js")], input=json.dumps(cases), capture_output=True, text=True, encoding="utf-8", cwd=IZ).stdout)
-HAN = "〇一二三四五六七八九十"
+HAN = "\u3007\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341"
 bad = Counter(); ex = {}; ok = skip = 0
 for c, z in zip(cases, out):
     ly, m, d, leap, t = c["_t"]; t = date.fromisoformat(t); sd = lunar_to_solar(ly, m, d, leap)
@@ -21,14 +21,14 @@ for c, z in zip(cases, out):
     ch = chart_from_lunar(ly, m, d, leap, c["hb"], c["sex"], t)
     # iztro 의 기준일 음력(중국)이 한국과 다르면 건너뜀
     zl = z["lunarTarget"]
-    mm = zl.split("年")[1].split("月")[0]; dd = zl.split("月")[1]
+    mm = zl.split("\u5e74")[1].split("\u6708")[0]; dd = zl.split("\u6708")[1]
     def cn(x):
-        x = x.replace("初", "").replace("廿", "二十").replace("卅", "三十").replace("正", "一").replace("腊", "十二").replace("冬", "十一")
-        if x == "十": return 10
-        if x.startswith("十"): return 10 + HAN.index(x[1])
-        if "十" in x: a, b = x.split("十"); return HAN.index(a) * 10 + (HAN.index(b) if b else 0)
+        x = x.replace("\u521d", "").replace("\u5eff", "\u4e8c\u5341").replace("\u5345", "\u4e09\u5341").replace("\u6b63", "\u4e00").replace("\u814a", "\u5341\u4e8c").replace("\u51ac", "\u5341\u4e00")
+        if x == "\u5341": return 10
+        if x.startswith("\u5341"): return 10 + HAN.index(x[1])
+        if "\u5341" in x: a, b = x.split("\u5341"); return HAN.index(a) * 10 + (HAN.index(b) if b else 0)
         return HAN.index(x)
-    if "闰" in mm or (cn(mm), cn(dd)) != (tl[1], tl[2]): skip += 1; continue
+    if "\u95f0" in mm or (cn(mm), cn(dd)) != (tl[1], tl[2]): skip += 1; continue
     ok += 1
     for key, zk in (("liuyue", "monthly"), ("liuri", "daily")):
         mine = ch[key]; theirs = z[zk]

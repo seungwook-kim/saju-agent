@@ -2,7 +2,7 @@ import json, re, html, sys
 from datetime import date, timedelta
 from lunar_python import Solar
 T = json.load(open("tools/data/almanac_terms.json", encoding="ascii"))
-HAN_B = "子丑寅卯辰巳午未申酉戌亥"
+HAN_B = "\u5b50\u4e11\u5bc5\u536f\u8fb0\u5df3\u5348\u672a\u7533\u9149\u620c\u4ea5"
 off = {}; spi = {}; mans = []
 d = date(2000, 1, 1)
 while d < date(2004, 1, 1):
