@@ -34,7 +34,7 @@ def test_guiin_tables():
 
 
 def test_sample_chart_matches_reference_result():
-    # 1995-02-28 사시: 솔탈사주 결과지와 같은 지장간·12운성·신살
+    # 1995-02-28 사시: 월률분야 지장간·12운성·12신살 표로 손계산한 값
     n = four_pillars(date(1995, 2, 28), 10, 0, "서울")
     p = {x["key"]: x for x in pillars_detail(n)}
     assert p["hour"]["hidden"] == ["무", "경", "병"] and p["hour"]["stage"] == "장생"

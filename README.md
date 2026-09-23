@@ -11,23 +11,23 @@
 의존성 없음(표준라이브러리만). Python 3.10+:
 
 ```bash
-uv run --python 3.14 python -m love_fortune --birth 1995-02-28 --birth-time 12:00 --sex male --city 부산
+uv run --python 3.14 python -m love_fortune --birth 1990-05-15 --birth-time 12:00 --sex male --city 부산
 ```
 
 ## 실행법
 
 ```bash
 # 오늘 리포트 (터미널 + report_YYYYMMDD.md 저장, 개인정보 제외)
-python -m love_fortune --birth 1995-02-28 --birth-time 12:00 --sex male --city 부산
+python -m love_fortune --birth 1990-05-15 --birth-time 12:00 --sex male --city 부산
 
 # 영역 선택 (total=총운, love=연애, career=직장, money=금전, all=전체)
-python -m love_fortune --birth 1995-02-28 --domain money --no-save
+python -m love_fortune --birth 1990-05-15 --domain money --no-save
 
 # 평생 운세 타임라인 추가 (연대별 0~89세 + 올해 기준 전후 11년)
-python -m love_fortune --birth 1995-02-28 --lifetime --no-save
+python -m love_fortune --birth 1990-05-15 --lifetime --no-save
 
 # 태어난 시간을 모르면 '모름' (시주 제외·자미/하우스 제외, 3기둥 + 정오 어림 병기)
-python -m love_fortune --birth 1995-02-28 --birth-time 모름 --no-save
+python -m love_fortune --birth 1990-05-15 --birth-time 모름 --no-save
 
 # 음력 생일로 입력 (윤달이면 --leap 추가). 성별은 남/여로 써도 된다
 python -m love_fortune --birth 1995-01-29 --calendar lunar --sex 여 --city 부산 --no-save
@@ -36,13 +36,13 @@ python -m love_fortune --birth 1995-01-29 --calendar lunar --sex 여 --city 부�
 python -m love_fortune --birth 1990-07-04 --birth-time 09:00 --city 뉴욕 --no-save
 
 # 두 사람 궁합 (대칭 점수, 개인정보 제외 저장)
-python -m love_fortune match --birth 1995-02-28 --birth2 1997-06-15 --no-save
+python -m love_fortune match --birth 1990-05-15 --birth2 1997-06-15 --no-save
 
 # 길일 고르기 (기간 내 일자별 랭킹, 목적별 정렬)
-python -m love_fortune pick --birth 1995-02-28 --from 2026-10-01 --to 2026-10-31 --domain love --no-save
+python -m love_fortune pick --birth 1990-05-15 --from 2026-10-01 --to 2026-10-31 --domain love --no-save
 
 # 내일 리포트
-python -m love_fortune --birth 1995-02-28 --sex male --city 부산 --tomorrow
+python -m love_fortune --birth 1990-05-15 --sex male --city 부산 --tomorrow
 
 # 대화형 입력 모드 (인자 없이 실행해도 이 모드로 진입)
 python -m love_fortune --interactive
@@ -54,7 +54,7 @@ python -m love_fortune form
 # (watchdog.py 는 이 옵션으로 띄운다. 같은 와이파이의 기기에서 http://<이 PC IP>:8765)
 
 # 특정 날짜 재현 (테스트·디버그용)
-python -m love_fortune --birth 1995-02-28 --date 2026-09-20 --no-save
+python -m love_fortune --birth 1990-05-15 --date 2026-09-20 --no-save
 
 # 테스트
 python -m pytest
@@ -128,22 +128,46 @@ python -m pytest
   - mingming3·FateMaster 자미두수 14주성 해설, 화기·직업군
   - 몰리타로 `금성 별자리 타로` · postposmo 양자리 금성 · kmesh 금성 점성술, 금성 12별자리 연애 스타일
 
-## 홈페이지 + 채팅 에이전트
+## 홈페이지 (앱형 챕터 화면)
 
 `python -m love_fortune form` → `http://localhost:8765`
 
-- 입력폼 작성 → 5개 탭(오늘의 운세·오늘의 연애·오늘의 직장운세·오늘의 금전운·평생 운세)으로 표시
-  (총운 점수·키워드, 영역별 점수·근거·팁, 사주·자미·점성술 카드, 연대·연도 타임라인 포함)
-- 생년월일은 양력·음력(윤달 포함) 중 골라 입력한다
-- 하단 **상담 에이전트와 채팅**: 오늘 리포트를 아는 에이전트와 대화
-  - 기본 = **구독 AI 모델** (로컬 CLI 명령 호출, API 키 불필요).
-    도구는 전부 끄고, 대화는 저장하지 않으며, 생년월일을 뺀 리포트 요약만 보낸다.
-    모델·명령을 바꾸려면 환경변수 `LOVE_FORTUNE_AI_MODEL`, `LOVE_FORTUNE_AI_CLI`
-  - CLI 명령이 없거나 응답이 실패하면 로컬 규칙 에이전트가 대신 답한다
-  - 선택 = OpenAI 호환 LLM 연결: 결과 페이지 채팅창의 ⚙️ 설정에 Endpoint·API Key·Model 입력
-    (예: Ollama `http://localhost:11434/v1` + 모델명).
-    키는 브라우저 localStorage에만 저장되고, 서버·파일에 남지 않음.
-    LLM에 전송되는 컨텍스트에도 생년월일·성별·도시는 제외됨.
+- 입력: 생년월일은 캘린더로만 고른다 (연대 → 연도 → 월 → 일, 음력·윤달 지원).
+- 결과: 총운·연애·직장·금전·평생 다섯 탭. 탭마다 색 테마가 바뀌고, 챕터(CHAPTER 01, 02 ...)를
+  위에서 아래로 읽는 앱형 화면이다. 위쪽 챕터 메뉴를 누르면 해당 챕터로 이동한다.
+  - 계산 부품 (바로 뜸): 원국 표(십신·지장간·12운성·오행 막대·신살·귀인), 오늘 점수 게이지,
+    세 체계(사주·자미두수·점성술) 신호, 오늘 택일, 띠 궁합, 12개월 시그널 캘린더(누르면 이유),
+    3년 흐름, 연대별 타임라인
+  - 챕터 풀이 (도착하는 대로 채움): 구독 AI 모델이 그 챕터에 필요한 **계산 결과(사실표)만**
+    보고 쓴다. 사실표에 없는 것·확률·단정 예언은 쓰지 않게 막고, 결과는 `data/content.db`에
+    저장해 같은 사주는 다시 부르지 않는다. AI 를 못 쓰면 계산 문장 요약본으로 대신한다.
+  - 분위기 이미지: 자미두수 주성·오행·금성 별자리로 장면을 정해 이 PC 의 GPU 로 그린 가상 인물 사진.
+    예언이나 실제 인물이 아니라 화면을 꾸미는 삽화다 (카드에 그렇게 적는다).
+- 예전 화면(궁합 보기·길일 고르기 포함)은 `http://localhost:8765/classic`
+- 맨 아래 **AI 상담**: 리포트를 아는 상담 에이전트와 대화 (구독 AI 모델, 실패 시 로컬 규칙 에이전트)
+  - 도구는 전부 끄고, 대화는 저장하지 않으며, 생년월일을 뺀 요약만 보낸다.
+  - 모델·명령: 환경변수 `LOVE_FORTUNE_AI_MODEL`(기본 claude-sonnet-5), `LOVE_FORTUNE_AI_CLI`
+  - 동시에 도는 AI 호출 수: `LOVE_FORTUNE_AI_PARALLEL`(기본 3). `LOVE_FORTUNE_AI=0` 이면 AI 없이 요약본만.
+  - 예전 화면의 채팅창에서는 OpenAI 호환 LLM(예: Ollama `http://localhost:11434/v1`)도 연결할 수 있다.
+
+### 삽화 서버 (선택, NVIDIA GPU)
+
+```bash
+cd imagegen
+uv run python server.py --download   # 처음 한 번 (RealVisXL V5.0, 약 13GB)
+uv run python server.py --warm       # 127.0.0.1:8766 에서만 열림
+```
+
+- 앱은 이 서버가 꺼져 있어도 그대로 돈다 (삽화 자리에 안내만 뜬다). `LOVE_FORTUNE_IMAGES=0` 이면 삽화를 아예 부르지 않는다.
+- 서버에는 장면 묘사와 시드만 보낸다 (생년월일·이름·도시 없음). 같은 사주는 같은 그림이고
+  `data/portraits/` 에 저장해 다시 그리지 않는다. RTX 5070 기준 한 장 약 9초.
+- watchdog.py 가 앱 서버(8765)와 함께 이 서버(8766)도 살핀다.
+
+### 데이터베이스 파일
+
+- `db/init.sql` → `data/fortune.db`: 검증한 기준 데이터 (생기복덕표 등). 첫 실행 때 자동 생성.
+- `db/content.sql` → `data/content.db`: AI 챕터 풀이·삽화 목록 저장소. 개인정보 없이 계산 결과 해시로만 찾는다.
+  둘 다 DBeaver 등에서 SQLite 로 열어 볼 수 있고, 지워도 다음 실행 때 다시 만들어진다.
 
 ## opencode + Muse Spark 사용 메모
 

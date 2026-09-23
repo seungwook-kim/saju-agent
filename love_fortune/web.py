@@ -19,10 +19,7 @@ import html
 import json
 import os
 import secrets
-import shutil
-import subprocess
 import sys
-import tempfile
 import threading
 import time
 import urllib.request
@@ -40,8 +37,7 @@ CONTEXT_MAX = 300           # 동시에 들고 있는 최대 개수
 MAX_BODY = 64_000           # 요청 본문 상한(바이트)
 
 # 채팅 기본 모델. 구독 인증을 쓰는 로컬 AI CLI 명령으로 부른다.
-AI_CLI = os.environ.get("LOVE_FORTUNE_AI_CLI", "claude")          # 실행할 명령 이름
-AI_MODEL = os.environ.get("LOVE_FORTUNE_AI_MODEL", "claude-sonnet-5")
+from .ai import AI_CLI, AI_MODEL  # noqa: E402,F401  (예전 이름 유지)
 AI_LABEL = "구독 AI 모델"                                          # 화면에 보이는 이름
 AI_TIMEOUT = 120
 
@@ -50,7 +46,8 @@ def _truthy(v) -> bool:
     return str(v).strip().lower() not in ("", "0", "false", "off", "none", "no")
 
 
-def _remember(md: str, summary: str, target: str, token: str | None = None) -> str:
+def _remember(md: str, summary: str, target: str, token: str | None = None,
+              facts: dict | None = None) -> str:
     """리포트 요약을 잠시 보관하고 토큰을 돌려준다.
 
     예전엔 넣기만 하고 지우지 않아서, watchdog 이 서버를 계속 살려두는 동안
@@ -63,7 +60,8 @@ def _remember(md: str, summary: str, target: str, token: str | None = None) -> s
             del _CONTEXTS[k]
         while len(_CONTEXTS) >= CONTEXT_MAX:
             del _CONTEXTS[min(_CONTEXTS, key=lambda k: _CONTEXTS[k]["created"])]
-        _CONTEXTS[token] = {"md": md, "summary": summary, "target": target, "created": now}
+        _CONTEXTS[token] = {"md": md, "summary": summary, "target": target, "created": now,
+                            "facts": facts}
     return token
 
 
@@ -439,58 +437,22 @@ def llm_chat(endpoint: str, api_key: str, model: str,
 
 
 def cli_available() -> bool:
-    return shutil.which(AI_CLI) is not None
+    from . import ai
+    return ai.available()
 
 
 def cli_chat(summary: str, history: list[dict], message: str) -> str:
-    """구독 AI 모델로 답한다. 로컬 AI CLI 명령을 부른다.
+    """구독 AI 모델로 답한다 (ai.run: 도구 끔·기록 안 남김·동시 호출 제한).
 
-    - 도구는 전부 끈다 (--tools ""). 상담 답변만 받는다.
-    - 대화 기록은 남기지 않는다 (--no-session-persistence).
-    - 요약이 길어 명령줄 길이 제한에 걸리지 않게, 시스템 프롬프트는 임시 파일로,
-      질문은 표준입력으로 넘긴다. 임시 파일에는 개인정보를 뺀 요약만 들어간다.
+    임시 시스템 프롬프트 파일에는 개인정보를 뺀 요약만 들어간다.
     """
-    exe = shutil.which(AI_CLI)
-    if not exe:
-        raise RuntimeError("AI 명령을 찾지 못했어요")
+    from . import ai
     lines = [("사용자" if h["role"] == "user" else "상담사") + ": " + h["content"]
              for h in history]
     prompt = (("지금까지 나눈 대화:\n" + "\n".join(lines) + "\n\n") if lines else "") \
         + f"사용자의 새 질문: {message}\n\n위 리포트를 아는 상담사로서 답해 줘."
     system = SYSTEM_PROMPT + "\n\n" + USER_PII_NOTE + "\n" + summary
-    fd, sys_path = tempfile.mkstemp(prefix="lf_sys_", suffix=".txt")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(system)
-        cmd = [exe, "-p", "--model", AI_MODEL, "--output-format", "json",
-               "--system-prompt-file", sys_path, "--tools", "",
-               "--no-session-persistence", "--strict-mcp-config"]
-        try:
-            proc = subprocess.run(
-                cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=AI_TIMEOUT, cwd=tempfile.gettempdir(),
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(f"AI 응답이 {AI_TIMEOUT}초 안에 오지 않았어요") from None
-        except OSError as e:
-            raise RuntimeError(f"AI 실행 실패: {e}") from None
-    finally:
-        try:
-            os.remove(sys_path)
-        except OSError:
-            pass
-    if proc.returncode != 0:
-        raise RuntimeError(f"AI 호출 실패 (종료코드 {proc.returncode})")
-    try:
-        env = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        raise RuntimeError("AI 응답을 읽지 못했어요") from None
-    if env.get("is_error"):
-        raise RuntimeError(f"AI 오류: {str(env.get('result', ''))[:200]}")
-    reply = str(env.get("result", "")).strip()
-    if not reply:
-        raise RuntimeError("AI 가 빈 답을 보냈어요")
-    return reply
+    return ai.run(system, prompt, AI_TIMEOUT)
 
 
 # ---------------- HTML ----------------
@@ -1392,7 +1354,7 @@ APP_BODY = """
   <div class="card"><h2><span class="num">1</span>오늘의 운세 보기</h2>
     <form class="grid" id="fFortune">
       <div class="row2">
-        <div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1995-02-28</button><input type="hidden" name="birth" value="1995-02-28"><input type="hidden" name="leap" value=""></div>
+        <div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1990-05-15</button><input type="hidden" name="birth" value="1990-05-15"><input type="hidden" name="leap" value=""></div>
         <label class="f">달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
       </div>
       <div class="row2">
@@ -1413,7 +1375,7 @@ APP_BODY = """
   <div class="card"><h2><span class="num">2</span>두 사람 궁합 보기</h2>
     <form class="grid" id="fMatch">
       <div class="row2">
-        <div class="f"><span>내 생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1995-02-28</button><input type="hidden" name="birth" value="1995-02-28"><input type="hidden" name="leap" value=""></div>
+        <div class="f"><span>내 생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1990-05-15</button><input type="hidden" name="birth" value="1990-05-15"><input type="hidden" name="leap" value=""></div>
         <div class="f"><span>상대 생년월일</span><button type="button" class="datebtn" data-dp="birth2" aria-haspopup="dialog">1997-06-15</button><input type="hidden" name="birth2" value="1997-06-15"><input type="hidden" name="leap2" value=""></div>
       </div>
       <div class="row2">
@@ -1445,7 +1407,7 @@ APP_BODY = """
   <div class="card"><h2><span class="num">3</span>길일 고르기</h2>
     <form class="grid" id="fPick">
       <div class="row2">
-        <div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1995-02-28</button><input type="hidden" name="birth" value="1995-02-28"><input type="hidden" name="leap" value=""></div>
+        <div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth" aria-haspopup="dialog">1990-05-15</button><input type="hidden" name="birth" value="1990-05-15"><input type="hidden" name="leap" value=""></div>
         <label class="f">달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
       </div>
       <div class="row2">
@@ -1933,13 +1895,33 @@ def app_page() -> str:
 
 # ---------------- HTTP 서버 ----------------
 
+from pathlib import Path  # noqa: E402
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+PORTRAIT_DIR = Path(os.environ.get("LOVE_FORTUNE_PORTRAITS",
+                                   Path(__file__).resolve().parent.parent / "data" / "portraits"))
+STATIC_FILES = {"app.html": "text/html; charset=utf-8", "app.css": "text/css; charset=utf-8",
+                "app.js": "text/javascript; charset=utf-8"}
+
+
+def _ai_on() -> bool:
+    """챕터 풀이에 AI 를 쓸지. LOVE_FORTUNE_AI=0 이면 계산 문장만 쓴다 (시험·오프라인)."""
+    from . import ai
+    return os.environ.get("LOVE_FORTUNE_AI", "1") != "0" and ai.available()
+
+
+def _images_on() -> bool:
+    return os.environ.get("LOVE_FORTUNE_IMAGES", "1") != "0"
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # 개인정보가 로그에 남지 않도록
         pass
 
-    def _send(self, body: bytes, ctype: str, disp: str = "", code: int = 200):
+    def _send(self, body: bytes, ctype: str, disp: str = "", code: int = 200, cache: str = ""):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        if cache:
+            self.send_header("Cache-Control", cache)
         if disp:
             self.send_header("Content-Disposition", disp)
         self.send_header("Content-Length", str(len(body)))
@@ -1964,9 +1946,16 @@ class Handler(BaseHTTPRequestHandler):
         self._send(page.encode("utf-8"), "text/html; charset=utf-8", code=code)
 
     def do_GET(self):
-        if self.path == "/":
+        path = self.path.split("?")[0]
+        if path == "/":
+            self._static("app.html")
+        elif path == "/classic":
             self._send(app_page().encode("utf-8"),
                        "text/html; charset=utf-8")
+        elif path.startswith("/static/"):
+            self._static(path[len("/static/"):])
+        elif path.startswith("/img/"):
+            self._image(path[len("/img/"):])
         elif self.path == "/healthz":
             self._send(b'{"ok":true}', "application/json")
         elif self.path.split("?")[0] == "/api/lunar-year":
@@ -1977,6 +1966,26 @@ class Handler(BaseHTTPRequestHandler):
             self._send(body, "application/json; charset=utf-8")
         else:
             self.send_error(404)
+
+    def _static(self, name: str):
+        """화면 파일 (love_fortune/static). 이름은 목록에 있는 것만."""
+        if name not in STATIC_FILES:
+            self.send_error(404)
+            return
+        body = (STATIC_DIR / name).read_bytes()
+        self._send(body, STATIC_FILES[name], cache="no-cache")
+
+    def _image(self, name: str):
+        """삽화 파일 (data/portraits). 해시 이름.webp 만 받아 경로 조작을 막는다."""
+        import re
+        if not re.fullmatch(r"[0-9a-f]{32}\.webp", name):
+            self.send_error(404)
+            return
+        f = PORTRAIT_DIR / name
+        if not f.is_file():
+            self.send_error(404)
+            return
+        self._send(f.read_bytes(), "image/webp", cache="public, max-age=31536000, immutable")
 
     def _lunar_year(self):
         """그해 음력 달 목록 (캘린더 선택기용). ?y=1995"""
@@ -2046,6 +2055,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/report": self._api_report, "/api/match": self._api_match,
             "/api/pick": self._api_pick, "/download": self._download,
             "/api/chat": self._chat,
+            "/api/v2/report": self._v2_report, "/api/v2/chapter": self._v2_chapter,
+            "/api/v2/portrait": self._v2_portrait,
         }
         route = routes.get(self.path)
         if route is None:
@@ -2129,6 +2140,40 @@ class Handler(BaseHTTPRequestHandler):
         _page, summary = render_pick_page(r, "")
         token = _remember(md, summary, start.isoformat())
         self._json({"token": token, "data": api_pick_data(r)})
+
+    # ---------------- 새 화면 (탭·챕터)
+
+    def _v2_report(self, q: dict):
+        """사실표를 만들어 토큰과 함께 돌려준다. 챕터 풀이는 따로 하나씩 부른다."""
+        from . import chapters, facts as facts_mod
+        birth, hh, mm, sex, city = self._person(q)
+        target = date.today()
+        f = facts_mod.build(birth, hh, mm, sex, city, target)
+        _md, _text, summary = agent_context(birth, hh, mm, sex, city, target)
+        token = _remember("", summary, target.isoformat(), facts=f)
+        self._json({"token": token, "facts": f, "outline": chapters.outline(),
+                    "ai": _ai_on(), "images": _images_on()})
+
+    def _v2_ctx(self, q: dict) -> dict:
+        ctx = _context(str(q.get("token", "")))
+        if not ctx or not ctx.get("facts"):
+            raise ValueError("만료된 결과야. 처음 화면에서 다시 펼쳐 줘.")
+        return ctx
+
+    def _v2_chapter(self, q: dict):
+        from . import chapters
+        ctx = self._v2_ctx(q)
+        tab, ch = str(q.get("tab", "")), str(q.get("chapter", ""))
+        if tab not in chapters.TABS:
+            raise ValueError("없는 탭")
+        body = chapters.generate(tab, ch, ctx["facts"], use_ai=_ai_on())
+        self._json(body)
+
+    def _v2_portrait(self, q: dict):
+        from . import portrait
+        ctx = self._v2_ctx(q)
+        tab, slot = str(q.get("tab", "")), str(q.get("slot", ""))
+        self._json(portrait.render(tab, slot, ctx["facts"]))
 
     def _download(self, q: dict):
         ctx = _context(str(q.get("token", "")))

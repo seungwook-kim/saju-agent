@@ -1,14 +1,14 @@
 """natal_extra.py, 원국을 더 자세히: 지장간·기둥별 12운성·12신살·귀인·원진·띠 궁합.
 
 출처 대조 (2026-09 조사, 둘 이상이 맞는 것만 넣음)
-- 지장간: 한국 월률분야 (여기·중기·정기). 정해 만세력 강의·솔탈사주 결과지가 같고,
+- 지장간: 한국 월률분야 (여기·중기·정기). 만세력 강의 자료와 상용 사주 서비스 표기가 같고,
   lunar-python(중국 간략표)은 인·신·사·해의 여기 무토를 빼서 쓰지 않았다.
 - 기둥별 12운성: 일간이 각 지지에서 갖는 단계. lunar-python 지세와 대조 (match.TWELVE_STAGES).
 - 12신살: 삼합의 첫 글자(생지)에서 지살을 시작해 차례로 12개. 대구신문 칼럼·나무위키 등과 같다.
   년지 기준이 기본이고 일지 기준을 함께 본다.
-- 문창귀인: 사주스터디·사자사주·솔탈사주 세 곳이 같다.
+- 문창귀인: 사주스터디·사자사주와 상용 사주 서비스 세 곳이 같다.
 - 학당귀인: 일간의 장생 자리. 한 사이트는 경금을 해로 적었으나 같은 표에 '장생'이라 써 놓아
-  앞뒤가 맞지 않아 정의(장생)를 따랐다 (솔탈사주도 경금→사).
+  앞뒤가 맞지 않아 정의(장생)를 따랐다 (상용 서비스도 경금→사).
 - 암록: 일간 건록과 육합하는 지지. 여러 사이트가 같은 규칙 (예: 신금→진).
 - 금여록: 건록에서 두 칸 앞 (갑→진, 을→사 ...).
 - 띠 궁합: 삼합·육합이면 잘 맞음, 충·원진·육해면 조심, 나머지는 무난 (널리 쓰는 12지 궁합법).
@@ -18,7 +18,7 @@ from __future__ import annotations
 from .manseryuk import BRANCHES_KR, STEMS_KR, ZODIAC_ANIMALS
 from .match import STAGE_NAMES, TWELVE_STAGES
 
-# 지장간 (여기, 중기, 정기) — 천간 번호. 중기가 없으면 두 개
+# 지장간 (여기, 중기, 정기): 천간 번호. 중기가 없으면 두 개
 HIDDEN = {
     0: (8, 9), 1: (9, 7, 5), 2: (4, 2, 0), 3: (0, 1), 4: (1, 9, 4), 5: (4, 6, 2),
     6: (2, 5, 3), 7: (3, 1, 5), 8: (4, 8, 6), 9: (6, 7), 10: (7, 3, 4), 11: (4, 0, 8),
@@ -77,7 +77,11 @@ def pillars_detail(natal: dict) -> list[dict]:
         s, b = natal["pillars"][key]
         if s is None or b is None:
             continue
+        from .match import BRANCH_BONQI
+        from .rules import ten_god
         out.append({"key": key, "label": label, "stem": STEMS_KR[s], "branch": BRANCHES_KR[b],
+                    "stem_god": "일간(나)" if key == "day" else ten_god(ds, s),
+                    "branch_god": ten_god(ds, BRANCH_BONQI[b]),
                     "hidden": [STEMS_KR[h] for h in HIDDEN[b]],
                     "stage": STAGE_NAMES[TWELVE_STAGES[ds].index(b)]})
     return out

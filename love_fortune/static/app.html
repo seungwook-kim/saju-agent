@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fbeef1">
+<title>종합 사주</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body data-theme="rose">
+<div class="shell">
+
+  <!-- 입력 화면 -->
+  <section id="home" class="view on">
+    <header class="brand">
+      <div class="logo"><span class="accent">종합</span> 사주</div>
+      <div class="brand-sub">사주 · 자미두수 · 점성술을 한 번에</div>
+    </header>
+    <div class="hero">
+      <div class="hero-title">내 사주 <span class="hand">A to Z</span></div>
+      <p class="hero-sub">정통 공식으로 계산하고, 계산된 사실로만 풀어 줄게</p>
+    </div>
+    <form id="fMain" class="card form" autocomplete="off">
+      <div class="row2">
+        <div class="f"><span>생년월일</span>
+          <button type="button" class="datebtn" data-dp="birth">눌러서 선택</button>
+          <input type="hidden" name="birth" value=""><input type="hidden" name="leap" value="">
+        </div>
+        <label class="f"><span>달력</span>
+          <select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select>
+        </label>
+      </div>
+      <div class="row2">
+        <label class="f"><span>태어난 시간</span><input name="birth_time" type="time" value="12:00"></label>
+        <label class="check"><input name="unknown_time" type="checkbox" value="1"> 시간 모름</label>
+      </div>
+      <div class="row2">
+        <label class="f"><span>성별</span>
+          <select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
+        <label class="f"><span>태어난 도시</span><input name="city" value="서울"></label>
+      </div>
+      <label class="f"><span>밤 11시~12시 출생 기준</span>
+        <select name="zi"><option value="next">다음날로 보기 (정자시, 기본)</option><option value="split">그날로 보기 (야자시)</option></select></label>
+      <button class="go" type="submit">내 사주 펼쳐 보기</button>
+      <p class="fine">생년월일은 이 컴퓨터 메모리에만 두고 저장하지 않아. AI 풀이에는 계산 결과만 보내.</p>
+    </form>
+    <div id="homeErr"></div>
+    <p class="legacy"><a href="/classic">궁합 보기 · 길일 고르기 (예전 화면)</a></p>
+  </section>
+
+  <!-- 결과 화면 -->
+  <section id="result" class="view">
+    <header class="topbar">
+      <button class="back" id="btnBack" type="button">‹ 다시 입력</button>
+      <div class="logo small"><span class="accent">종합</span> 사주</div>
+      <span class="spacer"></span>
+    </header>
+    <nav class="tabs" id="tabs"></nav>
+    <div id="page"></div>
+  </section>
+</div>
+
+<!-- 생년월일 캘린더 -->
+<div class="scrim" id="dpScrim"></div>
+<div id="dp" role="dialog" aria-modal="true" aria-labelledby="dpTitle">
+  <div class="dp-head"><h3 id="dpTitle">생년월일 선택</h3><span class="dp-cal" id="dpCal">양력</span></div>
+  <div class="dp-crumbs" id="dpCrumbs"></div>
+  <div id="dpBody"></div>
+  <button class="ghost" id="dpClose" type="button">닫기</button>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

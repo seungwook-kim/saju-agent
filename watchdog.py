@@ -1,6 +1,7 @@
 """watchdog.py, 5분 스케줄러용 서버 감시 (표준라이브러리만).
 
 동작: /healthz 확인 → 죽어 있으면 포트 점유 프로세스 정리 후 서버 재시작.
+      삽화 서버(imagegen, 8766)도 같은 방식으로 살핀다 (imagegen 폴더에 모델이 준비돼 있을 때만).
 기록: watchdog.log (10만 바이트 넘으면 자름).
 등록: schtasks /create /tn LoveFortuneWatchdog /tr "..." /sc minute /mo 5
 """
@@ -15,6 +16,8 @@ from datetime import datetime
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOG = os.path.join(HERE, "watchdog.log")
 PORT = 8765
+IMAGE_PORT = 8766
+IMAGE_DIR = os.path.join(HERE, "imagegen")
 UV = os.path.expandvars(r"%USERPROFILE%\.local\bin\uv.exe")
 
 
@@ -36,20 +39,20 @@ def log(msg: str) -> None:
     print(line.strip())
 
 
-def healthy() -> bool:
+def healthy(port: int = PORT) -> bool:
     try:
-        r = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=10)
+        r = urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=10)
         return r.status == 200
     except Exception:
         return False
 
 
-def kill_port() -> None:
+def kill_port(port: int = PORT) -> None:
     try:
         proc = subprocess.run(["netstat", "-ano"], capture_output=True, timeout=15)
         out = proc.stdout.decode("utf-8", errors="replace")
         for line in out.splitlines():
-            if f":{PORT}" in line and "LISTENING" in line:
+            if f":{port}" in line and "LISTENING" in line:
                 pid = line.split()[-1]
                 subprocess.run(["taskkill", "/F", "/PID", pid],
                                capture_output=True, timeout=15)
@@ -72,14 +75,37 @@ def start_server() -> None:
         log(f"start failed: {e}")
 
 
+def start_image_server() -> None:
+    """삽화 서버. 이 컴퓨터 안(127.0.0.1)에서만 열리고, 모델을 미리 올려 둔다(--warm)."""
+    try:
+        subprocess.Popen(
+            [UV, "run", "python", "server.py", "--warm"],
+            cwd=IMAGE_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
+        log("image server start requested")
+    except Exception as e:
+        log(f"image start failed: {e}")
+
+
 def main() -> int:
+    code = 0
     if healthy():
         log("OK alive")
-        return 0
-    log("DOWN detected, restarting")
-    kill_port()
-    start_server()
-    return 1
+    else:
+        log("DOWN detected, restarting")
+        kill_port()
+        start_server()
+        code = 1
+    if os.path.isdir(IMAGE_DIR) and os.environ.get("LOVE_FORTUNE_IMAGES", "1") != "0":
+        if healthy(IMAGE_PORT):
+            log("OK image alive")
+        else:
+            log("image DOWN, restarting")
+            kill_port(IMAGE_PORT)
+            start_image_server()
+            code = 1
+    return code
 
 
 if __name__ == "__main__":

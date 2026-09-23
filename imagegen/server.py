@@ -144,7 +144,11 @@ def main() -> int:
         print("모델 준비 완료:", MODEL)
         return 0
     if args.warm:
-        load()
+        # 모델을 올리는 동안에도 /healthz 는 답하게 따로 올린다 (감시 프로그램이 죽은 줄 알지 않게)
+        def _warm():
+            with _GPU:
+                load()
+        threading.Thread(target=_warm, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     srv.daemon_threads = True
     print(f"이미지 서버 http://127.0.0.1:{PORT} (모델 {MODEL})", flush=True)

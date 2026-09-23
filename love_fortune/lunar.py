@@ -105,7 +105,7 @@ def parse_birth_date(text: str, calendar: str = "solar", leap: bool = False) -> 
     try:
         y, m, d = (int(x) for x in str(text).strip().split("-"))
     except ValueError:
-        raise ValueError("생년월일은 YYYY-MM-DD 형식으로 입력해 줘 (예: 1995-02-28)") from None
+        raise ValueError("생년월일은 YYYY-MM-DD 형식으로 입력해 줘 (예: 1990-05-15)") from None
     if cal == "lunar":
         return lunar_to_solar(y, m, d, bool(leap))
     if leap:

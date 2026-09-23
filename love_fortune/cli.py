@@ -621,7 +621,7 @@ def _main(args):
             ah, am = _parse_hm(args.birth_time)
             bh, bm = _parse_hm(args.birth2_time)
         except (ValueError, TypeError) as e:
-            raise SystemExit(f"입력 오류: {e}\n예: --birth 1995-02-28 --birth2 1997-06-15")
+            raise SystemExit(f"입력 오류: {e}\n예: --birth 1990-05-15 --birth2 1997-06-15")
         text, md = build_match_report(ab, ah, am, args.sex, args.city,
                                       bb, bh, bm, args.sex2, args.city2)
         print(text)
@@ -638,7 +638,7 @@ def _main(args):
             start = datetime.strptime(args.from_date, "%Y-%m-%d").date()
             end = datetime.strptime(args.to_date, "%Y-%m-%d").date()
         except (ValueError, TypeError) as e:
-            raise SystemExit(f"입력 오류: {e}\n예: --birth 1995-02-28 --from 2026-10-01 --to 2026-10-31")
+            raise SystemExit(f"입력 오류: {e}\n예: --birth 1990-05-15 --from 2026-10-01 --to 2026-10-31")
         try:
             text, md = build_pick_report(birth, hh, mm, args.sex, args.city,
                                          start, end, args.domain, args.top)
@@ -664,7 +664,7 @@ def _main(args):
         birth = parse_birth_date(args.birth, args.calendar, args.leap)
     except (ValueError, TypeError) as e:
         raise SystemExit(f"생년월일 입력 오류: {e}\n"
-                         "예: --birth 1995-02-28 (음력이면 --calendar lunar, 윤달이면 --leap)")
+                         "예: --birth 1990-05-15 (음력이면 --calendar lunar, 윤달이면 --leap)")
     if args.calendar == "lunar":
         print(f"(음력 {'윤달 ' if args.leap else ''}{args.birth} → 양력 {birth.isoformat()} 로 바꿔 계산해)")
     try:

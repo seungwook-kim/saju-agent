@@ -342,11 +342,12 @@ def test_cli_chat_command(monkeypatch):
         seen["system"] = open(cmd[cmd.index("--system-prompt-file") + 1], encoding="utf-8").read()
         return P()
 
-    monkeypatch.setattr(web.shutil, "which", lambda _n: "ai-cli")
-    monkeypatch.setattr(web.subprocess, "run", fake_run)
+    from love_fortune import ai
+    monkeypatch.setattr(ai.shutil, "which", lambda _n: "ai-cli")
+    monkeypatch.setattr(ai.subprocess, "run", fake_run)
     out = web.cli_chat("요약문", [{"role": "user", "content": "앞 질문"}], "지금 질문")
     assert out == "흐름이 좋아"
-    assert seen["cmd"][seen["cmd"].index("--model") + 1] == web.AI_MODEL
+    assert seen["cmd"][seen["cmd"].index("--model") + 1] == ai.AI_MODEL
     assert seen["cmd"][seen["cmd"].index("--tools") + 1] == ""
     assert "지금 질문" in seen["input"] and "앞 질문" in seen["input"]
     assert "요약문" in seen["system"]
