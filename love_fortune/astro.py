@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from . import astronomy as A
-from .lunar import lookup_city
+from .lunar import birth_moment
 
 SIGNS = ["양자리", "황소자리", "쌍둥이자리", "게자리", "사자자리",
          "처녀자리", "천칭자리", "전갈자리", "사수자리", "염소자리",
@@ -31,8 +31,7 @@ def sign_of(lon: float) -> tuple[str, float]:
     return SIGNS[idx], lon - idx * 30.0
 
 
-def _ut_parts(kst: datetime):
-    ut = kst - timedelta(hours=9)
+def _ut_parts(ut: datetime):
     base = datetime(ut.year, ut.month, ut.day)
     return ut.year, ut.month, ut.day, (ut - base).total_seconds() / 3600.0
 
@@ -41,9 +40,10 @@ def natal_chart(d: date, hour: int | None = 12, minute: int = 0,
                 city: str = "서울") -> dict:
     """hour None이면 정오 기준 위치만 계산, 하우스·상승궁은 쓰지 않는다."""
     _hh = 12 if hour is None else hour
-    lon_e, lat_n, city_ok = lookup_city(city)
-    kst = datetime(d.year, d.month, d.day, _hh, minute)
-    y, m, dd, ut = _ut_parts(kst)
+    # 그때 그 지역의 표준시·서머타임을 반영한 세계시 (예전엔 늘 9시간을 뺐다)
+    bm = birth_moment(d.year, d.month, d.day, _hh, minute, city)
+    lon_e, lat_n, city_ok = bm["lon"], bm["lat"], bm["city_ok"]
+    y, m, dd, ut = _ut_parts(bm["utc"])
     dn = A.day_number(y, m, dd, ut)
     pos = {}
     for b in BODIES:

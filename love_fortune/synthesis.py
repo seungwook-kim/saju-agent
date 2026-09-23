@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 from .manseryuk import (four_pillars, dayun, shensha, year_pillar, day_pillar,
                         STEMS_KR, BRANCHES_KR, STEM_ELEMENT, BRANCH_ELEMENT,
-                        ganzhi_str)
+                        ganzhi_str, time_notes)
 from .rules import ten_god, love_score, headline, branch_relation
 from .narrate import _rel_text, GOD_SHORT
 from .match import (SPOUSE_GOD, TWELVE_STAGES, STAGE_NAMES, STAGE_LOVE,
@@ -32,6 +32,8 @@ def _stage(day_stem: int, day_branch: int) -> str:
 
 def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
                      city: str, today: date) -> dict:
+    if birth > today:
+        raise ValueError("태어난 날이 기준일보다 뒤라 운세를 볼 수 없어. 생년월일을 확인해 줘")
     _unknown = hour is None
     _notice = ("시간 미상이라 시주는 제외하고 3기둥으로 봐. "
                "자미두수 명반·하우스·상승궁은 제외하고, "
@@ -96,7 +98,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
               "올해는 도화운보다 내실을 다지기 좋은 흐름, 매력은 일상의 자리에서 쌓이는 흐름")
 
     # 5. 자미두수 정통 (시간 미상이면 명반 배치 불가)
-    zw = ziwei_chart(birth, hour, minute, sex, city)
+    zw = ziwei_chart(birth, hour, minute, sex, city, today)
     if zw is None:
         from .lunar import solar_to_lunar as _s2l
         _ly, _lm, _ld, _lp = _s2l(birth.year, birth.month, birth.day)
@@ -120,8 +122,12 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
                       + (" · 야자시로 다음날 자시 적용" if zw["night_zi"] else ""))
         lunar_line_safe = (f"진태양시 보정 {zw['corr_min']}분 적용"
                            + (" · 야자시로 다음날 자시 적용" if zw["night_zi"] else ""))
+        for _note in time_notes(natal):
+            lunar_line += f" · {_note}"
+            lunar_line_safe += f" · {_note}"
         guo_name = {2: "수이국", 3: "목삼국", 4: "금사국", 5: "토오국", 6: "화육국"}[zw["guo"]]
-        guo_line = (f"오행국 {guo_name} · 명궁 주성 {zw['ming_main']} · "
+        guo_line = (f"오행국 {guo_name} · 명궁 주성 {zw['ming_main']}"
+                    + (" (무주성·대궁 차용)" if zw.get("ming_borrowed") else "") + " · "
                     f"신궁 {zw['shengong']} · 명주 {zw['mingzhu']} · 신주 {zw['shenzhu']}")
         sihua_lines = []
         for hua, star in zw["sihua"].items():
@@ -165,7 +171,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
                     + (" · " + " / ".join(ast["retro_notes"]) if ast["retro_notes"] else ""))
 
     # 7. 사주 대운·신살
-    du = dayun(birth, hour, minute, sex, city)
+    du = dayun(birth, hour, minute, sex, city, today)
     dayun_line = (f"사주 대운 {du['direction']} · {du['start_age']}세에 대운 시작 · "
                   f"현재 {du['current']['ganzhi']}운({du['current']['from']}~{du['current']['to']}세)"
                   + (" (시간 미상이라 정오 기준 어림)" if _unknown else ""))
@@ -191,7 +197,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
 
     # 9. 영역별 오늘 운세 (연애·직장·금전·총운)
     ts, tb = day_pillar(today)
-    love_sc, love_reasons, _elem = love_score(ds, branches, ts, tb, today.isoformat())
+    love_sc, love_reasons, _elem = love_score(ds, branches, ts, tb, today.isoformat(), sex)
     love_head = headline(love_sc)
     career_sc, career_reasons, _e2 = career_score(ds, branches, ts, tb, today.isoformat())
     money_sc, money_reasons, _e3 = money_score(ds, branches, ts, tb, today.isoformat())
@@ -366,7 +372,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
     for _m in range(1, 13):
         _ms, _mb = _mp(_dt(today.year, _m, 15, 12, 0))
         _seedm = f"{today.year}-{_m:02d}"
-        _ls, _, _ = love_score(ds, branches, _ms, _mb, _seedm)
+        _ls, _, _ = love_score(ds, branches, _ms, _mb, _seedm, sex)
         _cs, _, _ = career_score(ds, branches, _ms, _mb, _seedm)
         _ns, _, _ = money_score(ds, branches, _ms, _mb, _seedm)
         _godm = ten_god(ds, _ms)
@@ -392,10 +398,13 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
     from datetime import timedelta as _td
     adv_in = build_advice(_SK[ds], _elem, today, birth)
     natal_min = {"ilgan": _SK[ds], "ilgan_element": _SE[ds]}
-    _du_full = dayun(birth, hour, minute, sex, city)
+    _du_full = dayun(birth, hour, minute, sex, city, today)
     _ys = {
         "ilgang": _ILGAN_C[_SK[ds]],
-        "analysis": _analyze_yongsin(ds, stems, branches, [BRANCH_BONQI[b] for b in branches], mb),
+        # 격국은 월지 본기로 본다. 지지 번호로 찾는 표(BRANCH_BONQI)를 그대로 넘긴다.
+        # 예전엔 기둥 순서의 4칸 목록을 넘겨, 월지가 진~해면 IndexError 로 리포트가
+        # 죽었고(생일 절반), 자~묘면 엉뚱한 기둥의 본기로 격국을 정했다.
+        "analysis": _analyze_yongsin(ds, stems, branches, BRANCH_BONQI, mb),
         "dayun_narr": _narrate_dayun(_du_full["steps"], ds, db),
     }
     ilun = []
@@ -403,7 +412,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         _d = today + _td(days=_i)
         _dss, _dbb = day_pillar(_d)
         _seedi = f"ilun-{_d.isoformat()}"
-        _l1, _, _ = love_score(ds, branches, _dss, _dbb, _seedi)
+        _l1, _, _ = love_score(ds, branches, _dss, _dbb, _seedi, sex)
         _c1, _, _ = career_score(ds, branches, _dss, _dbb, _seedi)
         _n1, _, _ = money_score(ds, branches, _dss, _dbb, _seedi)
         _g1 = ten_god(ds, _dss)

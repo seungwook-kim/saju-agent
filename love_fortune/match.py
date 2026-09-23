@@ -354,7 +354,7 @@ def spouse_archetype(birth: date, hour: int, sex: str,
               "올해는 도화운보다 내실을 다지기 좋은 흐름, 매력은 일상의 자리에서 쌓이는 흐름")
 
     # 5. 자미 부처궁 상세 (시간 미상이면 제외)
-    zw = ziwei_chart(birth, hour, 0, sex)
+    zw = ziwei_chart(birth, hour, 0, sex, "서울", today)
     if zw is None:
         st = {"look": "시간 미상이라 제외", "mind": "시간 미상이라 제외",
               "job": "시간 미상이라 제외", "meet": "시간 미상이라 제외",

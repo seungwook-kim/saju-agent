@@ -5,9 +5,11 @@
 구성:
 - 홈페이지: 입력폼 + 리포트 카드(점수 게이지·행운요소·사주·자미두수·점성술·점괘)
 - 채팅 패널: 오늘 리포트를 아는 상담 에이전트와 대화
-  * 기본 = 로컬 규칙 기반 에이전트 (오프라인 동작, API 키 불필요)
+  * 기본 = Claude 구독 모델(Sonnet 5)을 로컬 `claude` 명령으로 호출 (API 키 불필요).
+    claude 명령이 없거나 실패하면 로컬 규칙 에이전트가 대신 답한다.
   * 선택 = OpenAI 호환 엔드포인트 연결 (채팅창 설정에서 endpoint/key/model 입력,
     브라우저 localStorage에만 저장, 서버에 저장 안 함)
+  * LLM 에 보내는 건 개인정보를 뺀 리포트 요약과 대화뿐이다.
 - 개인정보(생년월일·시간·성별·도시): 서버 메모리에만 잠시 보관, 파일·로그에 기록 안 함.
   다운로드 md와 LLM 전송 컨텍스트에는 개인정보를 제외한다.
 """
@@ -15,7 +17,13 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import secrets
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
 import time
 import urllib.request
 import webbrowser
@@ -26,6 +34,54 @@ from .cli import build_report, DISCLAIMER
 
 # token -> {"target": str, "summary": str(개인정보 제외), "created": float}
 _CONTEXTS: dict[str, dict] = {}
+_CONTEXTS_LOCK = threading.Lock()
+CONTEXT_TTL = 6 * 3600      # 리포트 요약을 들고 있는 시간(초)
+CONTEXT_MAX = 300           # 동시에 들고 있는 최대 개수
+MAX_BODY = 64_000           # 요청 본문 상한(바이트)
+
+# 채팅 기본 모델. 구독 인증을 쓰는 로컬 claude 명령으로 부른다.
+CLAUDE_MODEL = os.environ.get("LOVE_FORTUNE_CLAUDE_MODEL", "claude-sonnet-5")
+CLAUDE_TIMEOUT = 120
+
+
+def _truthy(v) -> bool:
+    return str(v).strip().lower() not in ("", "0", "false", "off", "none", "no")
+
+
+def _remember(md: str, summary: str, target: str, token: str | None = None) -> str:
+    """리포트 요약을 잠시 보관하고 토큰을 돌려준다.
+
+    예전엔 넣기만 하고 지우지 않아서, watchdog 이 서버를 계속 살려두는 동안
+    메모리가 끝없이 늘었다. 오래된 것부터 치운다.
+    """
+    token = token or secrets.token_hex(8)
+    now = time.time()
+    with _CONTEXTS_LOCK:
+        for k in [k for k, v in _CONTEXTS.items() if now - v["created"] > CONTEXT_TTL]:
+            del _CONTEXTS[k]
+        while len(_CONTEXTS) >= CONTEXT_MAX:
+            del _CONTEXTS[min(_CONTEXTS, key=lambda k: _CONTEXTS[k]["created"])]
+        _CONTEXTS[token] = {"md": md, "summary": summary, "target": target, "created": now}
+    return token
+
+
+def _context(token: str) -> dict | None:
+    with _CONTEXTS_LOCK:
+        ctx = _CONTEXTS.get(token)
+        if ctx and time.time() - ctx["created"] > CONTEXT_TTL:
+            del _CONTEXTS[token]
+            return None
+        return ctx
+
+
+def _clean_history(raw) -> list[dict]:
+    """브라우저가 보낸 대화 기록을 역할·길이만 남기고 정리한다 (최근 10개)."""
+    out = []
+    for h in raw if isinstance(raw, list) else []:
+        if not isinstance(h, dict) or h.get("role") not in ("user", "assistant"):
+            continue
+        out.append({"role": h["role"], "content": str(h.get("content", ""))[:2000]})
+    return out[-10:]
 
 
 # ---------------- 로컬 상담 에이전트 (오프라인) ----------------
@@ -46,7 +102,7 @@ def agent_context(birth: date, hour: int | None, minute: int, sex: str,
         natal["ilgan_stem"],
         [s for _, s in (natal["pillars"][k] for k in ("year", "month", "day", "hour"))
          if s is not None],
-        ts, tb, target.isoformat())
+        ts, tb, target.isoformat(), sex)
     adv = build_advice(natal["ilgan"], today_elem, target, birth)
     ma = detailed_reading(birth, hour, minute, sex, city, target)
     ast = ma["astro"]
@@ -333,20 +389,28 @@ SYSTEM_PROMPT = ("너는 '종합 사주' 리포트를 바탕으로 상담하는 
                  "규칙: 1) 정통 공식 기반 상세 해석임을 전제로 답한다. 2) 단정적 예언 금지 "
                  "('~할 것이다' 대신 '~하기 좋은 흐름'으로 말한다). "
                  "3) 결혼·이별·정신건강 등 중요한 주제에는 결정을 대신 내려주지 말고 "
-                 "신중한 대화와 전문가 상담을 권한다. 4) 한국어로 답한다.")
+                 "신중한 대화와 전문가 상담을 권한다. 4) 한국어로 답한다. "
+                 "5) 리포트 요약에 있는 내용만 근거로 삼고, 없는 해석은 지어내지 않는다. "
+                 "6) 별·궁·십신 같은 용어가 나오면 그 자리에서 뜻을 쉽게 풀어 준다. "
+                 "7) 한자·일본어와 긴 줄표(em dash)는 쓰지 않는다. "
+                 "8) 점술가가 말로 풀어 주듯 서너 문장 안팎으로 답한다.")
 
 USER_PII_NOTE = "아래 컨텍스트에는 개인정보가 포함되어 있지 않다."
 
 
 def llm_chat(endpoint: str, api_key: str, model: str,
-             summary: str, history: list[dict]) -> str:
-    """OpenAI 호환 /chat/completions 호출 (표준라이브러리만)."""
+             summary: str, history: list[dict], message: str) -> str:
+    """OpenAI 호환 /chat/completions 호출 (표준라이브러리만).
+
+    예전엔 방금 한 질문(message)을 빼고 지난 대화만 보내서 LLM 이 한 박자
+    늦은 대화에 답했다.
+    """
     url = endpoint.rstrip("/") + "/chat/completions"
     payload = {
         "model": model,
         "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                      {"role": "system", "content": USER_PII_NOTE + "\n" + summary}]
-        + history[-10:],
+        + history[-10:] + [{"role": "user", "content": message}],
     }
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
@@ -361,6 +425,61 @@ def llm_chat(endpoint: str, api_key: str, model: str,
         return data["choices"][0]["message"]["content"]
     except (KeyError, IndexError):
         raise RuntimeError(f"LLM 응답 형식 오류: {str(data)[:200]}")
+
+
+def claude_available() -> bool:
+    return shutil.which("claude") is not None
+
+
+def claude_chat(summary: str, history: list[dict], message: str) -> str:
+    """Claude 구독 모델(기본 Sonnet 5)로 답한다. 로컬 claude 명령을 부른다.
+
+    - 도구는 전부 끈다 (--tools ""). 상담 답변만 받는다.
+    - 대화 기록은 남기지 않는다 (--no-session-persistence).
+    - 요약이 길어 명령줄 길이 제한에 걸리지 않게, 시스템 프롬프트는 임시 파일로,
+      질문은 표준입력으로 넘긴다. 임시 파일에는 개인정보를 뺀 요약만 들어간다.
+    """
+    exe = shutil.which("claude")
+    if not exe:
+        raise RuntimeError("claude 명령을 찾지 못했어요")
+    lines = [("사용자" if h["role"] == "user" else "상담사") + ": " + h["content"]
+             for h in history]
+    prompt = (("지금까지 나눈 대화:\n" + "\n".join(lines) + "\n\n") if lines else "") \
+        + f"사용자의 새 질문: {message}\n\n위 리포트를 아는 상담사로서 답해 줘."
+    system = SYSTEM_PROMPT + "\n\n" + USER_PII_NOTE + "\n" + summary
+    fd, sys_path = tempfile.mkstemp(prefix="lf_sys_", suffix=".txt")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(system)
+        cmd = [exe, "-p", "--model", CLAUDE_MODEL, "--output-format", "json",
+               "--system-prompt-file", sys_path, "--tools", "",
+               "--no-session-persistence", "--strict-mcp-config"]
+        try:
+            proc = subprocess.run(
+                cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=CLAUDE_TIMEOUT, cwd=tempfile.gettempdir(),
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Claude 응답이 {CLAUDE_TIMEOUT}초 안에 오지 않았어요") from None
+        except OSError as e:
+            raise RuntimeError(f"Claude 실행 실패: {e}") from None
+    finally:
+        try:
+            os.remove(sys_path)
+        except OSError:
+            pass
+    if proc.returncode != 0:
+        raise RuntimeError(f"Claude 호출 실패 (종료코드 {proc.returncode})")
+    try:
+        env = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError("Claude 응답을 읽지 못했어요") from None
+    if env.get("is_error"):
+        raise RuntimeError(f"Claude 오류: {str(env.get('result', ''))[:200]}")
+    reply = str(env.get("result", "")).strip()
+    if not reply:
+        raise RuntimeError("Claude 가 빈 답을 보냈어요")
+    return reply
 
 
 # ---------------- HTML ----------------
@@ -407,7 +526,7 @@ HOME_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <p>[정통 계산] 사주·자미두수·점성술 전통 공식 그대로 · 입력값은 파일에 저장되지 않음</p></header>
 <main><div class="card"><h2>🔮 오늘의 운세 보기</h2>
 <form method="post" action="/report"><div class="form-grid">
-<label>양력 생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+<label>생년월일<input name="birth" type="text" value="1995-02-28" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
 <label>태어난 시간<input name="birth_time" type="time" value="12:00">
 <span style="font-size:.85em"><input name="unknown_time" type="checkbox" value="1" style="width:auto"> 모름</span></label>
 <label>성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
@@ -416,12 +535,12 @@ HOME_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <button type="submit">운세 보기</button></form></div>
 <div class="card"><h2>💞 두 사람 궁합 보기</h2>
 <form method="post" action="/match"><div class="form-grid">
-<label>내 생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+<label>내 생년월일<input name="birth" type="text" value="1995-02-28" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
 <label>내가 태어난 시간<input name="birth_time" type="time" value="12:00">
 <span style="font-size:.85em"><input name="unknown_time" type="checkbox" value="1" style="width:auto"> 모름</span></label>
 <label>내 성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
 <label>내가 태어난 도시<input name="city" value="부산"></label>
-<label>상대 생년월일<input name="birth2" type="date" value="1997-06-15" required></label>
+<label>상대 생년월일<input name="birth2" type="text" value="1997-06-15" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar2"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap2" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
 <label>상대가 태어난 시간<input name="birth2_time" type="time" value="12:00">
 <span style="font-size:.85em"><input name="unknown_time2" type="checkbox" value="1" style="width:auto"> 모름</span></label>
 <label>상대 성별<select name="sex2"><option value="female">여자</option><option value="male">남자</option></select></label>
@@ -430,7 +549,7 @@ HOME_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <button type="submit">궁합 보기</button></form></div>
 <div class="card"><h2>📅 길일 고르기</h2>
 <form method="post" action="/pick"><div class="form-grid">
-<label>양력 생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+<label>생년월일<input name="birth" type="text" value="1995-02-28" placeholder="YYYY-MM-DD" required></label><label>달력<select name="calendar"><option value="solar">양력</option><option value="lunar">음력</option></select></label><label><span style="font-size:.85em"><input name="leap" type="checkbox" value="1" style="width:auto"> 음력 윤달</span></label>
 <label>태어난 시간<input name="birth_time" type="time" value="12:00">
 <span style="font-size:.85em"><input name="unknown_time" type="checkbox" value="1" style="width:auto"> 모름</span></label>
 <label>성별<select name="sex"><option value="male">남자</option><option value="female">여자</option></select></label>
@@ -442,7 +561,7 @@ HOME_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <button type="submit">길일 보기</button></form></div>
 <div class="card"><h2>💬 상담 에이전트</h2>
 <p>리포트를 먼저 조회하면, 그 내용을 아는 상담 에이전트와 채팅할 수 있어요.
-기본은 오프라인 로컬 에이전트이며, 원하면 OpenAI 호환 LLM에 연결할 수 있어요.</p></div></main>
+기본은 Claude 구독 모델(Sonnet 5)이 답하고, 연결이 안 되면 로컬 에이전트가 답해요.</p></div></main>
 <footer>정통 공식 기반 상세 해석 · 네트워크 전송 없음.</footer></body></html>"""
 
 REPORT_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -514,8 +633,8 @@ REPORT_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div class="card"><h2>💬 상담 에이전트와 채팅</h2>
 <div id="chat"><div id="msgs"></div>
 <div class="row"><input id="q" placeholder="예: 오늘 직장운 어때, 금전운 알려줘"><button onclick="send()">전송</button></div>
-<details><summary>⚙️ LLM 연결 (선택, 미설정 시 로컬 에이전트)</summary>
-<p>OpenAI 호환 엔드포인트를 입력하면 실제 LLM과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
+<details><summary>⚙️ LLM 연결 (선택, 미설정 시 Claude Sonnet 5)</summary>
+<p>기본은 Claude 구독 모델(Sonnet 5)이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
 <label>Endpoint <input id="ep" placeholder="http://localhost:11434/v1"></label>
 <label>API Key <input id="key" type="password" placeholder="(비워두면 로컬 에이전트)"></label>
 <label>Model <input id="model" placeholder="gpt-4o-mini"></label>
@@ -570,8 +689,8 @@ MATCH_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div class="card"><h2>💬 상담 에이전트와 채팅</h2>
 <div id="chat"><div id="msgs"></div>
 <div class="row"><input id="q" placeholder="예: 우리 궁합 어때"><button onclick="send()">전송</button></div>
-<details><summary>⚙️ LLM 연결 (선택, 미설정 시 로컬 에이전트)</summary>
-<p>OpenAI 호환 엔드포인트를 입력하면 실제 LLM과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
+<details><summary>⚙️ LLM 연결 (선택, 미설정 시 Claude Sonnet 5)</summary>
+<p>기본은 Claude 구독 모델(Sonnet 5)이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
 <label>Endpoint <input id="ep" placeholder="http://localhost:11434/v1"></label>
 <label>API Key <input id="key" type="password" placeholder="(비워두면 로컬 에이전트)"></label>
 <label>Model <input id="model" placeholder="gpt-4o-mini"></label>
@@ -617,8 +736,8 @@ PICK_PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div class="card"><h2>💬 상담 에이전트와 채팅</h2>
 <div id="chat"><div id="msgs"></div>
 <div class="row"><input id="q" placeholder="예: 다음 주 좋은 날 알려줘"><button onclick="send()">전송</button></div>
-<details><summary>⚙️ LLM 연결 (선택, 미설정 시 로컬 에이전트)</summary>
-<p>OpenAI 호환 엔드포인트를 입력하면 실제 LLM과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
+<details><summary>⚙️ LLM 연결 (선택, 미설정 시 Claude Sonnet 5)</summary>
+<p>기본은 Claude 구독 모델(Sonnet 5)이 답합니다. OpenAI 호환 엔드포인트를 입력하면 그쪽과 대화합니다. 키는 브라우저에만 저장됩니다.</p>
 <label>Endpoint <input id="ep" placeholder="http://localhost:11434/v1"></label>
 <label>API Key <input id="key" type="password" placeholder="(비워두면 로컬 에이전트)"></label>
 <label>Model <input id="model" placeholder="gpt-4o-mini"></label>
@@ -939,10 +1058,8 @@ def api_report_data(birth: date, hour: int | None, minute: int,
     _br = [s for _, s in (_natal["pillars"][k]
                           for k in ("year", "month", "day", "hour"))
            if s is not None]
-    _, _, _today_elem = love_score(_natal["ilgan_stem"], _br, _ts, _tb,
-                                   target.isoformat())
-    _love_sc, _love_reasons, _ = love_score(_natal["ilgan_stem"], _br, _ts,
-                                            _tb, target.isoformat())
+    _love_sc, _love_reasons, _today_elem = love_score(_natal["ilgan_stem"], _br, _ts,
+                                                      _tb, target.isoformat(), sex)
     _adv = build_advice(_natal["ilgan"], _today_elem, target, birth)
     ma = detailed_reading(birth, hour, minute, sex, city, target)
     ast = ma["astro"]
@@ -1259,7 +1376,11 @@ APP_BODY = """
 <section id="v-fortune" class="view">
   <div class="card"><h2><span class="num">1</span>오늘의 운세 보기</h2>
     <form class="grid" id="fFortune">
-      <label class="f">양력 생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+      <div class="row2">
+        <label class="f">생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+        <label class="f">달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
+      </div>
+      <label class="check"><input name="leap" type="checkbox" value="1"> 음력 윤달 생일</label>
       <div class="row2">
         <label class="f">태어난 시간<input name="birth_time" type="time" value="12:00"></label>
         <label class="check"><input name="unknown_time" type="checkbox" value="1"> 모름</label>
@@ -1279,6 +1400,14 @@ APP_BODY = """
       <div class="row2">
         <label class="f">내 생년월일<input name="birth" type="date" value="1995-02-28" required></label>
         <label class="f">상대 생년월일<input name="birth2" type="date" value="1997-06-15" required></label>
+      </div>
+      <div class="row2">
+        <label class="f">내 생일 달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
+        <label class="f">상대 생일 달력<select name="calendar2" data-cal="birth2"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
+      </div>
+      <div class="row2">
+        <label class="check"><input name="leap" type="checkbox" value="1"> 내 생일 윤달</label>
+        <label class="check"><input name="leap2" type="checkbox" value="1"> 상대 생일 윤달</label>
       </div>
       <div class="row2">
         <label class="f">내가 태어난 시간<input name="birth_time" type="time" value="12:00"></label>
@@ -1303,7 +1432,11 @@ APP_BODY = """
 <section id="v-pick" class="view">
   <div class="card"><h2><span class="num">3</span>길일 고르기</h2>
     <form class="grid" id="fPick">
-      <label class="f">양력 생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+      <div class="row2">
+        <label class="f">생년월일<input name="birth" type="date" value="1995-02-28" required></label>
+        <label class="f">달력<select name="calendar" data-cal="birth"><option value="solar">양력</option><option value="lunar">음력</option></select></label>
+      </div>
+      <label class="check"><input name="leap" type="checkbox" value="1"> 음력 윤달 생일</label>
       <div class="row2">
         <label class="f">태어난 시간<input name="birth_time" type="time" value="12:00"></label>
         <label class="check"><input name="unknown_time" type="checkbox" value="1"> 모름</label>
@@ -1366,7 +1499,11 @@ document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=
 async function postJSON(url,obj){
   const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(obj)});
-  if(!r.ok) throw new Error('서버 응답 '+r.status);
+  if(!r.ok){
+    let m='서버 응답 '+r.status;
+    try{ const j=await r.json(); if(j.error) m=j.error; }catch(_){}
+    throw new Error(m);
+  }
   return r.json();
 }
 function formObj(form){
@@ -1398,8 +1535,9 @@ function chatCard(token,boxId,inputId){
   '<div class="chatbox"><div class="msgs" id="'+boxId+'"></div>'+
   '<div class="chatrow"><input id="'+inputId+'" placeholder="예: 오늘 직장운 어때" maxlength="200">'+
   '<button class="go" style="width:auto" data-chat="'+token+'|'+boxId+'|'+inputId+'">전송</button></div>'+
-  '<p class="muted small">리포트를 아는 로컬 에이전트가 답합니다. 단정적 예언은 하지 않습니다.</p></div></div>';
+  '<p class="muted small">리포트를 아는 상담 에이전트(Claude Sonnet 5)가 답합니다. 연결이 안 되면 로컬 에이전트가 답합니다. 생년월일은 보내지 않고, 단정적 예언은 하지 않습니다.</p></div></div>';
 }
+const CHAT_HIST={};
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-chat]');
   if(!b) return;
@@ -1412,9 +1550,12 @@ document.addEventListener('click',async e=>{
   box.insertAdjacentHTML('beforeend','<div class="msg me">'+esc(msg)+'</div>');
   box.insertAdjacentHTML('beforeend','<div class="msg bot" data-tmp="1">생각 중...</div>');
   box.scrollTop=box.scrollHeight;
+  const hist=(CHAT_HIST[parts[1]]=CHAT_HIST[parts[1]]||[]);
   try{
-    const j=await postJSON('/api/chat',{token:parts[0],message:msg});
-    box.querySelector('[data-tmp]').outerHTML='<div class="msg bot">'+esc(j.reply)+'</div>';
+    const j=await postJSON('/api/chat',{token:parts[0],message:msg,history:hist.slice(-10)});
+    box.querySelector('[data-tmp]').outerHTML='<div class="msg bot">'+esc(j.reply)+
+      (j.model?'<div class="muted small">'+esc(j.model)+'</div>':'')+'</div>';
+    hist.push({role:'user',content:msg},{role:'assistant',content:j.reply});
   }catch(err){
     box.querySelector('[data-tmp]').outerHTML='<div class="msg bot">연결 오류, 서버가 켜져 있는지 확인해 주세요.</div>';
   }
@@ -1579,11 +1720,19 @@ async function submitForm(formId,outId,url,render){
       animBars(out);
       out.scrollIntoView({block:'start'});
     }catch(err){
-      out.innerHTML='<div class="err">불러오지 못했어요. 입력값(날짜 형식)을 확인해 주세요.</div>';
+      out.innerHTML='<div class="err">'+esc(err&&err.message?err.message:'불러오지 못했어요. 입력값(날짜 형식)을 확인해 주세요.')+'</div>';
     }
     btn.disabled=false;
   });
 }
+// 음력을 고르면 날짜 칸을 글자 입력으로 바꾼다. 음력에는 2월 30일처럼
+// 양력 달력 위젯이 받지 못하는 날짜가 있기 때문이다.
+document.querySelectorAll('select[data-cal]').forEach(sel=>sel.addEventListener('change',()=>{
+  const inp=sel.form.querySelector('input[name="'+sel.dataset.cal+'"]');
+  const lunar=sel.value==='lunar';
+  inp.type=lunar?'text':'date';
+  inp.placeholder=lunar?'음력 YYYY-MM-DD':'';
+}));
 submitForm('fFortune','rFortune','/api/report',renderFortune);
 submitForm('fMatch','rMatch','/api/match',renderMatch);
 submitForm('fPick','rPick','/api/pick',renderPick);
@@ -1603,8 +1752,8 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # 개인정보가 로그에 남지 않도록
         pass
 
-    def _send(self, body: bytes, ctype: str, disp: str = ""):
-        self.send_response(200)
+    def _send(self, body: bytes, ctype: str, disp: str = "", code: int = 200):
+        self.send_response(code)
         self.send_header("Content-Type", ctype)
         if disp:
             self.send_header("Content-Disposition", disp)
@@ -1612,238 +1761,230 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _fail(self, code: int, msg: str):
+        """오류를 응답 본문으로 알린다.
+
+        예전엔 send_error(400, "입력 형식 오류") 처럼 한글을 상태줄에 넣었는데,
+        상태줄은 latin-1 이라 인코딩 오류로 응답 자체가 끊겼다.
+        """
+        if self.path.startswith("/api/"):
+            body = json.dumps({"error": msg}, ensure_ascii=False).encode("utf-8")
+            self._send(body, "application/json; charset=utf-8", code=code)
+            return
+        page = ("<!doctype html><html lang=\"ko\"><meta charset=\"utf-8\">"
+                "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                "<title>입력 확인</title><div style=\"font-family:sans-serif;padding:2em;"
+                "max-width:640px;margin:auto\"><h2>다시 확인해 주세요</h2>"
+                f"<p>{html.escape(msg)}</p><p><a href=\"/\">처음으로</a></p></div></html>")
+        self._send(page.encode("utf-8"), "text/html; charset=utf-8", code=code)
+
     def do_GET(self):
         if self.path == "/":
             self._send(app_page().encode("utf-8"),
                        "text/html; charset=utf-8")
         elif self.path == "/healthz":
-            body = b'{"ok":true}'
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send(b'{"ok":true}', "application/json")
         elif self.path == "/api/glossary":
             from .glossary import TERMS
             body = json.dumps(TERMS, ensure_ascii=False).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send(body, "application/json; charset=utf-8")
         else:
             self.send_error(404)
 
-    def _fields(self):
-        n = int(self.headers.get("Content-Length", 0))
+    def _fields(self) -> dict:
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        if n > MAX_BODY:
+            raise ValueError("요청이 너무 커")
         ctype = self.headers.get("Content-Type", "")
         raw = self.rfile.read(n)
         if "application/json" in ctype:
-            return json.loads(raw.decode("utf-8") or "{}")
+            data = json.loads(raw.decode("utf-8") or "{}")
+            if not isinstance(data, dict):
+                raise ValueError("요청 형식 오류")
+            return data
         from urllib.parse import parse_qs
         return {k: v[0] for k, v in
                 parse_qs(raw.decode("utf-8")).items()}
 
-    def do_POST(self):  # noqa: C901
+    @staticmethod
+    def _person(q: dict, n: str = "") -> tuple[date, int | None, int, str, str]:
+        """폼 값 → (양력 생일, 시, 분, 성별, 도시). n 은 두 번째 사람이면 "2".
+
+        양력·음력(윤달 포함) 입력과 성별을 여기서 검증한다. 잘못되면 ValueError.
+        """
+        from .cli import _parse_hm
+        from .lunar import parse_birth_date
+        from .manseryuk import normalize_sex
+        birth = parse_birth_date(q.get(f"birth{n}", ""), q.get(f"calendar{n}") or "solar",
+                                 _truthy(q.get(f"leap{n}")))
+        bt_key = f"birth{n}_time" if n else "birth_time"
+        bt = "모름" if _truthy(q.get(f"unknown_time{n}")) else (q.get(bt_key) or "12:00")
+        try:
+            hh, mm = _parse_hm(str(bt))
+        except ValueError:
+            raise ValueError("태어난 시간은 HH:MM 형식이어야 해 (예: 12:00)") from None
+        sex = normalize_sex(q.get(f"sex{n}") or ("female" if n else "male"))
+        city = str(q.get(f"city{n}") or "서울").strip()[:40] or "서울"
+        return birth, hh, mm, sex, city
+
+    @staticmethod
+    def _period(q: dict) -> tuple[date, date, str]:
+        try:
+            start = datetime.strptime(str(q.get("from_date", "")), "%Y-%m-%d").date()
+            end = datetime.strptime(str(q.get("to_date", "")), "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("기간은 YYYY-MM-DD 형식으로 입력해 줘") from None
+        domain = q.get("domain", "total") or "total"
+        if domain not in ("total", "love", "career", "money"):
+            domain = "total"
+        return start, end, domain
+
+    def do_POST(self):
+        routes = {
+            "/report": self._report, "/match": self._match, "/pick": self._pick,
+            "/api/report": self._api_report, "/api/match": self._api_match,
+            "/api/pick": self._api_pick, "/download": self._download,
+            "/api/chat": self._chat,
+        }
+        route = routes.get(self.path)
+        if route is None:
+            self.send_error(404)
+            return
         try:
             q = self._fields()
-        except Exception:
-            self.send_error(400, "요청 형식 오류")
+        except (ValueError, UnicodeDecodeError):
+            self._fail(400, "요청 형식 오류")
             return
-        if self.path == "/report":
-            from .cli import _parse_hm
-            try:
-                birth = datetime.strptime(q.get("birth", ""), "%Y-%m-%d").date()
-                bt = "모름" if q.get("unknown_time") else (q.get("birth_time", "12:00") or "12:00")
-                hh, mm = _parse_hm(bt)
-                sex = q.get("sex", "male")
-                city = q.get("city", "서울") or "서울"
-            except ValueError:
-                self.send_error(400, "입력 형식 오류")
-                return
-            target = date.today() + (timedelta(days=1) if q.get("tomorrow") else timedelta(0))
-            md, text, summary = agent_context(birth, hh, mm, sex, city, target)
-            token = secrets.token_hex(8)
-            _CONTEXTS[token] = {"md": md, "summary": summary,
-                                "target": target.isoformat(), "created": time.time()}
-            page = render_report_page(md, text, token, target.isoformat())
-            self._send(page.encode("utf-8"), "text/html; charset=utf-8")
-        elif self.path == "/match":
-            from .matchmaking import compatibility
-            from .cli import build_match_report, _parse_hm
-            try:
-                birth = datetime.strptime(q.get("birth", ""), "%Y-%m-%d").date()
-                bt = "모름" if q.get("unknown_time") else (q.get("birth_time", "12:00") or "12:00")
-                hh, mm = _parse_hm(bt)
-                sex = q.get("sex", "male")
-                city = q.get("city", "서울") or "서울"
-                birth2 = datetime.strptime(q.get("birth2", ""), "%Y-%m-%d").date()
-                bt2 = "모름" if q.get("unknown_time2") else (q.get("birth2_time", "12:00") or "12:00")
-                hh2, mm2 = _parse_hm(bt2)
-                sex2 = q.get("sex2", "female")
-                city2 = q.get("city2", "서울") or "서울"
-            except ValueError:
-                self.send_error(400, "입력 형식 오류")
-                return
-            r = compatibility(birth, hh, mm, sex, city,
-                              birth2, hh2, mm2, sex2, city2)
-            _text, md = build_match_report(birth, hh, mm, sex, city,
-                                           birth2, hh2, mm2, sex2, city2, r)
-            token = secrets.token_hex(8)
-            page, summary = render_match_page(r, token)
-            _CONTEXTS[token] = {"md": md, "summary": summary,
-                                "target": date.today().isoformat(), "created": time.time()}
-            self._send(page.encode("utf-8"), "text/html; charset=utf-8")
-        elif self.path == "/pick":
-            from .taekil import pick_dates
-            from .cli import build_pick_report, _parse_hm
-            try:
-                birth = datetime.strptime(q.get("birth", ""), "%Y-%m-%d").date()
-                bt = "모름" if q.get("unknown_time") else (q.get("birth_time", "12:00") or "12:00")
-                hh, mm = _parse_hm(bt)
-                sex = q.get("sex", "male")
-                city = q.get("city", "서울") or "서울"
-                start = datetime.strptime(q.get("from_date", ""), "%Y-%m-%d").date()
-                end = datetime.strptime(q.get("to_date", ""), "%Y-%m-%d").date()
-                domain = q.get("domain", "total") or "total"
-                if domain not in ("total", "love", "career", "money"):
-                    domain = "total"
-            except ValueError:
-                self.send_error(400, "입력 형식 오류")
-                return
-            try:
-                r = pick_dates(birth, hh, mm, sex, city, start, end, domain)
-            except ValueError as e:
-                self.send_error(400, str(e))
-                return
-            _text, md = build_pick_report(birth, hh, mm, sex, city,
-                                          start, end, domain, 5, r)
-            token = secrets.token_hex(8)
-            page, summary = render_pick_page(r, token)
-            _CONTEXTS[token] = {"md": md, "summary": summary,
-                                "target": start.isoformat(), "created": time.time()}
-            self._send(page.encode("utf-8"), "text/html; charset=utf-8")
-        elif self.path == "/api/report":
-            from .cli import _parse_hm
-            try:
-                birth = datetime.strptime(q.get("birth", ""), "%Y-%m-%d").date()
-                bt = "모름" if q.get("unknown_time") else (q.get("birth_time", "12:00") or "12:00")
-                hh, mm = _parse_hm(bt)
-                sex = q.get("sex", "male")
-                city = q.get("city", "서울") or "서울"
-            except ValueError:
-                self.send_error(400, "입력 형식 오류")
-                return
-            target = date.today() + (timedelta(days=1) if q.get("tomorrow") else timedelta(0))
-            try:
-                data = api_report_data(birth, hh, mm, sex, city, target)
-            except Exception:
-                self.send_error(500, "계산 오류")
-                return
-            token = secrets.token_hex(8)
-            _CONTEXTS[token] = {"md": data["md"], "summary": data["summary"],
-                                "target": target.isoformat(), "created": time.time()}
-            body = json.dumps({"token": token, "data": data},
-                              ensure_ascii=False).encode("utf-8")
-            self._send(body, "application/json; charset=utf-8")
-        elif self.path == "/api/match":
-            from .matchmaking import compatibility
-            from .cli import _parse_hm
-            try:
-                birth = datetime.strptime(q.get("birth", ""), "%Y-%m-%d").date()
-                hh, mm = _parse_hm("모름" if q.get("unknown_time") else (q.get("birth_time", "12:00") or "12:00"))
-                sex = q.get("sex", "male")
-                city = q.get("city", "서울") or "서울"
-                birth2 = datetime.strptime(q.get("birth2", ""), "%Y-%m-%d").date()
-                hh2, mm2 = _parse_hm("모름" if q.get("unknown_time2") else (q.get("birth2_time", "12:00") or "12:00"))
-                sex2 = q.get("sex2", "female")
-                city2 = q.get("city2", "서울") or "서울"
-            except ValueError:
-                self.send_error(400, "입력 형식 오류")
-                return
-            r = compatibility(birth, hh, mm, sex, city,
-                              birth2, hh2, mm2, sex2, city2)
-            from .cli import build_match_report
-            _text, md = build_match_report(birth, hh, mm, sex, city,
-                                           birth2, hh2, mm2, sex2, city2, r)
-            token = secrets.token_hex(8)
-            page, summary = render_match_page(r, token)
-            _CONTEXTS[token] = {"md": md, "summary": summary,
-                                "target": date.today().isoformat(), "created": time.time()}
-            body = json.dumps({"token": token, "data": api_match_data(r)},
-                              ensure_ascii=False).encode("utf-8")
-            self._send(body, "application/json; charset=utf-8")
-        elif self.path == "/api/pick":
-            from .taekil import pick_dates
-            from .cli import build_pick_report, _parse_hm
-            try:
-                birth = datetime.strptime(q.get("birth", ""), "%Y-%m-%d").date()
-                hh, mm = _parse_hm("모름" if q.get("unknown_time") else (q.get("birth_time", "12:00") or "12:00"))
-                sex = q.get("sex", "male")
-                city = q.get("city", "서울") or "서울"
-                start = datetime.strptime(q.get("from_date", ""), "%Y-%m-%d").date()
-                end = datetime.strptime(q.get("to_date", ""), "%Y-%m-%d").date()
-                domain = q.get("domain", "total") or "total"
-                if domain not in ("total", "love", "career", "money"):
-                    domain = "total"
-            except ValueError:
-                self.send_error(400, "입력 형식 오류")
-                return
-            try:
-                r = pick_dates(birth, hh, mm, sex, city, start, end, domain)
-            except ValueError as e:
-                self.send_error(400, str(e))
-                return
-            _text, md = build_pick_report(birth, hh, mm, sex, city,
-                                          start, end, domain, 5, r)
-            token = secrets.token_hex(8)
-            page, summary = render_pick_page(r, token)
-            _CONTEXTS[token] = {"md": md, "summary": summary,
-                                "target": start.isoformat(), "created": time.time()}
-            body = json.dumps({"token": token, "data": api_pick_data(r)},
-                              ensure_ascii=False).encode("utf-8")
-            self._send(body, "application/json; charset=utf-8")
-        elif self.path == "/download":
-            ctx = _CONTEXTS.get(q.get("token", ""))
-            if not ctx:
-                self.send_error(404, "만료된 리포트입니다. 다시 조회해 주세요.")
-                return
-            body = ctx["md"].encode("utf-8")
-            self._send(body, "text/markdown; charset=utf-8",
-                       f"attachment; filename=report_{ctx['target'].replace('-', '')}.md")
-        elif self.path == "/api/chat":
-            ctx = _CONTEXTS.get(q.get("token", ""), {})
-            summary = ctx.get("summary", "리포트 컨텍스트 없음. 일반적인 운세 상담으로 답할 것.")
-            message = str(q.get("message", ""))[:1000]
-            history = [h for h in q.get("history", []) if isinstance(h, dict)][:10]
-            endpoint = str(q.get("endpoint", "") or "").strip()
-            api_key = str(q.get("api_key", "") or "")
-            model = str(q.get("model", "") or "gpt-4o-mini")
-            if endpoint and api_key:
-                try:
-                    reply = llm_chat(endpoint, api_key, model, summary, history)
-                    mode = "llm"
-                except RuntimeError as e:
-                    reply = (f"{e}\n\n대신 로컬 에이전트가 답할게요: "
-                             + local_agent_reply(message, summary))
-                    mode = "local-fallback"
+        try:
+            route(q)
+        except ValueError as e:
+            self._fail(400, str(e))
+        except Exception as e:  # noqa: BLE001  계산 오류가 나도 서버는 살아 있게
+            # 입력값(개인정보)은 남기지 않고 오류 종류만 남긴다
+            print(f"[오류] {self.path} {type(e).__name__}", file=sys.stderr)
+            self._fail(500, "계산 중 오류가 났어. 입력값을 확인하고 다시 시도해 줘.")
+
+    # ---------------- 경로별 처리
+
+    def _report(self, q: dict):
+        birth, hh, mm, sex, city = self._person(q)
+        target = date.today() + (timedelta(days=1) if _truthy(q.get("tomorrow")) else timedelta(0))
+        md, text, summary = agent_context(birth, hh, mm, sex, city, target)
+        token = _remember(md, summary, target.isoformat())
+        page = render_report_page(md, text, token, target.isoformat())
+        self._send(page.encode("utf-8"), "text/html; charset=utf-8")
+
+    def _match(self, q: dict):
+        from .matchmaking import compatibility
+        from .cli import build_match_report
+        a = self._person(q)
+        b = self._person(q, "2")
+        r = compatibility(*a, *b)
+        _text, md = build_match_report(*a, *b, r)
+        token = secrets.token_hex(8)
+        page, summary = render_match_page(r, token)
+        _remember(md, summary, date.today().isoformat(), token)
+        self._send(page.encode("utf-8"), "text/html; charset=utf-8")
+
+    def _pick(self, q: dict):
+        from .taekil import pick_dates
+        from .cli import build_pick_report
+        birth, hh, mm, sex, city = self._person(q)
+        start, end, domain = self._period(q)
+        r = pick_dates(birth, hh, mm, sex, city, start, end, domain)
+        _text, md = build_pick_report(birth, hh, mm, sex, city, start, end, domain, 5, r)
+        token = secrets.token_hex(8)
+        page, summary = render_pick_page(r, token)
+        _remember(md, summary, start.isoformat(), token)
+        self._send(page.encode("utf-8"), "text/html; charset=utf-8")
+
+    def _api_report(self, q: dict):
+        birth, hh, mm, sex, city = self._person(q)
+        target = date.today() + (timedelta(days=1) if _truthy(q.get("tomorrow")) else timedelta(0))
+        data = api_report_data(birth, hh, mm, sex, city, target)
+        token = _remember(data["md"], data["summary"], target.isoformat())
+        self._json({"token": token, "data": data})
+
+    def _api_match(self, q: dict):
+        from .matchmaking import compatibility
+        from .cli import build_match_report
+        a = self._person(q)
+        b = self._person(q, "2")
+        r = compatibility(*a, *b)
+        _text, md = build_match_report(*a, *b, r)
+        _page, summary = render_match_page(r, "")
+        token = _remember(md, summary, date.today().isoformat())
+        self._json({"token": token, "data": api_match_data(r)})
+
+    def _api_pick(self, q: dict):
+        from .taekil import pick_dates
+        from .cli import build_pick_report
+        birth, hh, mm, sex, city = self._person(q)
+        start, end, domain = self._period(q)
+        r = pick_dates(birth, hh, mm, sex, city, start, end, domain)
+        _text, md = build_pick_report(birth, hh, mm, sex, city, start, end, domain, 5, r)
+        _page, summary = render_pick_page(r, "")
+        token = _remember(md, summary, start.isoformat())
+        self._json({"token": token, "data": api_pick_data(r)})
+
+    def _download(self, q: dict):
+        ctx = _context(str(q.get("token", "")))
+        if not ctx:
+            self._fail(404, "만료된 리포트입니다. 다시 조회해 주세요.")
+            return
+        self._send(ctx["md"].encode("utf-8"), "text/markdown; charset=utf-8",
+                   f"attachment; filename=report_{ctx['target'].replace('-', '')}.md")
+
+    def _chat(self, q: dict):
+        ctx = _context(str(q.get("token", ""))) or {}
+        summary = ctx.get("summary", "리포트 컨텍스트 없음. 일반적인 운세 상담으로 답할 것.")
+        message = str(q.get("message", "")).strip()[:1000]
+        if not message:
+            raise ValueError("질문을 입력해 줘")
+        history = _clean_history(q.get("history"))
+        endpoint = str(q.get("endpoint", "") or "").strip()
+        api_key = str(q.get("api_key", "") or "")
+        model = str(q.get("model", "") or "gpt-4o-mini")
+        backend = str(q.get("backend", "") or "").strip().lower()
+        if backend not in ("claude", "openai", "local"):
+            # 기본: 직접 연결한 엔드포인트가 있으면 그쪽, 없으면 Claude 구독(Sonnet 5),
+            # claude 명령이 없으면 로컬 규칙 에이전트
+            backend = ("openai" if endpoint and api_key
+                       else "claude" if claude_available() else "local")
+        try:
+            if backend == "openai":
+                reply, mode, used = llm_chat(endpoint, api_key, model, summary,
+                                             history, message), "llm", model
+            elif backend == "claude":
+                reply, mode, used = claude_chat(summary, history, message), "claude", CLAUDE_MODEL
             else:
-                reply = local_agent_reply(message, summary)
-                mode = "local"
-            self._send(json.dumps({"reply": reply, "mode": mode},
-                                  ensure_ascii=False).encode("utf-8"),
-                       "application/json; charset=utf-8")
-        else:
-            self.send_error(404)
+                reply, mode, used = local_agent_reply(message, summary), "local", "로컬 규칙 에이전트"
+        except RuntimeError as e:
+            reply = (f"{e}\n\n대신 로컬 에이전트가 답할게요: "
+                     + local_agent_reply(message, summary))
+            mode, used = "local-fallback", "로컬 규칙 에이전트"
+        self._json({"reply": reply, "mode": mode, "model": used})
+
+    def _json(self, obj: dict):
+        self._send(json.dumps(obj, ensure_ascii=False).encode("utf-8"),
+                   "application/json; charset=utf-8")
 
 
-def serve(port: int = 8765):
+def serve(port: int = 8765, host: str = "127.0.0.1"):
+    """로컬 웹 서버. 기본은 이 컴퓨터에서만 열린다.
+
+    예전엔 0.0.0.0 으로 열려서 같은 와이파이의 누구나 접속할 수 있었다. 채팅이
+    Claude 구독으로 답하게 되면서 남이 내 사용량을 쓰는 통로도 되므로 막는다.
+    휴대폰 등 다른 기기에서 보려면 --host 0.0.0.0 으로 직접 연다.
+    """
     print(DISCLAIMER)
     print(f"홈페이지: http://localhost:{port} (종료: Ctrl+C)")
+    if host not in ("127.0.0.1", "localhost"):
+        print(f"주의: {host} 로 열려 있어 같은 네트워크의 다른 기기도 접속할 수 있습니다.")
     try:
         webbrowser.open(f"http://localhost:{port}")
     except Exception:
         pass
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
     server.serve_forever()

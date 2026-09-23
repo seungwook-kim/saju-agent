@@ -100,13 +100,27 @@ def _jitter(seed: str, lo: int = -5, hi: int = 5) -> int:
     return lo + (int(h[:8], 16) % span)
 
 
+# 연애운에서 오늘 기운이 '이성 인연의 별'일 때 주는 가점. 명리에서 남성에게는
+# 재성(정재·편재), 여성에게는 관성(정관·편관)이 이성을 뜻한다. 예전엔 성별을
+# 보지 않아 여성도 정재 날에 가장 높은 점수를 받았다. [민간 통설·자작 수치]
+_GOD_BONUS_BASE = {"정인": 4, "식신": 3, "비견": 2, "겁재": -2, "상관": -1, "편인": 0}
+_GOD_BONUS_SEX = {
+    "male": {"정재": 5, "편재": 3, "정관": 2, "편관": -2},
+    "female": {"정관": 5, "편관": 2, "정재": 2, "편재": 1},
+    None: {"정재": 5, "편재": 2, "정관": 4, "편관": -3},   # 성별을 모를 때 (예전 값)
+}
+_SPOUSE_GODS = {"male": ("정재", "편재"), "female": ("정관", "편관")}
+
+
 def love_score(day_stem: int, birth_branches: list[int],
                today_stem: int, today_branch: int,
-               seed_extra: str = "") -> tuple[int, list[str], str]:
+               seed_extra: str = "", sex: str | None = None) -> tuple[int, list[str], str]:
     """오늘 연애운 점수(0~100) + 근거 문장 + 오늘 주도 오행.
 
+    sex 가 주어지면 이성 인연의 별(남성 재성, 여성 관성)에 가점을 준다.
     가중치는 전통 통설 기반 수치[민간 통설·자작]이며 단정적 효력을 주장하지 않는다.
     """
+    sex = sex if sex in ("male", "female") else None
     reasons: list[str] = []
     score = 55  # base
     me_elem = STEM_ELEMENT[day_stem]
@@ -152,9 +166,11 @@ def love_score(day_stem: int, birth_branches: list[int],
     # 3) 오늘 일간과의 십신, [정설] 표 차용, 해석은 연애 흐름 한정
     from .narrate import GOD_MEAN
     god = ten_god(day_stem, today_stem)
-    god_bonus = {"정재": 5, "정관": 4, "정인": 4, "식신": 3, "비견": 2,
-                 "겁재": -2, "상관": -1, "편재": 2, "편관": -3, "편인": 0}
+    god_bonus = {**_GOD_BONUS_BASE, **_GOD_BONUS_SEX[sex]}
     score += god_bonus.get(god, 0)
+    if sex and god in _SPOUSE_GODS[sex]:
+        star = "재성(남성에게 이성 인연을 뜻하는 별)" if sex == "male"             else "관성(여성에게 이성 인연을 뜻하는 별)"
+        reasons.append(f"오늘 들어온 '{god}'은 {star}이라 인연이 가까이 오기 쉬운 흐름")
     reasons.append(f"오늘 들어온 기운과 나는 '{god}' 사이야. {GOD_MEAN[god]} "
                    + {"정재": "진심이 통하기 쉬운 흐름",
                       "정관": "신뢰가 쌓이기 쉬운 흐름",

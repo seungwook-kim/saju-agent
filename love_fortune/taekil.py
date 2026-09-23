@@ -32,7 +32,7 @@ def pick_dates(birth: date, hour: int | None, minute: int, sex: str, city: str,
                                for k in ("year", "month", "day", "hour"))
                 if s is not None]
     from .ziwei import ziwei_chart
-    zw = ziwei_chart(birth, hour, minute, sex, city)
+    zw = ziwei_chart(birth, hour, minute, sex, city, start)
     cur_du_pal = next((p for p in zw["palaces"]
                        if p["daxian"] and p["daxian"][0] <= zw["xusui"] <= p["daxian"][1]),
                       None) if zw else None
@@ -42,7 +42,7 @@ def pick_dates(birth: date, hour: int | None, minute: int, sex: str, city: str,
     while d <= end:
         ts, tb = day_pillar(d)
         seed = f"pick-{d.isoformat()}"
-        ls, _, _ = love_score(ds, branches, ts, tb, seed)
+        ls, _, _ = love_score(ds, branches, ts, tb, seed, sex)
         cs, _, _ = career_score(ds, branches, ts, tb, seed)
         ns, _, _ = money_score(ds, branches, ts, tb, seed)
         ln_branch = year_pillar(datetime(d.year, d.month, d.day, 12, 0))[1]

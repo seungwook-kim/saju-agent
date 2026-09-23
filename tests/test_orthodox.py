@@ -43,26 +43,29 @@ def test_four_pillars_exact():
 
 
 def test_ziwei_hand_verified():
+    # iztro 대조값 (1995-02-28 부산 12:00 = 진태양시 11:43, 오시)
     z = ziwei_chart(BIRTH, 12, 0, "male", "부산")
     assert z["lunar"] == (1995, 1, 29, False)
     assert z["mingong"] == "신" and z["shengong"] == "신"
     assert z["guo"] == 2
-    assert z["ming_main"] == "염정"
-    assert z["spouse_main"] == "칠살"
+    # 명궁(신)은 주성이 없는 무주성이라 맞은편 천이궁(인)의 천기를 빌려 읽는다
+    assert z["ming_borrowed"] == "천기" and z["ming_main"] == "천기"
+    assert z["spouse_main"] == "천량"
     assert z["sihua"] == {"록": "천기", "권": "천량", "과": "자미", "기": "태음"}
-    assert z["mingzhu"] == "거문" and z["shenzhu"] == "천기"
+    # 명주는 명궁 지지(신)로, 신주는 태어난 해 지지(해)로 정한다
+    assert z["mingzhu"] == "염정" and z["shenzhu"] == "천기"
     # 사화 낙궁 확인
     by_star = {}
     for p in z["palaces"]:
         for s, h in p["hua"].items():
             by_star[s] = (p["name"], h)
-    assert by_star["천기"] == ("질액", "록")
-    assert by_star["천량"] == ("자녀", "권")
-    assert by_star["자미"] == ("재백", "과")
-    assert by_star["태음"] == ("노복", "기")
-    # 대운: 수이국 7세 시작, 을해년 음년 남명 → 역행, 명궁 7~16세
+    assert by_star["천기"] == ("천이", "록")
+    assert by_star["천량"] == ("부처(배우자)", "권")
+    assert by_star["자미"] == ("질액", "과")
+    assert by_star["태음"] == ("천이", "기")
+    # 대운: 수이국은 2세 시작, 을해년 음년 남명 → 역행, 명궁 2~11세
     ming = next(p for p in z["palaces"] if p["name"] == "명궁")
-    assert ming["daxian"] == (7, 16)
+    assert ming["daxian"] == (2, 11)
 
 
 def test_astro_real_signs():
@@ -92,7 +95,7 @@ def test_detailed_reading_deterministic():
     a = detailed_reading(BIRTH, 12, 0, "male", "부산", TARGET)
     b = detailed_reading(BIRTH, 12, 0, "male", "부산", TARGET)
     assert a == b
-    assert a["ziwei_main"] == "칠살"
+    assert a["ziwei_main"] == "천량"
     assert a["venus"] == "염소자리"
 
 

@@ -192,7 +192,7 @@ def ziwei_puli(ma: dict) -> list[str]:
         return ["시간 미상이라 자미두수 명반 풀이는 제외, 사주 대운으로 봐."]
     out = []
     out.append(f"명반 전체 바탕은 {GUO_NAME[zw['guo']]} 기운이야. "
-               f"나를 보는 명궁({zw['mingong']} 자리)에는 {zw['ming_main']}이 앉아 있어. "
+               f"{ming_seat_text(zw)} "
                f"{STAR_TALK.get(zw['ming_main'], '자기 자리를 지키는 별이야')} "
                f"신궁({zw['shengong']})은 중년 이후 겉모습을 보는 자리야.")
     peach = f" 여기에 도화성 {', '.join(zw['peach'])}이 함께 있어 설렘이 엮이기 쉬워." \
@@ -207,8 +207,10 @@ def ziwei_puli(ma: dict) -> list[str]:
     cur = next((p for p in zw["palaces"]
                 if p["daxian"] and p["daxian"][0] <= zw["xusui"] <= p["daxian"][1]), None)
     if cur:
+        seat = (f"이 궁에는 {', '.join(cur['stars'])}이 앉아 있어." if cur["stars"]
+                else "이 궁은 별이 비어 있어서 맞은편 궁의 기운을 빌려 읽는 시기야.")
         out.append(f"지금 {zw['xusui']}세는 {cur['name']} 대운({cur['daxian'][0]}~{cur['daxian'][1]}세) "
-                   f"한가운데야. 이 궁에는 {', '.join(cur['stars'])}이 앉아 있어.")
+                   f"한가운데야. {seat}")
     out.append(f"올해 유년은 {zw['liunian']['branch']} 자리({zw['liunian']['stem']}의 해)에 걸려 있어. "
                f"올해 사화는 록{zw['liunian']['sihua']['록']} 권{zw['liunian']['sihua']['권']} "
                f"과{zw['liunian']['sihua']['과']} 기{zw['liunian']['sihua']['기']}로 돌아.")
@@ -325,3 +327,11 @@ def rel_sentence(rels: list[str]) -> str:
     if not out:
         return "특별히 부딪치지도 손잡지도 않는 무난한 사이야."
     return ", ".join(out) + " 사이야."
+
+
+def ming_seat_text(zw: dict) -> str:
+    """명궁에 앉은 주성을 말로. 무주성이면 맞은편 궁에서 빌려 온 별로 읽는다."""
+    if zw.get("ming_borrowed"):
+        return (f"나를 보는 명궁({zw['mingong']} 자리)은 주성이 비어 있는 무주성이라, "
+                f"맞은편 천이궁의 {zw['ming_borrowed']}을 빌려 읽어.")
+    return f"나를 보는 명궁({zw['mingong']} 자리)에는 {zw['ming_main']}이 앉아 있어."

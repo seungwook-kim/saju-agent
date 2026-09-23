@@ -2,8 +2,12 @@
 
 - 년주: 입춘(태양황경 315도, 실측) 경계
 - 월주: 12절 실측 + 오호둔(연간으로 인월 천간 정하기)
-- 일주: 기준일 1900-01-01 = 갑술일
+  년주·월주는 출생 '순간'(세계시)을 절입 순간과 비교한다. 절기는 온 세상에서
+  같은 순간에 들어오기 때문이다. 예전엔 진태양시를 한국 표준시처럼 비교해서
+  절입 직후 30분 안팎에 태어난 사람의 년주·월주가 바뀌었다.
+- 일주: 기준일 1900-01-01 = 갑술일, 날짜 경계는 진태양시
 - 시주: 진태양시 + 오서둔, 밤자시(23시 이후)는 다음날 자시
+- 출생 시각은 그때 그 지역의 표준시·서머타임을 반영해 세계시로 바꾼다 (lunar.birth_moment)
 - 대운: 양남음녀 순행/음남양녀 역행, 절기까지 일수/3 = 대운 시작 나이
 - 신살: 천을귀인, 역마, 화개, 공망, 장성, 괴강, 고진과숙
 """
@@ -12,7 +16,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from .astronomy import solar_term_moment, month_branch_exact, JIE_LON
-from .lunar import true_solar_time
+from .lunar import birth_moment
 
 STEMS_KR = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
 BRANCHES_KR = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
@@ -44,6 +48,19 @@ KONGWANG = [(10, 11), (8, 9), (6, 7), (4, 5), (2, 3), (0, 1)]
 KUIGANG = {(6, 4), (6, 10), (8, 4), (4, 10)}  # 경진·경술·임진·무술일
 GUCHEN_AT = {(2, 3, 4): (5, 1), (5, 6, 7): (8, 4),
              (8, 9, 10): (11, 7), (11, 0, 1): (2, 10)}
+
+
+def normalize_sex(sex: str | None) -> str:
+    """성별 입력을 'male'/'female' 로. 알아볼 수 없으면 ValueError.
+
+    예전엔 검사가 없어서 '여' 라고 넣으면 남자로 계산됐다 (대운 방향이 뒤집힌다).
+    """
+    v = str(sex or "").strip().lower()
+    if v in ("male", "m", "man", "남", "남자", "남성"):
+        return "male"
+    if v in ("female", "f", "woman", "여", "여자", "여성"):
+        return "female"
+    raise ValueError(f"성별은 남/여(male/female)로 입력해 줘 (입력: {sex!r})")
 
 
 def ganzhi_str(stem: int, branch: int) -> str:
@@ -88,15 +105,15 @@ def four_pillars(birth: date, hour: int | None = 12, minute: int = 0,
                  city: str = "서울") -> dict:
     """사주 4기둥. 진태양시 보정, 밤자시는 다음날로. hour None이면 시주 제외."""
     _hh = 12 if hour is None else hour
-    true_dt, corr, _lon, city_ok = true_solar_time(
-        birth.year, birth.month, birth.day, _hh, minute, city)
+    bm = birth_moment(birth.year, birth.month, birth.day, _hh, minute, city)
+    true_dt, corr = bm["true_solar"], bm["corr_min"]
     eff = true_dt.date()
     night_zi = False
     if true_dt.hour >= 23:
         eff = eff + timedelta(days=1)
         night_zi = True
-    ys, yb = year_pillar(true_dt)
-    ms, mb = month_pillar(true_dt)
+    ys, yb = year_pillar(bm["kst"])
+    ms, mb = month_pillar(bm["kst"])
     ds, db = day_pillar(eff)
     if hour is None:
         hs = hb = None
@@ -119,19 +136,53 @@ def four_pillars(birth: date, hour: int | None = 12, minute: int = 0,
         "year_animal": ZODIAC_ANIMALS[yb],
         "true_solar": true_dt.strftime("%m-%d %H:%M"),
         "corr_min": round(corr, 1),
-        "city_ok": city_ok,
+        "city_ok": bm["city_ok"],
+        "city_name": bm["city_name"],
+        "dst": bm["dst"],
+        "offset_h": bm["offset_h"],
+        "zone": bm["zone"],
         "night_zi": night_zi,
     }
 
 
+def _fmt_offset(h: float) -> str:
+    sign = "+" if h >= 0 else "-"
+    m = round(abs(h) * 60)
+    return f"UTC{sign}{m // 60}" + (f":{m % 60:02d}" if m % 60 else "")
+
+
+def time_notes(natal: dict) -> list[str]:
+    """출생 시각을 어떻게 보정했는지 사람 말로. 도시 이름·날짜는 넣지 않는다."""
+    if natal.get("hour_unknown"):
+        return []
+    notes = []
+    zone, off = natal.get("zone", "Asia/Seoul"), natal.get("offset_h", 9.0)
+    if natal.get("dst"):
+        notes.append(f"태어난 때가 서머타임 기간이라 시계를 한 시간 되돌려 계산했어 ({_fmt_offset(off)})")
+    elif zone in ("Asia/Seoul", "Asia/Pyongyang") and abs(off - 9.0) > 1e-9:
+        notes.append(f"그때 한국 표준시는 {_fmt_offset(off)} 였어서 그 기준으로 계산했어")
+    elif zone not in ("Asia/Seoul", "Asia/Pyongyang"):
+        notes.append(f"현지 표준시 {_fmt_offset(off)} 기준으로 계산했어")
+    if not natal.get("city_ok", True):
+        notes.append("태어난 도시를 목록에서 찾지 못해 남한 중앙 경도로 어림했어. "
+                     "가까운 큰 도시 이름을 넣으면 시주가 더 정확해져")
+    return notes
+
+
 def dayun(birth: date, hour: int | None, minute: int, sex: str,
-          city: str = "서울") -> dict:
-    """대운: 대운 시작 나이 + 8스텝 간지 + 현재 대운. hour None이면 정오 기준 어림."""
+          city: str = "서울", today: date | None = None) -> dict:
+    """대운: 대운 시작 나이 + 8스텝 간지 + 현재 대운. hour None이면 정오 기준 어림.
+
+    today 는 '현재 대운' 을 고르는 기준일이다 (리포트 기준일을 넘긴다).
+    """
+    sex = normalize_sex(sex)
+    today = today or date.today()
     natal = four_pillars(birth, hour, minute, city)
     ys = natal["pillars"]["year"][0]
     ms, mb = natal["pillars"]["month"]
     _hh = 12 if hour is None else hour
-    true_dt = datetime(birth.year, birth.month, birth.day, _hh, minute)
+    # 절입 시각(한국 표준시 기준)과 같은 잣대로 비교한다
+    true_dt = birth_moment(birth.year, birth.month, birth.day, _hh, minute, city)["kst"]
     yang_year = (ys % 2 == 0)
     shun = (yang_year and sex == "male") or (not yang_year and sex == "female")
     # 가장 가까운 절기 탐색
@@ -162,7 +213,7 @@ def dayun(birth: date, hour: int | None, minute: int, sex: str,
         steps.append({"ganzhi": ganzhi_str(s, b),
                       "from": round(start_age + 10 * (k - 1), 1),
                       "to": round(start_age + 10 * k - 0.1, 1)})
-    age_now = (date.today() - birth).days / 365.25
+    age_now = (today - birth).days / 365.25
     cur = next((st for st in steps
                 if st["from"] <= age_now <= st["to"] + 0.1), steps[-1])
     return {"direction": "순행" if shun else "역행",

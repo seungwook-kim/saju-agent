@@ -4,13 +4,15 @@ from __future__ import annotations
 import argparse
 from datetime import date, datetime, timedelta
 
-from .manseryuk import four_pillars, day_pillar, ganzhi_str
+from .manseryuk import four_pillars, day_pillar, ganzhi_str, normalize_sex, time_notes
+from .lunar import parse_birth_date
 from .rules import love_score, headline, branch_relation
 from .advise import build_advice
 from .synthesis import detailed_reading
 from .narrate import (_rel_text as _rel_talk, ziwei_puli, astro_puli,
                       match_puli, narrate_palace, narrate_slice_row,
-                      STAR_TALK, HUA_TALK, AUX_TALK, GUO_NAME, GOD_SHORT)
+                      STAR_TALK, HUA_TALK, AUX_TALK, GUO_NAME, GOD_SHORT,
+                      ming_seat_text)
 from .lifetime import MAIN14
 from .domains import CAREER_STAR, MONEY_STAR
 from .narrate import _eun as _eun_word
@@ -28,12 +30,16 @@ def parse_args(argv=None):
         description="종합 사주 (로컬·정통 계산). "
                     "인자 없이 실행하면 대화형 입력 모드, "
                     "`form` 서브커맨드로 브라우저 입력폼을 열 수 있다.")
-    p.add_argument("--birth", help="양력 생년월일 YYYY-MM-DD")
+    p.add_argument("--birth", help="생년월일 YYYY-MM-DD (기본 양력, --calendar lunar 면 음력)")
+    p.add_argument("--calendar", default="solar", choices=["solar", "lunar"],
+                   help="생년월일 달력: solar(양력, 기본) 또는 lunar(음력)")
+    p.add_argument("--leap", action="store_true", help="음력 생일이 윤달이면 붙인다")
     p.add_argument("--birth-time", default="12:00",
                    help="태어난 시간 HH:MM, 모르면 '모름' (시주 제외·자미/하우스 제외하고 3기둥으로 계산)")
-    p.add_argument("--sex", default="male", choices=["male", "female"],
-                   help="성별 (자미두수 순행/역행 구분용으로만 사용)")
-    p.add_argument("--city", default="서울", help="태어난 도시 (출력 문구 분위기용)")
+    p.add_argument("--sex", default="male", type=_sex_arg,
+                   help="성별 male/female (남/여도 됨). 대운 방향과 연애운 해석에 쓴다")
+    p.add_argument("--city", default="서울",
+                   help="태어난 도시 (진태양시·당시 표준시·서머타임 보정에 쓴다, 해외 주요 도시 가능)")
     p.add_argument("--tomorrow", action="store_true", help="내일 리포트")
     p.add_argument("--date", help="기준일 YYYY-MM-DD (기본: 오늘, 테스트·재현용)")
     p.add_argument("--no-save", action="store_true", help="md 파일 저장 안 함")
@@ -45,20 +51,28 @@ def parse_args(argv=None):
     sub = p.add_subparsers(dest="cmd")
     f = sub.add_parser("form", help="홈페이지식 로컬 웹 + 채팅 에이전트 열기 (localhost, 저장 없음)")
     f.add_argument("--port", type=int, default=8765)
+    f.add_argument("--host", default="127.0.0.1",
+                   help="서버를 열 주소 (기본 127.0.0.1 = 이 컴퓨터만. 다른 기기에서 보려면 0.0.0.0)")
     mm = sub.add_parser("match", help="두 사람 궁합 보기 (로컬 계산, 저장 없음)")
-    mm.add_argument("--birth", required=True, help="내 양력 생년월일 YYYY-MM-DD")
+    mm.add_argument("--birth", required=True, help="내 생년월일 YYYY-MM-DD")
+    mm.add_argument("--calendar", default="solar", choices=["solar", "lunar"])
+    mm.add_argument("--leap", action="store_true", help="내 음력 생일이 윤달이면")
     mm.add_argument("--birth-time", default="12:00", help="모르면 '모름'")
-    mm.add_argument("--sex", default="male", choices=["male", "female"])
+    mm.add_argument("--sex", default="male", type=_sex_arg)
     mm.add_argument("--city", default="서울")
-    mm.add_argument("--birth2", required=True, help="상대 양력 생년월일 YYYY-MM-DD")
+    mm.add_argument("--birth2", required=True, help="상대 생년월일 YYYY-MM-DD")
+    mm.add_argument("--calendar2", default="solar", choices=["solar", "lunar"])
+    mm.add_argument("--leap2", action="store_true", help="상대 음력 생일이 윤달이면")
     mm.add_argument("--birth2-time", default="12:00", help="모르면 '모름'")
-    mm.add_argument("--sex2", default="female", choices=["male", "female"])
+    mm.add_argument("--sex2", default="female", type=_sex_arg)
     mm.add_argument("--city2", default="서울")
     mm.add_argument("--no-save", action="store_true")
     pk = sub.add_parser("pick", help="기간 내 길일 고르기 (로컬 계산)")
-    pk.add_argument("--birth", required=True, help="양력 생년월일 YYYY-MM-DD")
+    pk.add_argument("--birth", required=True, help="생년월일 YYYY-MM-DD")
+    pk.add_argument("--calendar", default="solar", choices=["solar", "lunar"])
+    pk.add_argument("--leap", action="store_true", help="음력 생일이 윤달이면")
     pk.add_argument("--birth-time", default="12:00", help="모르면 '모름'")
-    pk.add_argument("--sex", default="male", choices=["male", "female"])
+    pk.add_argument("--sex", default="male", type=_sex_arg)
     pk.add_argument("--city", default="서울")
     pk.add_argument("--from", dest="from_date", required=True, help="시작일 YYYY-MM-DD")
     pk.add_argument("--to", dest="to_date", required=True, help="끝일 YYYY-MM-DD (최대 62일)")
@@ -71,11 +85,22 @@ def parse_args(argv=None):
 
 def interactive_ask() -> dict:
     print(DISCLAIMER)
-    birth = input("양력 생년월일 (YYYY-MM-DD): ").strip()
+    cal = input("양력/음력 (Enter → 양력, 음력이면 '음력'): ").strip() or "양력"
+    cal = "lunar" if cal in ("음력", "lunar", "l", "음") else "solar"
+    leap = False
+    birth = input(f"{'음력' if cal == 'lunar' else '양력'} 생년월일 (YYYY-MM-DD): ").strip()
+    if cal == "lunar":
+        leap = input("윤달이야? (y/N): ").strip().lower() in ("y", "yes", "예", "네", "응")
     bt = input("태어난 시간 (HH:MM, 모르면 '모름' 입력): ").strip() or "모름"
-    sex = input("성별 (male/female, Enter → male): ").strip() or "male"
+    while True:
+        try:
+            sex = normalize_sex(input("성별 (남/여): ").strip())
+            break
+        except ValueError as e:
+            print(f"  {e}")
     city = input("태어난 도시 (Enter → 서울): ").strip() or "서울"
-    return {"birth": birth, "birth_time": bt, "sex": sex, "city": city}
+    return {"birth": birth, "calendar": cal, "leap": leap, "birth_time": bt,
+            "sex": sex, "city": city}
 
 
 def build_report(birth: date, hour: int | None, minute: int, sex: str,
@@ -89,7 +114,7 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
     # 오늘(타깃일) 일진
     ts, tb = day_pillar(target)
     seed_extra = target.isoformat()
-    score, reasons, today_elem = love_score(ds, branches, ts, tb, seed_extra)
+    score, reasons, today_elem = love_score(ds, branches, ts, tb, seed_extra, sex)
     head = headline(score)
     adv = build_advice(natal["ilgan"], today_elem, target, birth)
     ma = detailed_reading(birth, hour, minute, sex, city, target)
@@ -115,6 +140,8 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
     else:
         L.append(f"  · 진태양시 {natal['true_solar']} (보정 {natal['corr_min']}분)"
                  + (" · 야자시 적용" if natal["night_zi"] else ""))
+        for _note in time_notes(natal):
+            L.append(f"  · {_note}")
 
     if show("total"):
         t = ma["total"]
@@ -159,7 +186,7 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
             L.append("  · 시간 미상이라 명반 상세 배치·12궁은 제외, 위 안내로 봐.")
         else:
             L.append(f"  · 풀이: 명반 전체 바탕은 {GUO_NAME[zw['guo']]} 기운이야. "
-                     f"나를 보는 명궁({zw['mingong']} 자리)에는 {zw['ming_main']}이 앉아 있어. "
+                     f"{ming_seat_text(zw)} "
                      f"{STAR_TALK.get(zw['ming_main'], '자기 자리를 지키는 별이야')}")
             _peach_talk_else = ""
             if ma["peach"]:
@@ -381,7 +408,7 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
             M.append("- 시간 미상이라 명반 상세 배치·12궁은 제외, 위 안내로 봐.")
         else:
             M.append(f"- 풀이: 명반 전체 바탕은 {GUO_NAME[zw['guo']]} 기운이야. "
-                     f"나를 보는 명궁({zw['mingong']} 자리)에는 {zw['ming_main']}이 앉아 있어. "
+                     f"{ming_seat_text(zw)} "
                      f"{STAR_TALK.get(zw['ming_main'], '자기 자리를 지키는 별이야')}")
         M.append(f"- 부처궁 주성 {ma['ziwei_main']}, {ma['ziwei_detail']['look']} / {ma['ziwei_detail']['mind']}")
         M.append(f"- 풀이: 배우자를 보는 부처궁에는 {ma['ziwei_main']}이 앉아 있어. "
@@ -643,24 +670,34 @@ def _parse_hm(value: str) -> tuple[int | None, int]:
     """HH:MM 또는 '모름' → (시|None, 분)."""
     if value.strip() in ("모름", "unknown", "모름시간", ""):
         return None, 0
-    h, m = value.split(":")
-    return int(h), int(m)
+    h, m = (int(x) for x in value.strip().split(":"))
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        raise ValueError("시간은 00:00~23:59 사이여야 해")
+    return h, m
+
+
+def _sex_arg(value: str) -> str:
+    import argparse
+    try:
+        return normalize_sex(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
 
 
 def main(argv=None):
     args = parse_args(argv)
     if args.cmd == "form":
         from .web import serve
-        serve(args.port)
+        serve(args.port, args.host)
         return
     if args.cmd == "match":
         try:
-            ab = datetime.strptime(args.birth, "%Y-%m-%d").date()
-            bb = datetime.strptime(args.birth2, "%Y-%m-%d").date()
+            ab = parse_birth_date(args.birth, args.calendar, args.leap)
+            bb = parse_birth_date(args.birth2, args.calendar2, args.leap2)
             ah, am = _parse_hm(args.birth_time)
             bh, bm = _parse_hm(args.birth2_time)
-        except (ValueError, TypeError):
-            raise SystemExit("날짜·시간 형식이 잘못됐습니다. 예: --birth 1995-02-28 --birth2 1997-06-15")
+        except (ValueError, TypeError) as e:
+            raise SystemExit(f"입력 오류: {e}\n예: --birth 1995-02-28 --birth2 1997-06-15")
         text, md = build_match_report(ab, ah, am, args.sex, args.city,
                                       bb, bh, bm, args.sex2, args.city2)
         print(text)
@@ -672,12 +709,12 @@ def main(argv=None):
         return
     if args.cmd == "pick":
         try:
-            birth = datetime.strptime(args.birth, "%Y-%m-%d").date()
+            birth = parse_birth_date(args.birth, args.calendar, args.leap)
             hh, mm = _parse_hm(args.birth_time)
             start = datetime.strptime(args.from_date, "%Y-%m-%d").date()
             end = datetime.strptime(args.to_date, "%Y-%m-%d").date()
-        except (ValueError, TypeError):
-            raise SystemExit("날짜·시간 형식이 잘못됐습니다. 예: --birth 1995-02-28 --from 2026-10-01 --to 2026-10-31")
+        except (ValueError, TypeError) as e:
+            raise SystemExit(f"입력 오류: {e}\n예: --birth 1995-02-28 --from 2026-10-01 --to 2026-10-31")
         try:
             text, md = build_pick_report(birth, hh, mm, args.sex, args.city,
                                          start, end, args.domain, args.top)
@@ -694,21 +731,18 @@ def main(argv=None):
         if not args.birth and not args.interactive:
             # 인자 없이 실행 → 대화형으로 유도 (단, --birth 없으면 에러 대신 질문)
             ans = interactive_ask()
-            args.birth = ans["birth"]
-            args.birth_time = ans["birth_time"]
-            args.sex = ans["sex"]
-            args.city = ans["city"]
-        elif args.interactive:
+        else:
             ans = interactive_ask()
-            args.birth = ans["birth"]
-            args.birth_time = ans["birth_time"]
-            args.sex = ans["sex"]
-            args.city = ans["city"]
+        for k in ("birth", "calendar", "leap", "birth_time", "sex", "city"):
+            setattr(args, k, ans[k])
 
     try:
-        birth = datetime.strptime(args.birth, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        raise SystemExit("birth 형식이 잘못됐습니다. 예: --birth 1995-02-28")
+        birth = parse_birth_date(args.birth, args.calendar, args.leap)
+    except (ValueError, TypeError) as e:
+        raise SystemExit(f"생년월일 입력 오류: {e}\n"
+                         "예: --birth 1995-02-28 (음력이면 --calendar lunar, 윤달이면 --leap)")
+    if args.calendar == "lunar":
+        print(f"(음력 {'윤달 ' if args.leap else ''}{args.birth} → 양력 {birth.isoformat()} 로 바꿔 계산해)")
     try:
         hh, mm = _parse_hm(args.birth_time)
     except ValueError:
@@ -721,8 +755,11 @@ def main(argv=None):
     if args.tomorrow:
         target = target + timedelta(days=1)
 
-    text, md = build_report(birth, hh, mm, args.sex, args.city, target,
-                            args.domain, args.lifetime)
+    try:
+        text, md = build_report(birth, hh, mm, args.sex, args.city, target,
+                                args.domain, args.lifetime)
+    except ValueError as e:
+        raise SystemExit(f"입력 오류: {e}")
     print(text)
     if not args.no_save:
         fname = f"report_{target.strftime('%Y%m%d')}.md"

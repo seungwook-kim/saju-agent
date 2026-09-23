@@ -28,8 +28,8 @@ def _sign(lon: float) -> str:
 def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
                      city: str, today: date | None = None) -> dict:
     today = today or date.today()
-    zw = ziwei_chart(birth, hour, minute, sex, city)
-    du = dayun(birth, hour, minute, sex, city)
+    zw = ziwei_chart(birth, hour, minute, sex, city, today)
+    du = dayun(birth, hour, minute, sex, city, today)
     pals = zw["palaces"] if zw else []
 
     def palace_at_xusui(x: int):
@@ -222,7 +222,9 @@ def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
                 + (f" | {'; '.join(notes)}" if notes else ""))
         years.append({"year": y, "age": age, "line": line})
 
-    age_now = y0 - birth.year
+    # 연대 표(0~89세) 밖이면 가장 가까운 연대로 본다. 예전엔 90세 이상이면
+    # StopIteration 으로 리포트 전체가 죽었다.
+    age_now = min(max(y0 - birth.year, decades[0]["range"][0]), decades[-1]["range"][1])
     cur_dec = next(d for d in decades if d["range"][0] <= age_now <= d["range"][1])
     return {"decades": decades, "years": years, "phases": phases,
             "current": cur_dec}
