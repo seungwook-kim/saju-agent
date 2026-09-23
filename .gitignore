@@ -10,3 +10,4 @@ watchdog.log
 report_*.md
 match_*.md
 pick_*.md
+tools/.skyfield/

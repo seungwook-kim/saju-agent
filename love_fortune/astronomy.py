@@ -219,8 +219,24 @@ def _sun_lon_kst(dt: datetime) -> float:
     return sun_position(day_number(ut.tm_year, ut.tm_mon, ut.tm_mday, uth))[0]
 
 
+def _table_term(year: int, target_lon: float) -> datetime | None:
+    """내장 절기표(JPL DE421)에서 찾는다. 표 범위 밖이면 None."""
+    from .solar_terms_data import TERMS
+    for lon, iso in TERMS.get(year, ()):
+        if abs(lon - target_lon % 360) < 1e-9:
+            return datetime.fromisoformat(iso)
+    return None
+
+
 def solar_term_moment(year: int, target_lon: float) -> datetime:
-    """해당 연도에 태양 시황경이 target_lon이 되는 KST 시각 (이분 탐색)."""
+    """해당 연도에 태양 겉보기 황경이 target_lon 이 되는 KST 시각.
+
+    1899~2051년은 JPL 천체력으로 미리 계산한 표(solar_terms_data)를 쓴다.
+    아래 간이 공식은 절기 시각이 최대 10분 넘게 어긋나서, 표 밖에서만 쓴다.
+    """
+    hit = _table_term(year, target_lon)
+    if hit is not None:
+        return hit
     # 연도별 캐시는 모듈 전역에 둔다
     if year not in _cache_terms:
         _cache_terms[year] = {}
@@ -259,7 +275,16 @@ def solar_term_moment(year: int, target_lon: float) -> datetime:
 
 
 def month_branch_exact(dt_kst: datetime) -> int:
-    """정확한 절기 기준 월지."""
+    """정확한 절기 기준 월지. dt_kst 직전에 든 절(12절)의 월지다."""
+    from .solar_terms_data import TERMS
+    if dt_kst.year - 1 in TERMS and dt_kst.year in TERMS:
+        last = None
+        for y in (dt_kst.year - 1, dt_kst.year):
+            for lon, iso in TERMS[y]:
+                if lon % 30 == 15 and datetime.fromisoformat(iso) <= dt_kst:
+                    last = lon
+        if last is not None:
+            return JIE_BRANCH[list(JIE_LON.values()).index(float(last))]
     lon = _sun_lon_kst(dt_kst)
     # 각 절 사이 구간 → 해당 절의 월지
     # 망종은 황경 75도다. 예전엔 60도(소만)로 적혀 있어 5월 하순~6월 초
