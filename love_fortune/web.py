@@ -407,6 +407,11 @@ def llm_chat(endpoint: str, api_key: str, model: str,
     예전엔 방금 한 질문(message)을 빼고 지난 대화만 보내서 LLM 이 한 박자
     늦은 대화에 답했다.
     """
+    # 서버가 와이파이에 열려 있으면 이 칸으로 서버가 아무 주소나 부르게 만들 수 있다.
+    # file:// 등은 막고 http(s) 만 받는다.
+    from urllib.parse import urlparse
+    if urlparse(endpoint).scheme not in ("http", "https"):
+        raise RuntimeError("LLM 주소는 http:// 또는 https:// 로 시작해야 해요")
     url = endpoint.rstrip("/") + "/chat/completions"
     payload = {
         "model": model,

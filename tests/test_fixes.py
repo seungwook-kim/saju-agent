@@ -305,6 +305,12 @@ def test_llm_chat_sends_current_message(monkeypatch):
     assert seen["body"]["messages"][-1] == {"role": "user", "content": "지금 질문"}
 
 
+def test_llm_endpoint_scheme_is_restricted():
+    from love_fortune import web
+    with pytest.raises(RuntimeError, match="http"):
+        web.llm_chat("file:///C:/Windows", "k", "m", "요약", [], "질문")
+
+
 def test_cli_chat_command(monkeypatch):
     from love_fortune import web
     seen = {}
