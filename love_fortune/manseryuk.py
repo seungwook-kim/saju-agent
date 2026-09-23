@@ -87,7 +87,10 @@ def month_pillar(dt: datetime) -> tuple[int, int]:
     ys, _ = year_pillar(dt)
     first_map = {0: 2, 5: 2, 1: 4, 6: 4, 2: 6, 7: 6, 3: 8, 8: 8, 4: 0, 9: 0}
     first_stem = first_map[ys]
-    return ((first_stem + (branch - 2)) % 10, branch)
+    # 인월부터 차례로 붙이고, 자월·축월은 해월 다음으로 이어 센다 (갑년이면 병자·정축).
+    # 예전엔 자·축을 거꾸로 두 칸 앞 천간으로 붙여서, 12월 초~2월 초 출생자(약 16%)의
+    # 월주 천간이 틀렸다 (lunar-python 대조로 확인).
+    return ((first_stem + (branch - 2) % 12) % 10, branch)
 
 
 def day_pillar(d: date) -> tuple[int, int]:
