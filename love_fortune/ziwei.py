@@ -289,7 +289,7 @@ def chart_from_lunar(ly: int, lm: int, ld: int, is_leap: bool, hb: int,
     # 소운 (연지 그룹 시작궁, 남자는 순행·여자는 역행, 1세 시작)
     xiao_start = XIAOXIAN_AT[trio]
     # 기준일의 음력년과 세는나이. 자미두수는 한 해를 음력 설로 나눈다.
-    t_ly = solar_to_lunar(today.year, today.month, today.day)[0]
+    t_ly, t_lm, t_ld, t_leap = solar_to_lunar(today.year, today.month, today.day)
     xusui = t_ly - ly + 1
     xiao_b = (xiao_start + (xusui - 1)) % 12 if sex == "male" \
         else (xiao_start - (xusui - 1)) % 12
@@ -302,6 +302,25 @@ def chart_from_lunar(ly: int, lm: int, ld: int, is_leap: bool, hb: int,
     liunian_stem = (t_ly - 4) % 10
     by_branch[ly_now_branch]["liunian"] = True
     ln_lu, ln_quan, ln_ke, ln_ji = SIHUA[liunian_stem]
+
+    # 유월·유일 (두군법). 유년궁에서 생월만큼 거꾸로, 생시만큼 앞으로 가면 두군
+    # (그해 정월 자리). 두군에서 이번 달, 그 자리에서 오늘 날짜만큼 간다.
+    # 유월 사화는 그달 간지의 천간, 유일 사화는 그날 일진의 천간으로 붙인다. iztro 와 대조함.
+    from .manseryuk import day_pillar as _dp
+    dougun = (ly_now_branch - (m_eff - 1) + hb) % 12
+    t_m_eff = t_lm + (1 if (t_leap and t_ld > 15) else 0)
+    if t_m_eff == 13:
+        t_m_eff = 1
+    lm_branch = (dougun + t_m_eff - 1) % 12
+    ld_branch = (lm_branch + t_ld - 1) % 12
+    lm_stem = (HU_DUN[liunian_stem] + (t_m_eff + 1 - 2) % 12) % 10      # 그달 간지 천간
+    lm_gz_branch = (t_m_eff + 1) % 12
+    ld_stem, ld_gz_branch = _dp(today)
+    by_branch[lm_branch]["liuyue"] = True
+    by_branch[ld_branch]["liuri"] = True
+
+    def _hua(stem: int) -> dict[str, str]:
+        return dict(zip(("록", "권", "과", "기"), SIHUA[stem]))
 
     # 장생십이신
     cs_start = CHANGSHENG_AT[guo]
@@ -349,6 +368,12 @@ def chart_from_lunar(ly: int, lm: int, ld: int, is_leap: bool, hb: int,
         "liunian": {"branch": BRANCHES_KR[ly_now_branch],
                     "stem": STEMS_KR[liunian_stem],
                     "sihua": {"록": ln_lu, "권": ln_quan, "과": ln_ke, "기": ln_ji}},
+        "liuyue": {"branch": BRANCHES_KR[lm_branch],
+                   "ganzhi": STEMS_KR[lm_stem] + BRANCHES_KR[lm_gz_branch],
+                   "palace": by_branch[lm_branch]["name"], "sihua": _hua(lm_stem)},
+        "liuri": {"branch": BRANCHES_KR[ld_branch],
+                  "ganzhi": STEMS_KR[ld_stem] + BRANCHES_KR[ld_gz_branch],
+                  "palace": by_branch[ld_branch]["name"], "sihua": _hua(ld_stem)},
         "mingzhu": MINGZHU[mingong], "shenzhu": SHENZHU[yb],
         "daxian_forward": forward, "daxian_start": start_age,
         "xusui": xusui, "xiao_branch": BRANCHES_KR[xiao_b],

@@ -19,3 +19,12 @@ def test_pillars_match_lunar_python(c):
     h, m = map(int, c["time"].split(":"))
     fp = four_pillars(date.fromisoformat(c["birth"]), h, m, c["city"])
     assert fp["strings"] == c["pillars"]
+
+
+def test_twelve_stages_match_lunar_python():
+    from love_fortune.match import TWELVE_STAGES, STAGE_NAMES
+    from love_fortune.manseryuk import STEMS_KR, BRANCHES_KR
+    ref = json.loads((Path(__file__).parent / "data" / "twelve_stages.json").read_text(encoding="utf-8"))
+    for gz, stage in ref["day_stage"].items():
+        s, b = STEMS_KR.index(gz[0]), BRANCHES_KR.index(gz[1])
+        assert STAGE_NAMES[TWELVE_STAGES[s].index(b)] == stage, gz
