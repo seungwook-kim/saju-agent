@@ -1,7 +1,7 @@
 """chapters.py, 탭별 챕터 설계와 챕터 풀이 생성 (AI + 계산 문장 대체).
 
 탭마다 챕터 순서를 정하고, 챕터마다
-- widgets: 계산값으로 그리는 화면 부품 (원국 표, 띠 카드, 월별 캘린더, 삽화 등)
+- widgets: 계산값으로 그리는 화면 부품 (원국 표, 띠 카드, 월별 캘린더 등)
 - pick:    AI 에게 넘길 사실표 부분
 - ask:     그 챕터에서 풀어야 할 것
 을 둔다. AI 는 넘겨받은 사실만 근거로 쓰고, 답은 블록(JSON)으로 받는다.
@@ -56,7 +56,7 @@ TABS = {
              "widgets": ["gauge:today", "systems"], "pick": ["today"],
              "ask": "세 체계(사주·자미두수·점성술)가 오늘을 어떻게 보는지, 서로 맞는 점과 엇갈리는 점을 풀어 줘. 오늘 가장 힘이 실린 영역과 쉬어 갈 영역도."},
             {"id": "me", "nav": "오늘의 나", "emoji": "🪞", "title": "오늘의 나",
-             "widgets": ["portrait:today"], "pick": ["today", "natal.character", "natal.ilgan"],
+             "widgets": [], "pick": ["today", "natal.character", "natal.ilgan"],
              "ask": "오늘 내 기운의 결(십이운성·일진과의 관계)을 바탕으로 오늘 어떤 모습으로 지내면 좋은지 그려 줘."},
             {"id": "todo", "nav": "할 일", "emoji": "✅", "title": "오늘 할 일과 피할 일",
              "widgets": ["almanac"], "pick": ["today"],
@@ -85,7 +85,7 @@ TABS = {
              "widgets": ["calendar:love"], "pick": ["love.months", "love.best"],
              "ask": "앞으로 12개월 월운 시그널을 풀어 줘: 밀고 나갈 달, 다듬을 달, 조심할 달과 그 이유. 사실표의 달만 쓴다."},
             {"id": "partner", "nav": "잘 맞는 상대", "emoji": "💝", "title": "잘 맞는 상대 미리보기",
-             "widgets": ["portrait:love"], "pick": ["love.ziwei_spouse", "love.venus", "love.moon", "love.spouse_seat"],
+             "widgets": [], "pick": ["love.ziwei_spouse", "love.venus", "love.moon", "love.spouse_seat"],
              "ask": "부처궁 주성·금성·배우자궁으로 본 잘 맞는 상대의 인상, 성격, 어울리는 분야, 둘이 하게 될 연애의 장면을 그려 줘. 예언이 아니라 결을 설명하는 것이다."},
             {"id": "timing", "nav": "타이밍", "emoji": "🗓️", "title": "움직일 때와 쉴 때",
              "widgets": ["years:love"], "pick": ["love.years", "love.best", "love.this_year", "natal.dayun"],
@@ -114,7 +114,7 @@ TABS = {
              "widgets": ["calendar:career"], "pick": ["career.months", "career.best"],
              "ask": "앞으로 12개월 커리어 시그널을 풀어 줘: 밀고 나갈 달과 다듬을 달, 이유. 사실표의 달만 쓴다."},
             {"id": "mentor", "nav": "귀인", "emoji": "🤝", "title": "나를 끌어줄 귀인 미리보기",
-             "widgets": ["portrait:career"], "pick": ["natal.classic_sinsal", "natal.guiin", "career.palaces"],
+             "widgets": [], "pick": ["natal.classic_sinsal", "natal.guiin", "career.palaces"],
              "ask": "천을귀인·관록궁 삼방으로 본, 일에서 도움이 되는 사람의 결(인상·일하는 방식)과 그런 사람을 만나는 자리를 풀어 줘. 예언이 아니라 결을 설명한다."},
             {"id": "timing", "nav": "타이밍", "emoji": "🗓️", "title": "움직일 때와 다질 때",
              "widgets": ["years:career"], "pick": ["career.years", "career.best", "natal.dayun"],
@@ -143,7 +143,7 @@ TABS = {
              "widgets": ["calendar:money"], "pick": ["money.months", "money.best"],
              "ask": "앞으로 12개월 돈의 시그널: 들어오기 좋은 달, 지출을 조심할 달과 이유. 사실표의 달만 쓴다."},
             {"id": "partner", "nav": "재물 귀인", "emoji": "🤝", "title": "재물 귀인 미리보기",
-             "widgets": ["portrait:money"], "pick": ["natal.guiin", "natal.classic_sinsal", "money.palaces"],
+             "widgets": [], "pick": ["natal.guiin", "natal.classic_sinsal", "money.palaces"],
              "ask": "돈 흐름에 도움이 되는 사람·자리의 결을 풀어 줘. 예언이 아니라 결을 설명한다."},
             {"id": "timing", "nav": "타이밍", "emoji": "🗓️", "title": "모을 때와 쓸 때",
              "widgets": ["years:money"], "pick": ["money.years", "money.best", "natal.dayun"],
@@ -160,7 +160,7 @@ TABS = {
              "widgets": ["wonguk"], "pick": ["natal"],
              "ask": "원국 전체를 풀어 줘: 일간, 오행 분포, 신강약·격국·용신, 신살·귀인, 자미 명궁·사화, 점성 태양·달·상승궁."},
             {"id": "decades", "nav": "연대별", "emoji": "🕰️", "title": "연대별 나의 모습",
-             "widgets": ["portrait:life", "decades"], "pick": ["life.phases", "life.decades", "life.current"],
+             "widgets": ["decades"], "pick": ["life.phases", "life.decades", "life.current"],
              "ask": "연대별 흐름(청년·중년·장년)을 풀고, 지금 연대에서 중요한 것을 말해 줘."},
             {"id": "dayun", "nav": "대운", "emoji": "🌊", "title": "대운 여덟 걸음",
              "widgets": [], "pick": ["life.dayun_narr", "natal.dayun"],
@@ -338,6 +338,6 @@ def generate(tab: str, chapter: str, facts: dict, use_ai: bool = True) -> dict:
 def outline() -> dict:
     """화면이 쓰는 탭·챕터 목록 (내용 없이)."""
     return {t: {"title": v["title"], "hand": v["hand"], "theme": v["theme"], "sub": v["sub"],
-                "chapters": [{"id": c["id"], "nav": c["nav"], "emoji": c["emoji"],
+                "chapters": [{"id": c["id"], "emoji": c["emoji"],
                               "title": c["title"], "widgets": c["widgets"]} for c in v["chapters"]]}
             for t, v in TABS.items()}

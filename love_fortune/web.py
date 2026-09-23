@@ -1898,8 +1898,6 @@ def app_page() -> str:
 from pathlib import Path  # noqa: E402
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-PORTRAIT_DIR = Path(os.environ.get("LOVE_FORTUNE_PORTRAITS",
-                                   Path(__file__).resolve().parent.parent / "data" / "portraits"))
 STATIC_FILES = {"app.html": "text/html; charset=utf-8", "app.css": "text/css; charset=utf-8",
                 "app.js": "text/javascript; charset=utf-8"}
 
@@ -1908,10 +1906,6 @@ def _ai_on() -> bool:
     """챕터 풀이에 AI 를 쓸지. LOVE_FORTUNE_AI=0 이면 계산 문장만 쓴다 (시험·오프라인)."""
     from . import ai
     return os.environ.get("LOVE_FORTUNE_AI", "1") != "0" and ai.available()
-
-
-def _images_on() -> bool:
-    return os.environ.get("LOVE_FORTUNE_IMAGES", "1") != "0"
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # 개인정보가 로그에 남지 않도록
@@ -1954,8 +1948,6 @@ class Handler(BaseHTTPRequestHandler):
                        "text/html; charset=utf-8")
         elif path.startswith("/static/"):
             self._static(path[len("/static/"):])
-        elif path.startswith("/img/"):
-            self._image(path[len("/img/"):])
         elif self.path == "/healthz":
             self._send(b'{"ok":true}', "application/json")
         elif self.path.split("?")[0] == "/api/lunar-year":
@@ -1974,18 +1966,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         body = (STATIC_DIR / name).read_bytes()
         self._send(body, STATIC_FILES[name], cache="no-cache")
-
-    def _image(self, name: str):
-        """삽화 파일 (data/portraits). 해시 이름.webp 만 받아 경로 조작을 막는다."""
-        import re
-        if not re.fullmatch(r"[0-9a-f]{32}\.webp", name):
-            self.send_error(404)
-            return
-        f = PORTRAIT_DIR / name
-        if not f.is_file():
-            self.send_error(404)
-            return
-        self._send(f.read_bytes(), "image/webp", cache="public, max-age=31536000, immutable")
 
     def _lunar_year(self):
         """그해 음력 달 목록 (캘린더 선택기용). ?y=1995"""
@@ -2056,7 +2036,6 @@ class Handler(BaseHTTPRequestHandler):
             "/api/pick": self._api_pick, "/download": self._download,
             "/api/chat": self._chat,
             "/api/v2/report": self._v2_report, "/api/v2/chapter": self._v2_chapter,
-            "/api/v2/portrait": self._v2_portrait,
         }
         route = routes.get(self.path)
         if route is None:
@@ -2152,7 +2131,7 @@ class Handler(BaseHTTPRequestHandler):
         _md, _text, summary = agent_context(birth, hh, mm, sex, city, target)
         token = _remember("", summary, target.isoformat(), facts=f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
-                    "ai": _ai_on(), "images": _images_on()})
+                    "ai": _ai_on()})
 
     def _v2_ctx(self, q: dict) -> dict:
         ctx = _context(str(q.get("token", "")))
@@ -2168,12 +2147,6 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("없는 탭")
         body = chapters.generate(tab, ch, ctx["facts"], use_ai=_ai_on())
         self._json(body)
-
-    def _v2_portrait(self, q: dict):
-        from . import portrait
-        ctx = self._v2_ctx(q)
-        tab, slot = str(q.get("tab", "")), str(q.get("slot", ""))
-        self._json(portrait.render(tab, slot, ctx["facts"]))
 
     def _download(self, q: dict):
         ctx = _context(str(q.get("token", "")))

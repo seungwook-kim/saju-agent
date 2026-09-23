@@ -1,4 +1,4 @@
-"""content_store.py, AI 챕터 풀이·삽화 목록 저장소 (data/content.db, db/content.sql 로 생성)."""
+"""content_store.py, AI 챕터 풀이 저장소 (data/content.db, db/content.sql 로 생성)."""
 from __future__ import annotations
 
 import json
@@ -44,17 +44,4 @@ def put_chapter(key: str, tab: str, chapter: str, source: str, body: dict) -> No
     with closing(_con()) as con:
         con.execute("INSERT OR REPLACE INTO chapter VALUES (?,?,?,?,?,?)",
                     (key, tab, chapter, source, json.dumps(body, ensure_ascii=False), time.time()))
-        con.commit()
-
-
-def get_portrait(key: str) -> dict | None:
-    with closing(_con()) as con:
-        row = con.execute("SELECT * FROM portrait WHERE key=?", (key,)).fetchone()
-    return dict(row) if row else None
-
-
-def put_portrait(key: str, tab: str, slot: str, prompt: str, file: str | None) -> None:
-    with closing(_con()) as con:
-        con.execute("INSERT OR REPLACE INTO portrait VALUES (?,?,?,?,?,?)",
-                    (key, tab, slot, prompt, file, time.time()))
         con.commit()

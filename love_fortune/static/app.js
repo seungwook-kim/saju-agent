@@ -1,6 +1,6 @@
 // 종합 사주 · 앱형 챕터 화면
 // 흐름: 입력 → /api/v2/report (사실표·챕터 목록) → 탭을 열면 챕터 부품은 바로 그리고,
-// 챕터 풀이(/api/v2/chapter)와 삽화(/api/v2/portrait)는 도착하는 대로 채운다.
+// 챕터 풀이(/api/v2/chapter)는 도착하는 대로 채운다.
 'use strict';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -11,11 +11,10 @@ const TAB_ORDER=['today','love','career','money','life'];
 const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',life:'평생'};
 const EL_STEM={갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'금',신:'금',임:'수',계:'수'};
 const EL_BRANCH={자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'};
-const SLOTS={love:['partner'],career:['mentor'],money:['partner'],today:['me'],life:['20s','40s','60s']};
 const TAG_CLASS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
 
-const S={token:'',facts:null,outline:null,ai:false,images:false,tab:'today',
-  chapters:{},portraits:{},chat:[],queue:[],running:0,inflight:new Set()};
+const S={token:'',facts:null,outline:null,ai:false,tab:'today',
+  chapters:{},chat:[],queue:[],running:0,inflight:new Set()};
 
 async function postJSON(url,obj){
   const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
@@ -37,8 +36,8 @@ $('fMain').addEventListener('submit',async e=>{
   btn.disabled=true;btn.textContent='계산하는 중...';$('homeErr').innerHTML='';
   try{
     const j=await postJSON('/api/v2/report',q);
-    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,ai:j.ai,images:j.images,
-      chapters:{},portraits:{},chat:[],queue:[],inflight:new Set(),tab:'today'});
+    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,ai:j.ai,
+      chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today'});
     showResult();
   }catch(err){
     $('homeErr').innerHTML='<div class="err">'+esc(err.message)+'</div>';
@@ -69,8 +68,6 @@ function openTab(tab){
   let h='<div class="tab-hero"><div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
     '<p class="hero-sub">'+esc(o.sub)+'</p><div class="meta-chips">'+
     chips.map((c,i)=>'<span class="chip'+(i===0?' a':'')+'">'+esc(c)+'</span>').join('')+'</div></div>';
-  h+='<nav class="chnav" id="chnav">'+o.chapters.map((c,i)=>
-    '<a href="#ch-'+c.id+'" data-ch="'+c.id+'"'+(i===0?' class="on"':'')+'>'+esc(c.nav)+'</a>').join('')+'</nav>';
   o.chapters.forEach((c,i)=>{
     h+='<section class="chapter" id="ch-'+c.id+'">'+
       '<div class="ch-label">CHAPTER · '+pad(i+1)+'</div>'+
@@ -82,14 +79,12 @@ function openTab(tab){
   $('page').innerHTML=h;
   window.scrollTo(0,0);
   animate($('page'));
-  spy();
   o.chapters.forEach(c=>{
     const key=tab+'/'+c.id;
     if(S.chapters[key]) fillChapter(tab,c.id,S.chapters[key]);
     else if(!S.inflight.has(key)) S.queue.push(c.id);
   });
   pump();
-  (SLOTS[tab]||[]).forEach(slot=>loadPortrait(tab,slot));
 }
 
 // ---------------- 챕터 풀이 (동시에 둘씩, 위에서부터)
@@ -151,7 +146,6 @@ function widget(w){
     case 'animals': return animals(f.love.animals);
     case 'calendar': return calendar(f[arg].months,arg);
     case 'years': return years(f[arg].years,arg);
-    case 'portrait': return portraitSlots(arg);
     case 'decades': return decades(f.life,f.meta.age);
   }
   return '';
@@ -233,62 +227,12 @@ function decades(life,age){
   }).join('')+'</div>';
 }
 
-// ---------------- 삽화
-
-function portraitSlots(tab){
-  const slots=SLOTS[tab]||[];
-  const one=s=>'<div class="portrait" data-portrait="'+tab+'/'+s+'"><div class="ph">'+
-    '<span class="tagline">분위기 이미지</span><div class="wait">'+(S.images?'그림을 그리는 중이야...':'삽화가 꺼져 있어')+'</div></div>'+
-    '<div class="cap"><b>&nbsp;</b><p>계산 결과로 그린 분위기 이미지야. 실제 인물이나 예언이 아니야.</p></div></div>';
-  if(slots.length>1) return '<div class="portraits3">'+slots.map(one).join('')+'</div>';
-  return slots.map(one).join('');
-}
-async function loadPortrait(tab,slot){
-  const key=tab+'/'+slot;
-  if(!S.images) return;
-  let r=S.portraits[key];
-  if(!r){
-    try{r=await postJSON('/api/v2/portrait',{token:S.token,tab,slot});}
-    catch(e){r={status:'error',caption:''};}
-    if(r.status==='ready') S.portraits[key]=r;
-  }
-  const el=document.querySelector('[data-portrait="'+key+'"]');
-  if(!el) return;
-  el.querySelector('.cap b').textContent=r.caption||'';
-  const ph=el.querySelector('.ph'),wait=el.querySelector('.wait');
-  if(r.status!=='ready'){
-    wait.textContent=r.status==='off'?'삽화 서버가 꺼져 있어. 풀이는 그대로 볼 수 있어.':'그림을 만들지 못했어.';
-    return;
-  }
-  const img=new Image();
-  img.alt=r.caption||'분위기 이미지';
-  img.onload=()=>{wait.remove();setTimeout(()=>img.classList.add('in'),40);};
-  img.src=r.url;
-  ph.insertBefore(img,ph.firstChild);
-}
-
-// ---------------- 애니메이션·챕터 메뉴
+// ---------------- 애니메이션
 
 function animate(root){
   setTimeout(()=>{
     root.querySelectorAll('[data-w]').forEach(i=>{i.style.width=i.dataset.w+'%';});
   },40);
-}
-let OBS=null;
-function spy(){
-  if(OBS) OBS.disconnect();
-  const links=[...document.querySelectorAll('#chnav a')];
-  OBS=new IntersectionObserver(es=>{
-    es.forEach(e=>{
-      if(!e.isIntersecting) return;
-      const id=e.target.id.slice(3);
-      links.forEach(a=>{
-        const on=a.dataset.ch===id;a.classList.toggle('on',on);
-        if(on) a.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
-      });
-    });
-  },{rootMargin:'-130px 0px -60% 0px'});
-  document.querySelectorAll('.chapter').forEach(s=>OBS.observe(s));
 }
 
 // ---------------- 상담 채팅

@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 생성 콘텐츠 저장소 초기화 스크립트 (SQLite)
 --
--- AI 가 쓴 챕터 풀이와 로컬에서 만든 삽화 목록을 저장해 다시 쓴다.
+-- AI 가 쓴 챕터 풀이를 저장해 다시 쓴다.
 -- 앱이 처음 필요할 때 data/content.db 를 이 파일로 만든다 (love_fortune/content_store.py).
 -- 해석 데이터(db/init.sql)와 달리 지워도 된다: 지우면 다시 만든다.
 -- 개인정보(생년월일·시간·성별·도시·이름)는 저장하지 않는다. 키는 계산 결과의 해시다.
@@ -24,12 +24,5 @@ CREATE TABLE IF NOT EXISTS chapter (
 );
 CREATE INDEX IF NOT EXISTS chapter_tab ON chapter (tab, chapter);
 
--- 삽화. key = 장면 묘사·시드의 해시, file = data/portraits 안의 파일 이름
-CREATE TABLE IF NOT EXISTS portrait (
-    key      TEXT PRIMARY KEY,
-    tab      TEXT NOT NULL,
-    slot     TEXT NOT NULL,
-    prompt   TEXT NOT NULL,
-    file     TEXT,
-    created  REAL NOT NULL
-);
+-- 예전 버전의 삽화 목록 표는 쓰지 않는다
+DROP TABLE IF EXISTS portrait;

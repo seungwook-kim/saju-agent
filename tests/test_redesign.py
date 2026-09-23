@@ -1,4 +1,4 @@
-"""새 화면(탭·챕터·삽화)용 사실표·챕터·API 검사. AI·이미지 서버 없이 돈다."""
+"""새 화면(탭·챕터)용 사실표·챕터·API 검사. AI 없이 돈다."""
 import json
 import threading
 import urllib.request
@@ -7,7 +7,7 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
-from love_fortune import chapters, content_store, facts, portrait
+from love_fortune import chapters, content_store, facts
 
 BIRTH = date(1990, 5, 5)
 TARGET = date(2026, 9, 24)
@@ -89,27 +89,10 @@ def test_ai_chapter_is_cached(sheet, monkeypatch):
     assert a["source"] == b["source"] == "ai" and len(calls) == 1
 
 
-def test_portrait_scenes_are_deterministic(sheet):
-    for tab, slots in {"love": ["partner"], "career": ["mentor"], "money": ["partner"],
-                       "today": ["me"], "life": ["20s", "40s", "60s"]}.items():
-        sc = portrait.scenes(tab, sheet)
-        assert [s["slot"] for s in sc] == slots
-        assert sc == portrait.scenes(tab, sheet)
-        for s in sc:
-            assert "Korean" in s["prompt"] and "서울" not in s["prompt"]
-
-
-def test_portrait_off_when_server_down(sheet, monkeypatch):
-    monkeypatch.setattr(portrait, "server_up", lambda: False)
-    r = portrait.render("love", "partner", sheet)
-    assert r["status"] == "off" and r["caption"]
-
-
 @pytest.fixture()
 def server(monkeypatch):
     from love_fortune import web
     monkeypatch.setenv("LOVE_FORTUNE_AI", "0")
-    monkeypatch.setattr(portrait, "server_up", lambda: False)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}"
@@ -128,19 +111,17 @@ def test_v2_api_flow(server):
     assert rep["ai"] is False and set(rep["outline"]) == set(chapters.TABS)
     ch = _post(server + "/api/v2/chapter", {"token": rep["token"], "tab": "career", "chapter": "wonguk"})
     assert ch["source"] == "rule"
-    pt = _post(server + "/api/v2/portrait", {"token": rep["token"], "tab": "life", "slot": "40s"})
-    assert pt["status"] == "off"
     with pytest.raises(urllib.error.HTTPError) as e:
         _post(server + "/api/v2/chapter", {"token": "nope", "tab": "love", "chapter": "map"})
     assert e.value.code == 400
 
 
-def test_static_and_image_paths(server):
+def test_static_paths(server):
     with urllib.request.urlopen(server + "/") as r:
         assert "app.js" in r.read().decode("utf-8")
     with urllib.request.urlopen(server + "/classic") as r:
         assert r.status == 200
-    for bad in ("/static/../web.py", "/static/x.js", "/img/../../pyproject.toml", "/img/abc.webp"):
+    for bad in ("/static/../web.py", "/static/x.js", "/img/abc.webp", "/api/v2/portrait"):
         with pytest.raises(urllib.error.HTTPError) as e:
             urllib.request.urlopen(server + bad)
         assert e.value.code == 404

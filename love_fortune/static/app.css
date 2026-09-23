@@ -76,16 +76,8 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
   padding:.18rem .7rem;font-size:.8rem;color:var(--muted)}
 .chip.a{background:var(--soft);border-color:transparent;color:var(--accent);font-weight:700}
 
-/* 챕터 메뉴 (상단 고정) */
-.chnav{position:sticky;top:60px;z-index:20;display:flex;gap:6px;overflow-x:auto;padding:8px 0;
-  background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(8px);scrollbar-width:none}
-.chnav::-webkit-scrollbar{display:none}
-.chnav a{flex:none;text-decoration:none;color:var(--muted);font-size:.85rem;font-weight:700;
-  padding:.3rem .8rem;border-radius:999px;border:1px solid transparent}
-.chnav a.on{color:var(--accent);background:#fff;border-color:var(--line)}
-
 /* 챕터 */
-.chapter{margin:22px 0 8px;scroll-margin-top:120px}
+.chapter{margin:22px 0 8px}
 .ch-label{font-size:.72rem;letter-spacing:.18em;color:var(--accent);font-weight:800}
 .ch-head{display:flex;align-items:center;gap:10px;margin:4px 0 10px}
 .ch-emoji{width:44px;height:44px;border-radius:14px;background:#fff;display:grid;place-items:center;
@@ -186,24 +178,6 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .years .y b{display:block;font-size:1.05rem}
 .years .y .tag{font-size:.75rem;color:var(--accent);font-weight:800}
 .years .y p{font-size:.72rem;color:var(--muted);margin:.2rem 0 0}
-
-/* 부품: 삽화 */
-.portrait{background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 12px 32px rgba(80,30,60,.12)}
-.portrait .ph{position:relative;aspect-ratio:13/16;background:linear-gradient(135deg,var(--soft),var(--bg2));overflow:hidden}
-.portrait img{width:100%;height:100%;object-fit:cover;display:block;filter:blur(18px) saturate(.8);
-  transform:scale(1.08);transition:filter 1.4s var(--ease),transform 1.4s var(--ease)}
-.portrait img.in{filter:none;transform:scale(1);animation:breathe 7s ease-in-out 1.4s infinite}
-@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
-.portrait .tagline{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.85);border-radius:999px;
-  padding:.1rem .7rem;font-size:.72rem;font-weight:800;color:var(--accent)}
-.portrait .cap{padding:12px 16px}
-.portrait .cap b{display:block}
-.portrait .cap p{font-size:.75rem;color:var(--faint);margin:.2rem 0 0}
-.portrait .wait{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:.85rem;padding:20px}
-.portraits3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.portraits3 .portrait{border-radius:16px}
-.portraits3 .cap{padding:8px 10px}
-.portraits3 .cap b{font-size:.85rem}
 
 /* 부품: 연대 */
 .timeline{display:grid;gap:8px}
