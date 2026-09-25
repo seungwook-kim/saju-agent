@@ -5,7 +5,7 @@
 - pick:    AI 에게 넘길 사실표 부분
 - ask:     그 챕터에서 풀어야 할 것
 을 둔다. AI 는 넘겨받은 사실만 근거로 쓰고, 답은 블록(JSON)으로 받는다.
-AI 를 못 쓰면 사실표 문장으로 같은 모양의 블록을 만든다 (source='rule').
+AI 를 못 쓰면 rule_chapters 의 계산 풀이로 같은 모양의 블록을 만든다 (source='rule').
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import hashlib
 import json
 import re
 
-from . import ai, content_store
+from . import ai, content_store, rule_chapters
 
 PROMPT_VERSION = "ch-2"
 
@@ -254,57 +254,20 @@ def normalize(obj: dict) -> dict:
             "blocks": blocks[:8], "closing": _clean(obj.get("closing"))}
 
 
-# ---------------------------------------------------------------- 계산 문장 대체
+# ---------------------------------------------------------------- 계산 풀이
 
 
-def _lines(v) -> list[str]:
-    if v is None:
-        return []
-    if isinstance(v, str):
-        return [v]
-    if isinstance(v, list):
-        out = []
-        for x in v:
-            if isinstance(x, str):
-                out.append(x)
-            elif isinstance(x, dict):
-                if "ym" in x:
-                    out.append(f"{x['label']} {x['ganzhi']}: {x['tag']}"
-                               + (f" ({', '.join(x['why'])})" if x.get("why") else ""))
-                elif "year" in x and "tag" in x:
-                    out.append(f"{x['year']}년 {x['ganzhi']}: {x['tag']}"
-                               + (f" ({', '.join(x['why'])})" if x.get("why") else ""))
-                elif "lines" in x:
-                    out.append(f"{x.get('name', '')}: " + " ".join(x["lines"]))
-        return out
-    if isinstance(v, dict):
-        out = []
-        for k, x in v.items():
-            if isinstance(x, (str, int)) and k not in ("hour_known",):
-                out.append(f"{k}: {x}")
-            else:
-                out += _lines(x)
-        return out
-    return [str(v)]
+def rule_chapter(tab: str, chapter: str, facts: dict) -> dict:
+    """AI 없이 계산 결과로 쓴 챕터 (같은 블록 모양, 바로 만들어진다)."""
+    spec(tab, chapter)
+    body = rule_chapters.build(tab, chapter, facts)
+    body["source"] = "rule"
+    return body
 
 
-def rule_chapter(tab: str, chapter: str, part: dict) -> dict:
-    """AI 없이 사실표 문장으로 만든 챕터 (같은 블록 모양)."""
-    ch = spec(tab, chapter)
-    blocks = []
-    for path, v in part.items():
-        if path == "meta":
-            continue
-        lines = [_clean(x) for x in _lines(v) if _clean(x)]
-        if not lines:
-            continue
-        blocks.append({"type": "text", "title": "", "body": " ".join(lines[:6])})
-        if len(blocks) >= 6:
-            break
-    if not blocks:
-        blocks = [{"type": "text", "title": "", "body": "이 챕터에 쓸 계산 결과가 없어."}]
-    return {"headline": ch["title"], "lead": "계산 결과를 그대로 정리했어. (AI 풀이를 쓸 수 없을 때의 요약본)",
-            "blocks": blocks, "closing": ""}
+def rule_all(facts: dict) -> dict:
+    """모든 탭·챕터의 계산 풀이 {tab: {chapter: body}}. 화면이 처음에 바로 보여 준다."""
+    return {t: {c["id"]: rule_chapter(t, c["id"], facts) for c in v["chapters"]} for t, v in TABS.items()}
 
 
 # ---------------------------------------------------------------- 생성
@@ -330,9 +293,7 @@ def generate(tab: str, chapter: str, facts: dict, use_ai: bool = True) -> dict:
                 return body
             except (RuntimeError, ValueError):
                 continue
-    body = rule_chapter(tab, chapter, part)
-    body["source"] = "rule"
-    return body          # 계산 문장 대체본은 저장하지 않는다 (다음에 AI 로 다시 시도)
+    return rule_chapter(tab, chapter, facts)   # 계산 풀이는 저장하지 않는다 (다음에 AI 로 다시 시도)
 
 
 def outline() -> dict:
@@ -341,3 +302,8 @@ def outline() -> dict:
                 "chapters": [{"id": c["id"], "emoji": c["emoji"],
                               "title": c["title"], "widgets": c["widgets"]} for c in v["chapters"]]}
             for t, v in TABS.items()}
+
+
+def key_of(tab: str, chapter: str, facts: dict) -> str:
+    """이 사실표로 만든 챕터 풀이의 저장 키."""
+    return cache_key(tab, chapter, pick(facts, spec(tab, chapter)["pick"]))

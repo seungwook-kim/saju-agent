@@ -16,7 +16,7 @@ def has_batchim(word: str) -> bool:
     while word.endswith(")") and "(" in word:
         word = word[:word.rindex("(")].rstrip()
     for ch in reversed(word):
-        if ch in "]} ":
+        if ch in "]} '\"":
             continue
         code = ord(ch) - 0xAC00
         if 0 <= code < 11172:

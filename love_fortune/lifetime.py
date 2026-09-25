@@ -60,7 +60,10 @@ def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
     a = 0
     while a <= 80:
         lo, hi = a, a + 9
-        step = next((s for s in du["steps"] if s["from"] <= lo <= s["to"] + 0.1), None)
+        # 그 10년의 가운데 나이(lo+5)가 든 대운 = 그 연대를 가장 오래 덮는 대운.
+        # 예전엔 시작 나이(lo)로 골라서, 대운이 30.0세에 바뀌면 30~39세를 끝나는 대운(20.1~30.0세)으로 적었다.
+        mid_age = lo + 5
+        step = next((s for s in du["steps"] if s["from"] <= mid_age <= s["to"] + 0.1), None)
         if step:
             saju = f"{step['ganzhi']}운({step['from']}~{step['to']}세)"
             dbranch = BRANCHES_KR.index(step["ganzhi"][1])
@@ -72,7 +75,7 @@ def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
                           f"대운 지지 {sbranch}{_eun(sbranch)} 내 일지 "
                           f"{BRANCHES_KR[db]}{_wa(BRANCHES_KR[db])} "
                           f"{_rel_text(branch_relation(db, dbranch))} 사이야.")
-        elif lo >= last["to"]:
+        elif mid_age >= last["to"]:
             saju = f"{last['ganzhi']}운 이후의 흐름"
             saju_story = "대운표 범위를 지난 시기로, 쌓은 것을 지키며 정리하는 때야."
         else:

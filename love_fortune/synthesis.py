@@ -14,6 +14,7 @@ from .manseryuk import (four_pillars, dayun, shensha, year_pillar, day_pillar,
                         ganzhi_str, time_notes)
 from .rules import ten_god, love_score, headline, branch_relation
 from .narrate import _rel_text, GOD_SHORT
+from .josa import j
 from .match import (SPOUSE_GOD, TWELVE_STAGES, STAGE_NAMES, STAGE_LOVE,
                     DOHWA_CHARM, HONGYEOM, JINDOHWA_DAY, SPOUSE_STAR,
                     VENUS_DETAIL, MOON_NEED, BRANCH_BONQI, dohwa_info)
@@ -321,11 +322,11 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
     _pos = ast["positions"]
     _hou = ast["houses"] if not _unknown else {}
     _dub = BRANCHES_KR.index(_cur["ganzhi"][1])
-    _du_line_c = (f"지금 대운({_cur['ganzhi']}운)은 천간 {_cur['ganzhi'][0]}이 나에게 "
+    _du_line_c = (f"지금 대운({_cur['ganzhi']}운)은 천간 {j(_cur['ganzhi'][0], '이')} 나에게 "
                   f"{GOD_SHORT[_du_god]} 기운이야. 10년 테마로 일의 흐름이 이렇게 흘러.")
-    _du_line_n = (f"지금 대운({_cur['ganzhi']}운)은 천간 {_cur['ganzhi'][0]}이 나에게 "
+    _du_line_n = (f"지금 대운({_cur['ganzhi']}운)은 천간 {j(_cur['ganzhi'][0], '이')} 나에게 "
                   f"{GOD_SHORT[_du_god]} 기운이야. 10년 돈의 테마로 이렇게 흘러.")
-    _du_land_c = (f"지금 대운 지지 {_cur['ganzhi'][1]}와 일지는 "
+    _du_land_c = (f"지금 대운 지지 {j(_cur['ganzhi'][1], '와')} 일지는 "
                   f"{_rs(branch_relation(_dub, db))}야. 10년 일의 터가 이렇게 놓여 있어.")
     if _unknown:
         _lyb = tyb
@@ -362,7 +363,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
             _du_line_n,
             f"올해 유년 {BRANCHES_KR[_lyb]}와 재백궁은 "
             f"{_rs(branch_relation(_lyb, _caibo_b))}야.",
-            f"지금 대운 지지 {_cur['ganzhi'][1]}와 재백궁은 "
+            f"지금 대운 지지 {j(_cur['ganzhi'][1], '와')} 재백궁은 "
             f"{_rs(branch_relation(_dub, _caibo_b))}야. 10년 돈의 그릇이 이렇게 놓여 있어.",
             f"태어날 때 금성(취향과 돈감각)은 {_pos['venus']['sign']} {_hou['금성']}번 하우스 칸에 있어 그쪽에서 돈 감각을 가꾸는 편이야.",
             f"태어날 때 목성(확장과 기회)은 {_pos['jupiter']['sign']} {_hou['목성']}번 하우스 칸에 있어 그쪽에서 기회를 넓히기 쉬워.",
@@ -379,8 +380,8 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         _db2 = BRANCHES_KR.index(_st["ganzhi"][1])
         _g2 = ten_god(ds, _ds2)
         dayun_full.append(
-            f"{_st['ganzhi']}운({_st['from']}~{_st['to']}세): 천간 {_st['ganzhi'][0]}은 나에게 "
-            f"{GOD_SHORT[_g2]} 기운, 지지 {_st['ganzhi'][1]}은 일지와 "
+            f"{_st['ganzhi']}운({_st['from']}~{_st['to']}세): 천간 {j(_st['ganzhi'][0], '은')} 나에게 "
+            f"{GOD_SHORT[_g2]} 기운, 지지 {j(_st['ganzhi'][1], '은')} 일지와 "
             f"{_rs(branch_relation(db, _db2))}야.")
 
     # 11. 월별 12개월 영역 운세 (월운, 해당 연도 1~12월)

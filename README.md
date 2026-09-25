@@ -30,7 +30,7 @@ python -m love_fortune --birth 1990-05-15 --lifetime --no-save
 python -m love_fortune --birth 1990-05-15 --birth-time 모름 --no-save
 
 # 음력 생일로 입력 (윤달이면 --leap 추가). 성별은 남/여로 써도 된다
-python -m love_fortune --birth 1995-01-29 --calendar lunar --sex 여 --city 부산 --no-save
+python -m love_fortune --birth 1990-04-21 --calendar lunar --sex 여 --city 부산 --no-save
 
 # 해외 출생은 현지 시각 그대로 (현지 서머타임 자동 반영)
 python -m love_fortune --birth 1990-07-04 --birth-time 09:00 --city 뉴욕 --no-save
@@ -138,14 +138,20 @@ python -m pytest
   - 계산 부품 (바로 뜸): 원국 표(십신·지장간·12운성·오행 막대·신살·귀인), 오늘 점수 게이지,
     세 체계(사주·자미두수·점성술) 신호, 오늘 택일, 띠 궁합, 12개월 시그널 캘린더(누르면 이유),
     3년 흐름, 연대별 타임라인
-  - 챕터 풀이 (도착하는 대로 채움): 구독 AI 모델이 그 챕터에 필요한 **계산 결과(사실표)만**
+  - 기본 풀이 (바로 뜸, 약 1초): 계산 결과 문장을 챕터 흐름에 맞게 엮은 풀이 (`rule_chapters.py`).
+    33개 챕터 전부가 입력 직후 채워진다.
+  - AI 풀이 (준비되는 대로 바꿔 끼움): 구독 AI 모델이 그 챕터에 필요한 **계산 결과(사실표)만**
     보고 쓴다. 사실표에 없는 것·확률·단정 예언은 쓰지 않게 막고, 결과는 `data/content.db`에
-    저장해 같은 사주는 다시 부르지 않는다. AI 를 못 쓰면 계산 문장 요약본으로 대신한다.
+    저장해 같은 사주는 다시 부르지 않는다. AI 를 못 쓰면 기본 풀이가 그대로 남는다.
+  - 미리 만들기 (`prefetch.py`): 입력하자마자 모든 탭의 AI 풀이를 총운부터 대기열에 넣고,
+    화면이 연 탭의 챕터를 맨 앞으로 당긴다. 새 사람 한 명당 AI 호출이 최대 33번 생긴다.
+    끄려면 `LOVE_FORTUNE_PREFETCH=0` (연 탭만 만든다).
 - 예전 화면(궁합 보기·길일 고르기 포함)은 `http://localhost:8765/classic`
 - 맨 아래 **AI 상담**: 리포트를 아는 상담 에이전트와 대화 (구독 AI 모델, 실패 시 로컬 규칙 에이전트)
   - 도구는 전부 끄고, 대화는 저장하지 않으며, 생년월일을 뺀 요약만 보낸다.
   - 모델·명령: 환경변수 `LOVE_FORTUNE_AI_MODEL`(기본 claude-sonnet-5), `LOVE_FORTUNE_AI_CLI`
-  - 동시에 도는 AI 호출 수: `LOVE_FORTUNE_AI_PARALLEL`(기본 3). `LOVE_FORTUNE_AI=0` 이면 AI 없이 요약본만.
+  - 동시에 도는 AI 호출 수: `LOVE_FORTUNE_AI_PARALLEL`(기본 3, 미리 만들기는 한 자리를 상담용으로 남긴다).
+    `LOVE_FORTUNE_AI=0` 이면 AI 없이 기본 풀이만.
   - 예전 화면의 채팅창에서는 OpenAI 호환 LLM(예: Ollama `http://localhost:11434/v1`)도 연결할 수 있다.
 
 ### 데이터베이스 파일

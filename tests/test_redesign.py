@@ -125,3 +125,75 @@ def test_static_paths(server):
         with pytest.raises(urllib.error.HTTPError) as e:
             urllib.request.urlopen(server + bad)
         assert e.value.code == 404
+
+
+# ---------------------------------------------------------------- 계산 풀이·미리 만들기
+
+def _all_text(body: dict) -> str:
+    out = [body["headline"], body["lead"], body["closing"]]
+    for b in body["blocks"]:
+        out += [b.get("title", ""), b.get("body", "")]
+        for i in b.get("items", []):
+            out += [i] if isinstance(i, str) else [i["title"], i["body"]]
+    return " ".join(x for x in out if x)
+
+
+@pytest.mark.parametrize("hour", [14, None])
+def test_rule_chapters_read_clean(hour):
+    import re
+    f = facts.build(BIRTH, hour, 30, "female", "서울", TARGET)
+    rules = chapters.rule_all(f)
+    cjk = re.compile("[" + chr(0x4E00) + "-" + chr(0x9FFF) + chr(0x2014) + "]")
+    for tab, t in chapters.TABS.items():
+        assert set(rules[tab]) == {c["id"] for c in t["chapters"]}
+        for ch, body in rules[tab].items():
+            txt = _all_text(body)
+            assert body["headline"] and body["blocks"], (tab, ch)
+            assert "None" not in txt and "{" not in txt and not cjk.search(txt), (tab, ch)
+            assert "돈로" not in txt and "'절'야" not in txt, (tab, ch)
+
+
+def test_lifetime_decade_uses_majority_dayun():
+    # 대운이 30.0세에 바뀌는 사주: 30~39세는 끝나는 무인운이 아니라 새 정축운으로 본다
+    f = facts.build(BIRTH, 14, 30, "female", "서울", TARGET)
+    assert "정축운" in f["life"]["current"]
+    assert "대운 시작 전" not in " ".join(f["life"]["decades"][1]["parts"][:1])
+
+
+def test_josa_skips_quotes():
+    from love_fortune.josa import j
+    assert j("'절'", "야") == "'절'이야" and j("'묘'", "야") == "'묘'야"
+
+
+def test_prefetch_orders_dedupes_and_waits(sheet, monkeypatch):
+    import time
+    from love_fortune import prefetch
+    calls = []
+
+    def fake_generate(tab, ch, f, use_ai=True):
+        calls.append((tab, ch))
+        time.sleep(0.01)
+        return {"headline": ch, "lead": "", "blocks": [], "closing": "", "source": "ai"}
+
+    monkeypatch.setattr(prefetch.chapters, "generate", fake_generate)
+    with prefetch._cv:
+        prefetch._jobs.clear()
+        prefetch._heap.clear()
+    n = prefetch.submit_all(sheet)
+    got = prefetch.wait("life", "final", sheet, timeout=10)       # 맨 뒤 챕터를 당겨 받는다
+    assert got and got["headline"] == "final"
+    prefetch.submit_all(sheet)                                      # 같은 사실표는 다시 만들지 않는다
+    deadline = time.time() + 20
+    while prefetch.pending() and time.time() < deadline:
+        time.sleep(0.05)
+    assert prefetch.pending() == 0
+    assert len(calls) == n == len(set(calls))
+    assert calls.index(("life", "final")) < calls.index(("life", "years"))
+
+
+def test_v2_report_includes_rule_chapters(server):
+    rep = _post(server + "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30",
+                                            "sex": "female", "city": "서울"})
+    for tab, t in chapters.TABS.items():
+        for c in t["chapters"]:
+            assert rep["rules"][tab][c["id"]]["source"] == "rule"

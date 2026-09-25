@@ -18,7 +18,8 @@ import threading
 AI_CLI = os.environ.get("LOVE_FORTUNE_AI_CLI", "claude")          # 실행할 명령 이름
 AI_MODEL = os.environ.get("LOVE_FORTUNE_AI_MODEL", "claude-sonnet-5")
 AI_TIMEOUT = 180
-_SLOTS = threading.BoundedSemaphore(int(os.environ.get("LOVE_FORTUNE_AI_PARALLEL", "3")))
+PARALLEL = max(1, int(os.environ.get("LOVE_FORTUNE_AI_PARALLEL", "3")))
+_SLOTS = threading.BoundedSemaphore(PARALLEL)
 
 
 def available() -> bool:

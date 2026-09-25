@@ -116,7 +116,8 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
   background-size:200% 100%;animation:shine 1.3s infinite linear}
 .skel.w6{width:60%}.skel.w8{width:80%}
 @keyframes shine{from{background-position:200% 0}to{background-position:-200% 0}}
-.loading-note{font-size:.8rem;color:var(--faint)}
+.pending{color:var(--accent);animation:blink 1.6s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
 
 /* 부품: 원국 표 */
 .wonguk{display:grid;grid-template-columns:52px repeat(4,1fr);gap:4px;text-align:center}

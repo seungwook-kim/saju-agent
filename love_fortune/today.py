@@ -59,8 +59,9 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
     lines = []
     stage = STAGE_NAMES[TWELVE_STAGES[ds].index(tb)]
     pts["all"] += STAGE_POINTS[stage]
+    stage_q = j(f"'{stage}'", "야")          # '절'이야 / '묘'야 (따옴표 안 글자로 받침을 본다)
     lines.append(f"오늘 일진({STEMS_KR[ts]}{BRANCHES_KR[tb]})에서 내 일간 {STEMS_KR[ds]}의 기운 단계"
-                 f"(십이운성)는 '{stage}'야. {STAGE_TALK[stage]}이라 "
+                 f"(십이운성)는 {stage_q}. {STAGE_TALK[stage]}이라 "
                  + ("힘 있게 움직이기 좋은 날" if STAGE_POINTS[stage] > 0 else
                     "무리하지 말고 페이스를 지키면 좋은 날" if STAGE_POINTS[stage] < 0 else
                     "평소 리듬대로 가면 되는 날") + "이야.")

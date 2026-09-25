@@ -1902,6 +1902,14 @@ STATIC_FILES = {"app.html": "text/html; charset=utf-8", "app.css": "text/css; ch
                 "app.js": "text/javascript; charset=utf-8"}
 
 
+CHAPTER_WAIT = 300         # AI 챕터 풀이를 기다리는 최대 시간(초). 넘으면 계산 풀이를 준다
+
+
+def _prefetch_on() -> bool:
+    """입력하자마자 모든 탭의 AI 풀이를 미리 만들지. LOVE_FORTUNE_PREFETCH=0 이면 연 탭만 만든다."""
+    return os.environ.get("LOVE_FORTUNE_PREFETCH", "1") != "0"
+
+
 def _ai_on() -> bool:
     """챕터 풀이에 AI 를 쓸지. LOVE_FORTUNE_AI=0 이면 계산 문장만 쓴다 (시험·오프라인)."""
     from . import ai
@@ -2123,15 +2131,22 @@ class Handler(BaseHTTPRequestHandler):
     # ---------------- 새 화면 (탭·챕터)
 
     def _v2_report(self, q: dict):
-        """사실표를 만들어 토큰과 함께 돌려준다. 챕터 풀이는 따로 하나씩 부른다."""
-        from . import chapters, facts as facts_mod
+        """사실표와 모든 챕터의 계산 풀이를 돌려준다 (화면이 바로 보여 준다).
+
+        AI 를 쓸 수 있으면 모든 탭의 AI 풀이를 대기열에 넣어 미리 만들기 시작한다.
+        화면은 /api/v2/chapter 로 AI 풀이를 받아 계산 풀이를 바꿔 끼운다.
+        """
+        from . import chapters, facts as facts_mod, prefetch
         birth, hh, mm, sex, city = self._person(q)
         target = date.today()
         f = facts_mod.build(birth, hh, mm, sex, city, target)
         _md, _text, summary = agent_context(birth, hh, mm, sex, city, target)
         token = _remember("", summary, target.isoformat(), facts=f)
+        ai_on = _ai_on()
+        if ai_on and _prefetch_on():
+            prefetch.submit_all(f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
-                    "ai": _ai_on()})
+                    "rules": chapters.rule_all(f), "ai": ai_on})
 
     def _v2_ctx(self, q: dict) -> dict:
         ctx = _context(str(q.get("token", "")))
@@ -2145,8 +2160,12 @@ class Handler(BaseHTTPRequestHandler):
         tab, ch = str(q.get("tab", "")), str(q.get("chapter", ""))
         if tab not in chapters.TABS:
             raise ValueError("없는 탭")
-        body = chapters.generate(tab, ch, ctx["facts"], use_ai=_ai_on())
-        self._json(body)
+        chapters.spec(tab, ch)
+        body = None
+        if _ai_on():
+            from . import prefetch
+            body = prefetch.wait(tab, ch, ctx["facts"], CHAPTER_WAIT)
+        self._json(body or chapters.rule_chapter(tab, ch, ctx["facts"]))
 
     def _download(self, q: dict):
         ctx = _context(str(q.get("token", "")))

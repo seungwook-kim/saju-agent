@@ -1,6 +1,6 @@
 // 종합 사주 · 앱형 챕터 화면
-// 흐름: 입력 → /api/v2/report (사실표·챕터 목록) → 탭을 열면 챕터 부품은 바로 그리고,
-// 챕터 풀이(/api/v2/chapter)는 도착하는 대로 채운다.
+// 흐름: 입력 → /api/v2/report (사실표·챕터 목록·계산 풀이) → 탭을 열면 부품과 계산 풀이를 바로 그리고,
+// AI 풀이(/api/v2/chapter)가 도착하면 그 챕터를 바꿔 끼운다. 서버는 입력 직후부터 AI 풀이를 미리 만든다.
 'use strict';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -13,7 +13,7 @@ const EL_STEM={갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'
 const EL_BRANCH={자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'};
 const TAG_CLASS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
 
-const S={token:'',facts:null,outline:null,ai:false,tab:'today',
+const S={token:'',facts:null,outline:null,rules:{},ai:false,tab:'today',
   chapters:{},chat:[],queue:[],running:0,inflight:new Set()};
 
 async function postJSON(url,obj){
@@ -36,7 +36,7 @@ $('fMain').addEventListener('submit',async e=>{
   btn.disabled=true;btn.textContent='계산하는 중...';$('homeErr').innerHTML='';
   try{
     const j=await postJSON('/api/v2/report',q);
-    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,ai:j.ai,
+    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,
       chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today'});
     showResult();
   }catch(err){
@@ -73,50 +73,59 @@ function openTab(tab){
       '<div class="ch-label">CHAPTER · '+pad(i+1)+'</div>'+
       '<div class="ch-head"><div class="ch-emoji" aria-hidden="true">'+c.emoji+'</div><div class="ch-title">'+esc(c.title)+'</div></div>'+
       c.widgets.map(w=>widget(w)).join('')+
-      '<div class="ch-body" data-body="'+c.id+'">'+skeleton()+'</div></section>';
+      '<div class="ch-body" data-body="'+c.id+'"></div></section>';
   });
   h+=chatCard();
   $('page').innerHTML=h;
   window.scrollTo(0,0);
   animate($('page'));
   o.chapters.forEach(c=>{
-    const key=tab+'/'+c.id;
-    if(S.chapters[key]) fillChapter(tab,c.id,S.chapters[key]);
-    else if(!S.inflight.has(key)) S.queue.push(c.id);
+    const key=tab+'/'+c.id,ai=S.chapters[key];
+    const rule=(S.rules[tab]||{})[c.id];
+    if(ai) fillChapter(tab,c.id,ai,false);
+    else if(rule) fillChapter(tab,c.id,rule,S.ai);
+    else $('page').querySelector('[data-body="'+c.id+'"]').innerHTML=skeleton();
+    if(!ai&&S.ai&&!S.inflight.has(key)) S.queue.push(c.id);
   });
   pump();
 }
 
-// ---------------- 챕터 풀이 (동시에 둘씩, 위에서부터)
+// ---------------- 챕터 풀이
+// 계산 풀이를 먼저 보여 주고, AI 풀이는 지금 탭의 위쪽 챕터부터 셋씩 받아 바꿔 끼운다.
 
 function skeleton(){
-  return '<div class="skel w8"></div><div class="skel"></div><div class="skel w6"></div>'+
-    '<p class="loading-note">'+(S.ai?'AI가 계산 결과를 읽고 풀이를 쓰는 중이야. 챕터마다 1분 안팎 걸려.':'계산 결과를 정리하는 중...')+'</p>';
+  return '<div class="skel w8"></div><div class="skel"></div><div class="skel w6"></div>';
 }
 function pump(){
   const tab=S.tab;
-  while(S.running<2&&S.queue.length){
+  while(S.running<3&&S.queue.length){
     const ch=S.queue.shift(),key=tab+'/'+ch;S.running++;S.inflight.add(key);
     postJSON('/api/v2/chapter',{token:S.token,tab,chapter:ch})
-      .then(body=>{S.chapters[key]=body;if(S.tab===tab) fillChapter(tab,ch,body);})
-      .catch(err=>{
-        const el=document.querySelector('[data-body="'+ch+'"]');
-        if(el&&S.tab===tab) el.innerHTML='<div class="err">'+esc(err.message)+'</div>';
+      .then(body=>{
+        if(body.source==='ai') S.chapters[key]=body;
+        if(S.tab===tab) fillChapter(tab,ch,body,false);
+      })
+      .catch(()=>{                 // AI 풀이를 못 받아도 계산 풀이는 그대로 둔다
+        const rule=(S.rules[tab]||{})[ch];
+        if(rule&&S.tab===tab) fillChapter(tab,ch,rule,false);
       })
       .finally(()=>{S.running--;S.inflight.delete(key);pump();});
   }
 }
-function fillChapter(tab,ch,b){
+function fillChapter(tab,ch,b,pending){
   const el=document.querySelector('[data-body="'+ch+'"]');
   if(!el) return;
+  const swap=el.dataset.src==='rule'&&b.source==='ai';
   let h='';
   if(b.headline) h+='<div class="headline">'+esc(b.headline)+'</div>';
   if(b.lead) h+='<p class="lead">'+esc(b.lead)+'</p>';
   (b.blocks||[]).forEach(x=>{h+=block(x);});
   if(b.closing) h+='<div class="closing">'+esc(b.closing)+'</div>';
-  h+='<div class="src">'+(b.source==='ai'?'계산 결과를 근거로 쓴 AI 풀이':'계산 결과 요약본 (AI 풀이를 쓸 수 없을 때)')+'</div>';
+  h+='<div class="src">'+(b.source==='ai'?'계산 결과를 근거로 쓴 AI 풀이':
+    '계산 결과로 쓴 기본 풀이'+(pending?' · <span class="pending">AI가 더 자세한 풀이를 쓰는 중</span>':''))+'</div>';
   el.innerHTML=h;
-  el.style.animation='rise .4s var(--ease)';
+  el.dataset.src=b.source;
+  if(swap){el.style.animation='none';void el.offsetWidth;el.style.animation='rise .5s var(--ease)';}
 }
 function block(x){
   const t=x.title?'<h4>'+esc(x.title)+'</h4>':'';
