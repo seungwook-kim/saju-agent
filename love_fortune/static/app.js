@@ -164,6 +164,7 @@ function widget(w){
     case 'ny': return nyCard(f.newyear);
     case 'ilju': return iljuCard(f.natal.ilju);
     case 'nycal': return nyCal(f.newyear);
+    case 'tojeong': return tjCard(f.newyear.tojeong);
     case 'wheel': return wheel(f.natal.astro.wheel);
   }
   return '';
@@ -200,6 +201,13 @@ function gauge(t){
     bars.map(([k,v])=>'<div class="bar"><span>'+k+'</span><div class="t"><i data-w="'+v+'"></i></div><b>'+v+'</b></div>').join('')+
     '</div></div></div><p class="fine" style="margin:.7rem 0 0">총운 = 연애·직장·금전 점수의 평균 + 오늘 공통 기운</p>'+
     '<p style="margin:.5rem 0 0">'+esc(t.agreement)+' '+esc(t.focus)+'</p>');
+}
+// 토정비결 괘 카드
+function tjCard(t){
+  const tone={good:['좋음','up'],mid:['엇갈림',''],care:['조심','down']}[t.tone];
+  return '<div class="ilju"><div class="tj-num">'+t.gua+'</div><div class="ilju-t">'+esc(t.read)+'</div>'+
+    '<div class="chips" style="justify-content:center"><span class="pill '+tone[1]+'">'+tone[0]+'</span></div>'+
+    '<p style="margin:.6rem 0 0">'+esc(t.mean)+'</p></div>';
 }
 // 일주 카드
 function iljuCard(c){

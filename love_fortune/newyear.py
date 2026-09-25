@@ -107,4 +107,10 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, today
         "dayun_note": dayun_note,
         "ziwei": zw_part,
         "sky": sky_lines,
+        "tojeong": _tojeong(birth, y),
     }
+
+
+def _tojeong(birth: date, y: int) -> dict:
+    from .tojeong import for_birth
+    return for_birth(birth, y)

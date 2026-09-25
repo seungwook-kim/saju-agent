@@ -365,6 +365,16 @@ def newyear(f: dict, ch: str) -> dict:
             callout(ny["dayun_note"]),
             text("타고난 나와 함께 보면", f["natal"]["character"]),
         ])
+    if ch == "tojeong":
+        t = ny["tojeong"]
+        tone = {"good": "좋은 쪽", "mid": "좋고 나쁨이 엇갈리는 쪽", "care": "조심하라는 쪽"}[t["tone"]]
+        return chapter(f"{y}년 토정비결 {t['gua']}괘: {t['read']}", t["mean"], [
+            text("괘가 가리키는 쪽", f"이 괘는 한 해를 {tone}으로 보는 괘야."),
+            checklist("괘를 뽑은 계산", [t["steps"]["upper"], t["steps"]["middle"], t["steps"]["lower"]]),
+            callout(t["note"]),
+            text("알아 둘 것", "토정비결은 조선 후기 필사본으로 전해 온 옛 점서야. 여기서는 한 해 총평(괘사 여덟 글자)만 풀었고, "
+                 "달마다 붙는 괘사는 넣지 않았어."),
+        ])
     if ch == "months":
         blocks = []
         for d in ("love", "career", "money"):

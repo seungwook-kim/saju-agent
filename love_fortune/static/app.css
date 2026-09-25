@@ -316,6 +316,7 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
   box-shadow:0 10px 30px rgba(80,30,60,.1);margin:10px 0}
 .ilju-big{font-size:4rem;font-weight:900;line-height:1;letter-spacing:.05em}
 .ilju-t{font-size:1.3rem;font-weight:900;margin-top:10px}
+.tj-num{font-size:3.4rem;font-weight:900;letter-spacing:.12em;color:var(--accent);line-height:1}
 .ilju-m{font-size:.8rem;color:var(--muted);margin:4px 0 8px}
 
 /* 둘이 만나기 좋은 날 */

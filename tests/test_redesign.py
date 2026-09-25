@@ -335,3 +335,16 @@ def test_together_days_and_ilju(sheet):
     assert t["good"][0]["both"] >= t["good"][-1]["both"] >= t["tense"][0]["both"]
     c = sheet["natal"]["ilju"]
     assert c["pillar"] == "경오" and c["title"] == "바위와 말" and c["modern"] == "흰 말"
+
+
+def test_tojeong_matches_published_examples():
+    from love_fortune import tojeong as T
+    from love_fortune.tojeong_data import GUA
+    # CHUNUN 예시: 1976 음력 8월 26일생의 2005년 = 212 (세는나이 30, 태세 20, 작은달 29 + 월건 14, 일진 병진 18)
+    assert T.gua(1976, 8, 26, 2005)["gua"] == 212
+    # 명문당 예시: 신사년 5월 갑오월 월건 18 + 큰달 30 → 중괘 6, 5월 16일 경오일 일진 15 → 하괘 1
+    r = T.gua(1970, 5, 16, 2001)
+    assert str(r["gua"])[1:] == "61" and "18(갑오월)" in r["steps"]["middle"] and "15(경오일)" in r["steps"]["lower"]
+    # 만복가 예시: 계미년 32세 상괘 2, 7월 경신월 큰달 → 중괘 3, 7월 9일 신해일 → 하괘 1
+    assert T.gua(1972, 7, 9, 2003)["gua"] == 231
+    assert len(GUA) == 144 and {u * 100 + m * 10 + l for u in range(1, 9) for m in range(1, 7) for l in range(1, 4)} == set(GUA)
