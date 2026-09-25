@@ -104,3 +104,23 @@ def year_signals(natal: dict, sex: str, start_year: int, years: int = 3) -> list
 def best(rows: list[dict], domain: str, n: int = 2) -> list[dict]:
     """영역별로 가장 좋은 때 (같으면 앞선 때)."""
     return sorted(rows, key=lambda r: -r["scores"][domain])[:n]
+
+
+def love_year_line(natal: dict, sex: str, year: int) -> str:
+    """올해 연애 한 줄. 세운 시그널(배우자성·도화·일지 합충·공망)을 그대로 따른다.
+
+    예전엔 '올해 도화가 드나'만 보고 '도화운보다 내실을 다질 해'라고 적어서,
+    배우자성이 들어 '밀고 나갈 때'로 나오는 해와 같은 화면에서 서로 엇갈렸다.
+    """
+    row = year_signals(natal, sex, year, 1)[0]
+    tag, why = row["labels"]["love"], row["why"]["love"]
+    reason = f" {', '.join(why)}라서 그래." if why else ""
+    head = {"밀고 나갈 때": "올해는 연애에서 한 걸음 밀고 나가기 좋은 해야.",
+            "좋은 흐름": "올해는 연애 흐름이 순하게 받쳐 주는 해야.",
+            "무난한 흐름": "올해는 연애에서 크게 튀지 않는 무난한 해야.",
+            "다듬을 때": "올해는 연애에서 서두르기보다 관계를 다듬기 좋은 해야.",
+            "조심할 때": "올해는 연애에서 말과 속도를 조심하면 좋은 해야."}[tag]
+    tail = ""
+    if not any("도화" in w for w in why):
+        tail = " 도화(끌림의 별)가 드는 해는 아니라서, 새 만남이 쏟아지기보다 가까운 자리에서 인연이 자라기 쉬운 흐름이야."
+    return f"{head}{reason}{tail}"

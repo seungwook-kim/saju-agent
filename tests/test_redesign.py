@@ -28,7 +28,7 @@ def test_facts_have_no_personal_data(sheet):
     blob = json.dumps(sheet, ensure_ascii=False)
     for bad in ("1990", "05-05", "서울", "14:30"):
         assert bad not in blob
-    assert sheet["meta"]["age"] == 37 and sheet["meta"]["sex"] == "여성"
+    assert sheet["meta"]["age"] == 36 and sheet["meta"]["age_kr"] == 37 and sheet["meta"]["sex"] == "여성"
 
 
 def test_facts_shape(sheet):
@@ -80,12 +80,13 @@ def test_ai_chapter_is_cached(sheet, monkeypatch):
     def fake(system, prompt, timeout=0):
         calls.append(prompt)
         assert "1990" not in prompt
-        return {"headline": "요약", "lead": "도입", "blocks": [{"type": "text", "body": "풀이"}]}
+        return {"headline": "요약", "lead": "도입", "blocks": [{"type": "text", "body": "풀이"},
+                                                               {"type": "quote", "body": "한 줄"}]}
 
     monkeypatch.setattr(chapters.ai, "available", lambda: True)
     monkeypatch.setattr(chapters.ai, "run_json", fake)
-    a = chapters.generate("love", "map", sheet)
-    b = chapters.generate("love", "map", sheet)
+    a = chapters.generate("life", "love_nature", sheet)
+    b = chapters.generate("life", "love_nature", sheet)
     assert a["source"] == b["source"] == "ai" and len(calls) == 1
 
 
@@ -109,10 +110,10 @@ def test_v2_api_flow(server):
     rep = _post(server + "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30",
                                             "sex": "female", "city": "서울"})
     assert rep["ai"] is False and set(rep["outline"]) == set(chapters.TABS)
-    ch = _post(server + "/api/v2/chapter", {"token": rep["token"], "tab": "career", "chapter": "wonguk"})
+    ch = _post(server + "/api/v2/chapter", {"token": rep["token"], "tab": "career", "chapter": "score"})
     assert ch["source"] == "rule"
     with pytest.raises(urllib.error.HTTPError) as e:
-        _post(server + "/api/v2/chapter", {"token": "nope", "tab": "love", "chapter": "map"})
+        _post(server + "/api/v2/chapter", {"token": "nope", "tab": "love", "chapter": "score"})
     assert e.value.code == 400
 
 
@@ -188,7 +189,7 @@ def test_prefetch_orders_dedupes_and_waits(sheet, monkeypatch):
         time.sleep(0.05)
     assert prefetch.pending() == 0
     assert len(calls) == n == len(set(calls))
-    assert calls.index(("life", "final")) < calls.index(("life", "years"))
+    assert calls.index(("life", "final")) < calls.index(("life", "dayun"))
 
 
 def test_v2_report_includes_rule_chapters(server):
@@ -197,3 +198,54 @@ def test_v2_report_includes_rule_chapters(server):
     for tab, t in chapters.TABS.items():
         for c in t["chapters"]:
             assert rep["rules"][tab][c["id"]]["source"] == "rule"
+
+
+def test_ground_drops_invented_numbers_and_certainty():
+    part = {"love.best": ["2027년 6월(병오)"], "meta": {"age": 36}}
+    body = {"headline": "2027년 6월이 좋아", "lead": "36세의 너는 흐름이 좋아. 29세에 만난 사람이 있어.",
+            "blocks": [{"type": "text", "title": "", "body": "3개월 안에 인연이 올 거야. 천천히 가도 좋아."},
+                       {"type": "checklist", "title": "", "items": ["하루 30분 걷기", "먼저 인사하기"]},
+                       {"type": "steps", "title": "", "items": [{"title": "STEP", "body": "반드시 결혼한다."},
+                                                                {"title": "둘", "body": "대화를 늘려 봐."}]}],
+            "closing": ""}
+    out = chapters.ground(body, part)
+    assert out["headline"] == "2027년 6월이 좋아"
+    assert out["lead"] == "36세의 너는 흐름이 좋아."
+    assert out["blocks"][0]["body"] == "천천히 가도 좋아."
+    assert out["blocks"][1]["items"] == ["먼저 인사하기"]
+    assert [i["body"] for i in out["blocks"][2]["items"]] == ["대화를 늘려 봐."]
+
+
+def test_domain_tabs_are_today_only(sheet):
+    # 연애·직장·금전 탭은 오늘 하루만: 챕터가 쓰는 사실은 today.* (연애 실전만 배우자궁·금성·만남 자리를 곁들인다)
+    for tab in ("love", "career", "money"):
+        for ch in chapters.TABS[tab]["chapters"]:
+            extra = [p for p in ch["pick"] if not p.startswith("today.")]
+            assert not extra or (tab == "love" and ch["id"] == "howto"), (tab, ch["id"], extra)
+            assert not any(w.split(":")[0] in ("calendar", "years", "wonguk", "decades") for w in ch["widgets"])
+    d = sheet["today"]["domains"]["love"]
+    assert d["score"] == sheet["today"]["scores"]["love"]
+    assert {s["name"] for s in d["systems"]} == {"사주", "자미두수", "점성술"}
+
+
+def test_total_is_average_of_domains_plus_common(sheet):
+    sc = sheet["today"]["scores"]
+    avg = round((sc["love"] + sc["career"] + sc["money"]) / 3)
+    assert abs(sc["total"] - avg) <= 12
+    assert "평균" in sheet["today"]["total_reasons"][0]
+
+
+def test_match_story_josa_and_no_duplicates():
+    from love_fortune.matchmaking import compatibility
+    r = compatibility(date(1990, 5, 5), 14, 30, "female", "서울", date(1988, 3, 3), 9, 0, "male", "부산")
+    assert not any("흐름야" in x for x in r["story"])
+    from love_fortune.web import api_match_data
+    d = api_match_data(r)
+    assert len(d["cautions"]) == len(set(d["cautions"]))
+
+
+def test_domain_phrases_are_casual():
+    import re
+    from pathlib import Path
+    src = Path(__file__).resolve().parent.parent / "love_fortune" / "domains.py"
+    assert not re.findall(r'"[^"\n]*다"', src.read_text(encoding="utf-8"))

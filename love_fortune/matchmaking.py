@@ -15,6 +15,7 @@ from .rules import ten_god, branch_relation
 from .match import BRANCH_BONQI
 from .ziwei import ziwei_chart
 from .astro import natal_chart, SIGN_ELEMENT, ASPECTS
+from .josa import j
 from .narrate import GOD_SHORT, _rel_text
 
 # 천간합 5쌍
@@ -201,15 +202,20 @@ def compatibility(a_birth: date, a_hour: int, a_minute: int, a_sex: str,
     else:
         head = "부딪힘이 잦은 흐름, 거리와 속도를 조율하면 좋은 사이"
 
-    strengths = plus[:5]
-    cautions = minus[:4]
+    # 같은 문장이 두 번 나오지 않게 (천간·지지에서 같은 견제 문장이 겹쳐 나왔다)
+    strengths = list(dict.fromkeys(plus))[:5]
+    cautions = list(dict.fromkeys(minus))[:4]
+
+    def joined(xs: list[str]) -> str:
+        return j(", 또 ".join(xs), "이야")       # '흐름이야' (예전엔 '흐름야')
+
     story = [f"두 사람 점수는 {score}점이야. {head} 쪽으로 읽으면 돼."]
     if strengths:
-        story.append("잘 맞는 점은 " + ", 또 ".join(strengths[:2]) + "야.")
+        story.append("잘 맞는 점은 " + joined(strengths[:2]) + ".")
     if cautions:
-        story.append("조심할 점은 " + ", 또 ".join(cautions[:2]) + "야.")
+        story.append("조심할 점은 " + joined(cautions[:2]) + ".")
     if info:
-        story.append("참고로 " + ", 또 ".join(info[:2]) + "야.")
+        story.append("참고로 " + joined(info[:2]) + ".")
     story.append("점수는 출발점일 뿐이야. 부딪히는 날은 쉬어가고, 맞는 날은 더 가까워지면 돼.")
     return {
         "score": score, "head": head, "story": story,

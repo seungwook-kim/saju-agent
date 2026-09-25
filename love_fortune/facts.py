@@ -16,6 +16,27 @@ ELEMENT_OF_STEM = {"갑": "목", "을": "목", "병": "화", "정": "화", "무"
                    "기": "토", "경": "금", "신": "금", "임": "수", "계": "수"}
 
 
+# 오늘 세 체계 문장 중 영역에 닿는 것을 고르는 말 (궁·하우스·행성·신살 이름)
+DOMAIN_WORDS = {
+    "love": ("도화", "연애", "인연", "배우자", "부처", "자녀", "복덕", "금성", "7번", "5번"),
+    "career": ("직장", "업무", "관록", "천이", "노복", "형제", "역마", "천을귀인", "10번", "6번",
+               "화성", "수성", "토성"),
+    "money": ("금전", "재물", "돈", "재백", "전택", "2번", "8번", "목성", "금성"),
+}
+
+
+def today_domain(ma: dict, dom: str) -> dict:
+    """오늘 하루 한 영역(연애·직장·금전)의 계산 결과: 점수·근거·세 체계 가감·관련 문장·팁."""
+    d = ma[dom]
+    systems = []
+    for s in ma["today"]["systems"]:
+        lines = [x for x in s["lines"] if any(w in x for w in DOMAIN_WORDS[dom])]
+        systems.append({"name": s["name"], "points": s["points"].get(dom, 0), "lines": lines})
+    return {"score": d["score"], "head": d["head"], "reasons": list(d["reasons"]),
+            "systems": systems, "adj": ma["today"]["adj"].get(dom, 0),
+            "tips": list(d.get("tips") or []), "avoid": d.get("avoid") or ""}
+
+
 def build(birth: date, hour: int | None, minute: int, sex: str, city: str, target: date) -> dict:
     natal = four_pillars(birth, hour, minute, city)
     ma = detailed_reading(birth, hour, minute, sex, city, target)
@@ -23,7 +44,8 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
     extra = natal_sinsal(natal)
     months = month_signals(natal, sex, target, 12)
     years = year_signals(natal, sex, target.year, 3)
-    age = target.year - birth.year + 1
+    # 나이는 만 나이(2023년부터 한국 공식 기준). 생기복덕·자미두수처럼 세는나이를 쓰는 곳은 그 문장에 따로 적는다
+    age = target.year - birth.year - ((target.month, target.day) < (birth.month, birth.day))
     ya = ma["yongsin"]["analysis"]
     dist_counts = {}
     for s in [p["stem"] for p in pillars_detail(natal)]:
@@ -52,7 +74,7 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
                             "stars": list(p["stars"]), "daxian": list(p["daxian"]) if p["daxian"] else None})
     base = {
         "meta": {"target": target.isoformat(), "sex": "남성" if sex == "male" else "여성",
-                 "age": age, "hour_known": hour is not None},
+                 "age": age, "age_kr": target.year - birth.year + 1, "hour_known": hour is not None},
         "natal": {
             "ilgan": natal["ilgan"], "ilgan_element": natal["ilgan_element"],
             "character": ma["yongsin"]["ilgang"],
@@ -81,11 +103,16 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
                         for s in ma["today"]["systems"]],
             "almanac": list(ma["today"]["almanac"]["lines"]),
             "scores": {"total": ma["total"]["score"], "love": ma["love"]["score"],
-                       "career": ma["career"]["score"], "money": ma["money"]["score"]},
+                       "career": ma["career"]["score"], "money": ma["money"]["score"],
+                       # 총운의 출발점 (연애·직장·금전 평균). AI 가 스스로 셈한 평균이 거름망에 걸리지 않게 넣어 둔다
+                       "domain_avg": round((ma["love"]["score"] + ma["career"]["score"]
+                                            + ma["money"]["score"]) / 3)},
             "heads": {"total": ma["total"]["head"], "love": ma["love"]["head"],
                       "career": ma["career"]["head"], "money": ma["money"]["head"]},
             "keywords": list(ma["total"]["keywords"]),
             "element": ma["today_elem"],
+            "total_reasons": list(ma["total"]["reasons"]),
+            "domains": {d: today_domain(ma, d) for d in ("love", "career", "money")},
         },
         "love": {
             "spouse_star": ma["star_line"],

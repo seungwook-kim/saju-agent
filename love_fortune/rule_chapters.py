@@ -151,14 +151,20 @@ def run_now(extra: list[str]) -> list[str]:
     return [x for x in extra if not x.startswith("태어날 때")]
 
 
-# ---------------------------------------------------------------- 총운
+# ---------------------------------------------------------------- 총운 (오늘)
+
+TODAY_WORD = {"love": "연애", "career": "직장", "money": "금전"}
+
 
 def today(f: dict, ch: str) -> dict:
     t, n = f["today"], f["natal"]
     heads, sc = t["heads"], t["scores"]
     saju = next((s for s in t["systems"] if s["name"] == "사주"), {"lines": []})
+    doms = t["domains"]
     if ch == "today":
         return chapter(heads["total"], t["agreement"], [
+            callout(f"오늘 총운 {sc['total']}점은 연애 {sc['love']}점, 직장 {sc['career']}점, 금전 {sc['money']}점의 "
+                    "평균에 오늘 공통 기운을 더한 값이야."),
             text("세 체계를 합치면", t["focus"]),
             *[text(f"{s['name']}: {s['signal']}", *s["lines"]) for s in t["systems"]],
             cards("영역별 오늘", [(f"연애 {sc['love']}점", heads["love"]), (f"직장 {sc['career']}점", heads["career"]),
@@ -173,142 +179,124 @@ def today(f: dict, ch: str) -> dict:
             callout(t["focus"]),
         ])
     if ch == "todo":
+        tips = doms["career"]["tips"] + doms["money"]["tips"]
+        avoid = [doms[d]["avoid"] for d in ("career", "money") if doms[d]["avoid"]]
         return chapter("오늘 달력으로 본 할 일", t["almanac"][0] if t["almanac"] else "", [
             text("오늘 달력 풀이", *t["almanac"][1:-1]),
-            checklist("오늘 해 보면 좋은 것", f["career"]["tips"] + f["money"]["tips"]),
-            checklist("오늘 피할 것", [f["career"]["avoid"], f["money"]["avoid"]]),
+            checklist("오늘 해 보면 좋은 것", tips),
+            checklist("오늘 피할 것", avoid),
             callout(t["almanac"][-1] if len(t["almanac"]) > 1 else ""),
         ])
-    tip = (f["career"]["tips"] or f["money"]["tips"] or [""])[0]
+    tip = (doms["career"]["tips"] or doms["money"]["tips"] or [""])[0]
     return chapter(heads["total"], t["focus"], [
-        text("오늘을 한 문단으로", t["agreement"], heads["love"] + ".", heads["career"] + ".", heads["money"] + "."),
+        text("오늘을 한 문단으로", t["agreement"], heads["love"], heads["career"], heads["money"]),
         quote(heads["total"]),
     ], f"오늘 딱 하나만 한다면: {tip}" if tip else "")
 
 
-# ---------------------------------------------------------------- 연애
+# ---------------------------------------------------------------- 연애·직장·금전 (오늘)
 
-def love(f: dict, ch: str) -> dict:
-    n, L = f["natal"], f["love"]
-    zs, v, m = L.get("ziwei_spouse"), L["venus"], L["moon"]
-    if ch == "wonguk":
-        return chapter("연애로 읽는 나의 원국", n["character"], [
-            text("일간이 말해 주는 나", n["geguk_mean"]),
-            text("배우자를 보는 별(배우자성)", L["spouse_star"]),
-            text("배우자 자리(일지)", L["spouse_seat"]),
-            text("일주의 기운", L["day_stage"]),
-            text("끌림의 별(도화·홍염)", *L["dohwa"], L["hongyeom"]),
-            sinsal_cards(n["classic_sinsal"]),
-        ])
-    if ch == "why":
-        return chapter(L["this_year"], strength_line(n), [
-            text("지금 10년의 흐름", dayun_now(n)),
-            text("자미두수로 본 지금", ziwei_now(n)),
-            text("올해의 연애", L["this_year"], *L["extra"]),
-            checklist("스스로 확인해 볼 연애 습관", [v["style"], m["need"], L["day_stage"].split(": ", 1)[-1]]),
-        ])
-    if ch == "map":
-        return chapter(f"금성 {v['sign']}의 연애 지도", v["ideal"], [
-            text("내가 사랑하는 방식", v["style"]),
-            text("마음이 편해지는 조건", f"달이 {j(m['sign'], '라')} {m['need']}."),
-            text("배우자 자리의 별", f"부처궁(배우자를 보는 자리) 주성은 {j(zs['star'], '이야')}. {zs['look']}. {zs['mind']}.")
-            if zs else None,
-            checklist("인연이 들어오기 쉬운 자리", L["meet_paths"]),
-            text("띠로 본 궁합", _animals_line(L["animals"])),
-        ])
+def _points_line(p: int, word: str) -> str:
+    """체계별 가감 신호 (점수 그 자체가 아니라 방향과 세기)."""
+    if p > 0:
+        return f"{word} 쪽 신호 +{p}, 오늘 {j(word, '을')} 받쳐 주는 쪽이야."
+    if p < 0:
+        return f"{word} 쪽 신호 {p}, 오늘 {j(word, '을')} 조금 누르는 쪽이야."
+    return f"{word} 쪽으로는 더하거나 빼는 신호가 없어."
+
+
+def today_domain(f: dict, ch: str, dom: str) -> dict:
+    t = f["today"]
+    d = t["domains"][dom]
+    word = TODAY_WORD[dom]
+    if ch == "score":
+        return chapter(f"오늘 {word} {d['score']}점", d["head"], [
+            checklist("이 점수가 나온 근거", d["reasons"]),
+            cards("세 체계가 더하고 뺀 몫", [(s["name"], _points_line(s["points"], word)) for s in d["systems"]]),
+        ], "점수는 오늘 흐름의 방향을 보는 참고값이야.")
+    if ch == "systems":
+        blocks = []
+        for s in d["systems"]:
+            blocks.append(text(s["name"], *(s["lines"] or [f"오늘 {word}에 따로 걸리는 신호는 없어."]),
+                               _points_line(s["points"], word)))
+        blocks.append(callout(t["agreement"]))
+        return chapter(f"세 체계로 본 오늘 {word}", d["head"], blocks)
     if ch == "howto":
-        return chapter("인연을 부르는 실전 설계", v["how"], [
-            steps("세 걸음", [("먼저 보여 줄 모습", L["spouse_seat"].split("팁 ")[-1]),
-                           ("다가가는 방식", v["how"]),
-                           ("만나는 자리", ", ".join(L["meet_paths"]))]),
-            text("관계를 오래 가게 하는 법", zs["tip"] + "." if zs else "", m["need"] + "."),
-            callout(L["day_stage"].split(": ", 1)[-1]),
+        if dom == "love":
+            L = f["love"]
+            todo = [L["spouse_seat"].split("팁 ")[-1], L["venus"]["how"],
+                    "오늘 가 보기 좋은 자리: " + ", ".join(L["meet_paths"])]
+            avoid = []
+        else:
+            todo, avoid = d["tips"], [d["avoid"]] if d["avoid"] else []
+        return chapter("오늘 이렇게 해 봐", d["head"], [
+            checklist("오늘 해 보면 좋은 것", todo),
+            checklist("오늘 피할 것", avoid),
+            text("오늘 달력으로 보면", *t["almanac"][1:2]),
+            callout(t["almanac"][-1] if len(t["almanac"]) > 1 else ""),
         ])
-    if ch == "calendar":
-        return chapter("월별 러브 시그널", best_line(L["best"], "love"), months_blocks(L["months"], "love"))
-    if ch == "partner":
-        blocks = [cards(f"부처궁 {zs['star']}로 본 상대의 결",
-                        [("인상", zs["look"]), ("성격", zs["mind"]), ("어울리는 분야", zs["job"]),
-                         ("만나는 자리", zs["meet"])]) if zs else None,
-                  text("금성으로 본 끌림", v["ideal"] + ".", v["how"] + "."),
-                  text("배우자 자리로 본 상대", L["spouse_seat"].split(". 관계")[0] + "."),
-                  callout(zs["tip"] if zs else m["need"])]
-        return chapter("잘 맞는 상대의 결", "예언이 아니라, 계산으로 본 잘 맞는 결을 설명하는 거야.", blocks)
-    if ch == "timing":
-        return chapter(L["this_year"], best_line(L["best"], "love"),
-                       [*years_blocks(L["years"], "love"), text("지금 10년의 흐름", dayun_now(n))])
-    return chapter(L["this_year"], n["character"], [
-        text("정리하면", L["spouse_seat"].split(". 팁")[0] + ".", best_line(L["best"], "love")),
-        quote(v["how"]),
-    ], "오늘부터 할 한 가지: " + L["spouse_seat"].split("팁 ")[-1])
+    best = d["reasons"][0] if d["reasons"] else ""
+    return chapter(d["head"], f"오늘 {j(word, '은')} {d['score']}점, {d['head']}.", [
+        text("오늘을 한 문단으로", best, *(x for s in d["systems"] for x in s["lines"][:1])),
+        quote(d["head"]),
+    ])
 
+
+# ---------------------------------------------------------------- 평생 (타고난 결·앞으로의 흐름)
 
 def _animals_line(a: dict) -> str:
     good = ", ".join(f"{x['animal']}띠" for x in a["good"])
     bad = ", ".join(f"{x['animal']}띠" for x in a["bad"])
-    out = f"내 띠({a['me']}) 기준으로 {good}와 잘 맞는 편이야." if good else ""
+    out = f"내 띠({a['me']}) 기준으로 {j(good, '와')} 잘 맞는 편이야." if good else ""
     if bad:
-        out += f" {bad}와는 서로 서운하거나 부딪치기 쉬워서 말을 한 번 더 고르면 좋아."
+        out += f" {j(bad, '와')}는 서로 서운하거나 부딪치기 쉬워서 말을 한 번 더 고르면 좋아."
     return out.strip()
 
 
-# ---------------------------------------------------------------- 직장·금전 (같은 틀)
+def love_nature(f: dict) -> dict:
+    n, L = f["natal"], f["love"]
+    zs, v, m = L.get("ziwei_spouse"), L["venus"], L["moon"]
+    return chapter("타고난 연애의 결", n["character"], [
+        text("배우자를 보는 별(배우자성)", L["spouse_star"]),
+        text("배우자 자리(일지)", L["spouse_seat"]),
+        text("일주의 기운", L["day_stage"]),
+        text("끌림의 별(도화·홍염)", *L["dohwa"], L["hongyeom"]),
+        text("내가 사랑하는 방식", f"금성이 {j(v['sign'], '라')} {v['style']}", v["ideal"],
+             f"달이 {j(m['sign'], '라')} {m['need']}"),
+        cards(f"부처궁 {zs['star']}로 본 잘 맞는 상대의 결",
+              [("인상", zs["look"]), ("성격", zs["mind"]), ("어울리는 분야", zs["job"]),
+               ("만나는 자리", zs["meet"])]) if zs else None,
+        checklist("인연이 들어오기 쉬운 자리", L["meet_paths"]),
+        text("띠로 본 궁합", _animals_line(L["animals"])),
+    ], "잘 맞는 상대의 결은 예언이 아니라 계산으로 본 경향이야.")
 
-def work(f: dict, ch: str, dom: str) -> dict:
+
+def work_nature(f: dict, dom: str) -> dict:
     n, D = f["natal"], f[dom]
     main = D["guanlu"] if dom == "career" else D["caibo"]
     star = D["guan"] if dom == "career" else D["cai"]
+    guiin = [x for x in n["classic_sinsal"] if x.startswith("천을귀인")]
+    blocks = [text("타고난 그릇", strength_line(n)),
+              text("원국의 별" if dom == "career" else "원국의 돈 기운", star),
+              text("자미두수로 본 자리", main)]
+    if dom == "career":
+        blocks.append(text("잘 맞는 분야", D["fit_jobs"]))
+        blocks.append(text("도움이 되는 사람(귀인)", *guiin, *n["guiin"]))
+    blocks.append(text("태어날 때 하늘의 별", *born_with(D["extra"])))
+    blocks.append(callout(f"균형을 잡아 주는 기운(용신)은 {n['yongsin']}이야. 이 기운이 들어오는 때와 자리를 살리면 "
+                          f"{j(DOMAIN_WORD[dom], '이')} 한결 편해지기 쉬워."))
+    title = "타고난 일의 결" if dom == "career" else "타고난 돈의 결"
+    return chapter(title, n["character"], blocks, "투자·이직 같은 큰 결정은 전문가와 함께 따져 봐." if dom == "money" else "")
+
+
+def flow(f: dict, dom: str) -> dict:
+    D = f[dom]
+    blocks = months_blocks(D["months"], dom) + years_blocks(D["years"], dom)
+    if dom == "love":
+        blocks.insert(0, text("올해의 연애", D["this_year"]))
     word = DOMAIN_WORD[dom]
-    if ch == "wonguk":
-        blocks = [text("일간이 말해 주는 나", n["geguk_mean"]),
-                  text("원국의 별" if dom == "career" else "원국의 돈 기운", star),
-                  text("자미두수로 본 자리", main)]
-        if dom == "career":
-            blocks.append(text("잘 맞는 판", D["fit_jobs"]))
-        blocks.append(sinsal_cards(n["classic_sinsal"]))
-        return chapter(f"{j(word, '으로')} 읽는 나의 원국", n["character"], blocks)
-    if ch == "why":
-        return chapter(main, strength_line(n), [
-            text("지금 10년의 흐름", *run_now(D["extra"])),
-            text("자미두수로 본 지금", ziwei_now(n)),
-            callout(f"균형을 잡아 주는 기운은 {n['yongsin']}이야. 이 기운이 들어오는 때와 자리를 살리면 {j(word, '이')} 한결 편해지기 쉬워."),
-        ])
-    if ch == "map":
-        blocks = [text("나에게 맞는 결", main, star)]
-        if dom == "career":
-            blocks.append(text("잘 맞는 분야", D["fit_jobs"]))
-        blocks.append(text("태어날 때 하늘의 별", *born_with(D["extra"])))
-        a = n["astro"]
-        if a.get("mc"):
-            blocks.append(text("사회에서 보이는 얼굴", f"태양은 {a['sun']}, 사회적 얼굴(MC)은 {j(a['mc'], '야')}."))
-        return chapter(f"나의 {'커리어' if dom == 'career' else '재물'} 지도", n["geguk_mean"], blocks)
-    if ch == "howto":
-        return chapter(f"{j(word, '을')} 다루는 실전 설계", n["character"], [
-            steps("세 걸음", [("강점 자리 잡기", main),
-                           ("맞는 판 고르기", D["fit_jobs"] if dom == "career" else star),
-                           ("균형 맞추기", f"용신(균형을 잡아 주는 기운)은 {n['yongsin']}이야. 이 기운을 쓰는 쪽으로 방향을 잡아 봐.")]),
-            callout(n["character"].split(". ")[-1]),
-        ])
-    if ch == "calendar":
-        title = "월별 커리어 시그널" if dom == "career" else "월별 머니 시그널"
-        return chapter(title, best_line(D["best"], dom), months_blocks(D["months"], dom))
-    if ch in ("mentor", "partner"):
-        guiin = [x for x in n["classic_sinsal"] if x.startswith("천을귀인")]
-        return chapter("도움이 되는 사람과 자리", "예언이 아니라, 계산으로 본 도움의 결을 설명하는 거야.", [
-            text("귀인(돕는 사람의 별)", *guiin, *n["guiin"]),
-            text("자미두수로 본 자리", main),
-            text("지금 10년의 흐름", *run_now(D["extra"])[:1]),
-        ])
-    if ch == "timing":
-        return chapter(best_line(D["best"], dom) or f"앞으로 3년 {word}의 흐름", dayun_now(n),
-                       years_blocks(D["years"], dom))
-    return chapter(main, strength_line(n), [
-        text("정리하면", star, best_line(D["best"], dom)),
-        quote(n["geguk_mean"]),
-    ], "")
+    return chapter(f"{word}의 흐름: 12개월과 3년", best_line(D["best"], dom), blocks)
 
-
-# ---------------------------------------------------------------- 평생
 
 def life(f: dict, ch: str) -> dict:
     n, Li = f["natal"], f["life"]
@@ -321,10 +309,16 @@ def life(f: dict, ch: str) -> dict:
         return chapter("원국 완전 풀이", n["character"], [
             text("타고난 그릇", strength_line(n)),
             text("십신(나와 다른 기운의 관계)", n["ten_gods"]),
-            text("자미두수 명반", zw["guo"] + ".", " ".join(x + "." for x in zw["sihua"])) if zw else None,
+            text("자미두수 명반", zw["guo"], *zw["sihua"]) if zw else None,
             text("태어날 때 하늘", sky),
             sinsal_cards(n["classic_sinsal"]),
         ])
+    if ch == "love_nature":
+        return love_nature(f)
+    if ch in ("career_nature", "money_nature"):
+        return work_nature(f, ch.split("_")[0])
+    if ch in ("love_flow", "career_flow", "money_flow"):
+        return flow(f, ch.split("_")[0])
     if ch == "decades":
         return chapter("연대별 흐름", current, [
             cards("세 시기", [(p.split(":")[0], p.split(":", 1)[-1]) for p in Li["phases"]]),
@@ -333,23 +327,11 @@ def life(f: dict, ch: str) -> dict:
         return chapter("대운 여덟 걸음", dayun_now(n), [
             steps("10년씩 걷는 큰 흐름", [(s.split(":")[0], s.split(":", 1)[-1]) for s in Li["dayun_narr"]]),
         ])
-    if ch == "years":
-        rows = []
-        this_year = int(f["meta"]["target"][:4])
-        for y in Li["years"]:
-            parts = [p.strip() for p in y.split("|")]
-            note = next((p for p in parts if p.startswith("풀이:")), "")
-            if len(parts) > 2 and note and parts[0][:4].isdigit() and int(parts[0][:4]) >= this_year:
-                rows.append((f"{parts[0]} {parts[2]}", note[3:].strip().split(";")[0]))
-        return chapter("해마다의 흐름", "연애·일·돈의 3년 흐름과 해마다의 기운을 함께 놓고 봐.", [
-            *years_blocks(f["love"]["years"], "love"),
-            *years_blocks(f["career"]["years"], "career"),
-            *years_blocks(f["money"]["years"], "money"),
-            cards("해마다 들어오는 기운", rows[:6]),
-        ])
     return chapter("평생 흐름 정리", current, [
         text("타고난 그릇", strength_line(n)),
         text("지금 10년", dayun_now(n)),
+        text("앞으로 힘이 실리는 때", best_line(f["love"]["best"], "love"), best_line(f["career"]["best"], "career"),
+             best_line(f["money"]["best"], "money")),
         quote(n["character"]),
     ])
 
@@ -357,8 +339,6 @@ def life(f: dict, ch: str) -> dict:
 def build(tab: str, ch: str, facts: dict) -> dict:
     if tab == "today":
         return today(facts, ch)
-    if tab == "love":
-        return love(facts, ch)
-    if tab in ("career", "money"):
-        return work(facts, ch, tab)
+    if tab in ("love", "career", "money"):
+        return today_domain(facts, ch, tab)
     return life(facts, ch)

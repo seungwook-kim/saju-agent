@@ -150,7 +150,7 @@ def _almanac(today: date, birth: date, sex: str, branches: list[int]) -> dict:
     lines = [cal]
     lines.append(f"건제 '{info['officer']}': {off['meaning']}. {off['advice']}.")
     if sg:
-        lines.append(f"생기복덕으로 보면 오늘은 나({info['age']}세)에게 '{sg['name']}'일, {sg['meaning']}.")
+        lines.append(f"생기복덕으로 보면 오늘은 나(세는나이 {info['age']}세)에게 '{sg['name']}'일, {sg['meaning']}.")
     extra = []
     if info["son_eomneun"]:
         extra.append("손 없는 날(이사·개업을 많이 잡는 날)")

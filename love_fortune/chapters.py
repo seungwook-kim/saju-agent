@@ -15,7 +15,7 @@ import re
 
 from . import ai, content_store, rule_chapters
 
-PROMPT_VERSION = "ch-2"
+PROMPT_VERSION = "ch-4"
 
 SYSTEM = """너는 정통 사주명리·자미두수·서양 점성술을 함께 보는 다정한 상담가다.
 아래 규칙을 반드시 지킨다.
@@ -27,7 +27,10 @@ SYSTEM = """너는 정통 사주명리·자미두수·서양 점성술을 함께
 4. 친근한 반말(…야, …해, …거든)로, 점술가가 마주 앉아 말해 주듯 쓴다. 과장하거나 겁주지 않는다.
 5. 한자·일본어를 쓰지 않는다. 긴 줄표(엠 대시)를 쓰지 않는다. 이모지를 쓰지 않는다.
 6. 건강·법률·투자 같은 중요한 결정은 대신 내려 주지 않고 전문가와 상의하라고 권한다.
-7. 출력은 JSON 객체 하나만 쓴다. 설명이나 코드 울타리를 붙이지 않는다.
+7. 체계의 용어를 섞지 않는다. 배우자궁은 사주의 일지(배우자 자리)이고, 부처궁은 자미두수의 궁이다. 둘을 같은 것이라고 말하지 않는다.
+8. 사실표 meta.hour_known 이 false 이면 태어난 시간을 모르는 것이다. 자미두수 명반·상승궁·하우스는 계산하지 않았다고만 말하고 풀이하지 않는다.
+9. 나이는 meta.age(만 나이)를 쓴다. 세는나이가 필요한 문장은 사실표에 적힌 대로 '세는나이'라고 밝힌다.
+10. 출력은 JSON 객체 하나만 쓴다. 설명이나 코드 울타리를 붙이지 않는다.
 
 JSON 형식:
 {"headline": "챕터 결론 한 줄 (40자 안쪽)",
@@ -47,130 +50,98 @@ BLOCK_TYPES = {"text", "quote", "checklist", "steps", "cards", "callout"}
 
 # ---------------------------------------------------------------- 탭 설계
 
+# 탭 구성 (2026-09-25 사용자 결정)
+# - 총운·연애·직장·금전은 '오늘 하루'만 본다. 총운 = 연애·직장·금전 평균 + 오늘 공통 기운.
+# - 타고난 결(원국·배우자·일·돈)과 앞으로의 흐름(12개월·3년·대운)은 평생 탭에 모은다.
+
+
+def _today_domain_tab(dom: str, word: str, title: str, hand: str, theme: str, emoji: str) -> dict:
+    d = f"today.domains.{dom}"
+    howto_pick = [d, "today.almanac"] + (["love.spouse_seat", "love.venus", "love.meet_paths"]
+                                         if dom == "love" else [])
+    return {
+        "title": title, "hand": hand, "theme": theme,
+        "sub": f"오늘 하루, {word}에 닿는 기운만 모았어",
+        "chapters": [
+            {"id": "score", "emoji": emoji, "title": f"오늘의 {word} 점수",
+             "widgets": [f"gauge:{dom}"], "pick": [d],
+             "ask": f"오늘 {word} 점수가 이렇게 나온 근거(reasons)와 세 체계가 더하고 뺀 몫(systems.points)을 풀어 줘. 오늘 하루 이야기만 한다."},
+            {"id": "systems", "emoji": "🔮", "title": f"세 체계로 본 오늘 {word}",
+             "widgets": [f"dsys:{dom}"], "pick": [d, "today.agreement"],
+             "ask": f"사주·자미두수·점성술이 오늘 {word}을(를) 각각 어떻게 보는지, 서로 맞는 점과 엇갈리는 점을 풀어 줘. 오늘 하루 이야기만 한다."},
+            {"id": "howto", "emoji": "💫", "title": "오늘 이렇게 해 봐",
+             "widgets": [], "pick": howto_pick,
+             "ask": f"오늘 {word}에서 해 보면 좋은 것(체크리스트)과 피할 것, 오늘 건넬 말 한마디를 사실표 근거로 알려 줘. 오늘 하루 이야기만 한다."},
+            {"id": "final", "emoji": "✨", "title": f"오늘 {word} 한마디",
+             "widgets": [], "pick": [d, "today.heads"],
+             "ask": f"오늘 {word}을(를) 한 문단으로 정리하고, 오늘 딱 하나만 한다면 무엇을 하면 좋을지 말해 줘."},
+        ]}
+
+
 TABS = {
     "today": {
-        "title": "오늘의 운세", "hand": "Today", "theme": "peach",
-        "sub": "사주·자미두수·점성술이 함께 보는 오늘",
+        "title": "오늘의 총운", "hand": "Today", "theme": "peach",
+        "sub": "연애·직장·금전을 합친 오늘 하루",
         "chapters": [
-            {"id": "today", "nav": "오늘", "emoji": "☀️", "title": "세 체계가 본 오늘",
-             "widgets": ["gauge:today", "systems"], "pick": ["today"],
-             "ask": "세 체계(사주·자미두수·점성술)가 오늘을 어떻게 보는지, 서로 맞는 점과 엇갈리는 점을 풀어 줘. 오늘 가장 힘이 실린 영역과 쉬어 갈 영역도."},
-            {"id": "me", "nav": "오늘의 나", "emoji": "🪞", "title": "오늘의 나",
-             "widgets": [], "pick": ["today", "natal.character", "natal.ilgan"],
+            {"id": "today", "emoji": "☀️", "title": "세 체계가 본 오늘",
+             "widgets": ["gauge:today", "systems"],
+             "pick": ["today.agreement", "today.focus", "today.systems", "today.scores", "today.heads",
+                      "today.total_reasons"],
+             "ask": "오늘 총운이 연애·직장·금전 점수의 평균에 오늘 공통 기운을 더한 값이라는 점을 짚고, 세 체계(사주·자미두수·점성술)가 오늘을 어떻게 보는지, 서로 맞는 점과 엇갈리는 점, 가장 힘이 실린 영역과 쉬어 갈 영역을 풀어 줘."},
+            {"id": "me", "emoji": "🪞", "title": "오늘의 나",
+             "widgets": [], "pick": ["today.systems", "today.heads", "today.keywords", "natal.character", "natal.ilgan"],
              "ask": "오늘 내 기운의 결(십이운성·일진과의 관계)을 바탕으로 오늘 어떤 모습으로 지내면 좋은지 그려 줘."},
-            {"id": "todo", "nav": "할 일", "emoji": "✅", "title": "오늘 할 일과 피할 일",
-             "widgets": ["almanac"], "pick": ["today"],
-             "ask": "오늘 택일(생기복덕·건제·황도흑도·손 없는 날)과 세 체계 신호를 근거로, 오늘 하면 좋은 일 체크리스트와 피할 일을 정리해 줘."},
-            {"id": "final", "nav": "한마디", "emoji": "✨", "title": "오늘의 한마디",
-             "widgets": [], "pick": ["today"],
+            {"id": "todo", "emoji": "✅", "title": "오늘 할 일과 피할 일",
+             "widgets": ["almanac"], "pick": ["today.almanac", "today.heads", "today.domains"],
+             "ask": "오늘 택일(생기복덕·건제·황도흑도·손 없는 날)과 영역별 팁을 근거로, 오늘 하면 좋은 일 체크리스트와 피할 일을 정리해 줘."},
+            {"id": "final", "emoji": "✨", "title": "오늘의 한마디",
+             "widgets": [], "pick": ["today.agreement", "today.focus", "today.heads", "today.keywords"],
              "ask": "오늘을 한 문단으로 정리하고, 오늘 딱 하나만 한다면 무엇을 하면 좋을지 말해 줘."},
         ]},
-    "love": {
-        "title": "연애 A to Z", "hand": "Love", "theme": "rose",
-        "sub": "사주로 읽는 인연의 결과 흐름",
-        "chapters": [
-            {"id": "wonguk", "nav": "원국", "emoji": "📜", "title": "연애로 읽는 나의 원국",
-             "widgets": ["wonguk"], "pick": ["natal", "love.spouse_star", "love.spouse_seat", "love.day_stage", "love.dohwa", "love.hongyeom"],
-             "ask": "원국을 연애 관점에서 풀어 줘: 일간의 기질, 배우자성, 배우자궁, 도화·홍염, 연애에 닿는 신살·귀인."},
-            {"id": "why", "nav": "왜 지금", "emoji": "👁️", "title": "지금 연애가 이런 이유",
-             "widgets": [], "pick": ["natal.strength", "natal.dayun", "natal.ziwei", "love"],
-             "ask": "지금 연애 흐름이 이런 구조적 이유(원국·대운·올해 유년)를 풀고, 사실표 근거로 스스로 확인해 볼 성향 체크리스트를 만들어 줘."},
-            {"id": "map", "nav": "연애 지도", "emoji": "💭", "title": "나의 연애 지도",
-             "widgets": ["animals"], "pick": ["love"],
-             "ask": "끌리는 상대의 결(금성·달·부처궁), 인연이 들어오는 경로(meet_paths), 띠 궁합 결과를 풀어 줘. 띠 궁합은 사실표의 분류를 그대로 따른다."},
-            {"id": "howto", "nav": "실전", "emoji": "💫", "title": "인연을 부르는 실전 설계",
-             "widgets": [], "pick": ["love", "natal.character"],
-             "ask": "사실표 근거로 행동 설계를 3단계(steps)로, 그리고 말 한마디·만나는 자리·피할 것을 알려 줘."},
-            {"id": "calendar", "nav": "월별", "emoji": "📊", "title": "월별 러브 시그널",
-             "widgets": ["calendar:love"], "pick": ["love.months", "love.best"],
-             "ask": "앞으로 12개월 월운 시그널을 풀어 줘: 밀고 나갈 달, 다듬을 달, 조심할 달과 그 이유. 사실표의 달만 쓴다."},
-            {"id": "partner", "nav": "잘 맞는 상대", "emoji": "💝", "title": "잘 맞는 상대 미리보기",
-             "widgets": [], "pick": ["love.ziwei_spouse", "love.venus", "love.moon", "love.spouse_seat"],
-             "ask": "부처궁 주성·금성·배우자궁으로 본 잘 맞는 상대의 인상, 성격, 어울리는 분야, 둘이 하게 될 연애의 장면을 그려 줘. 예언이 아니라 결을 설명하는 것이다."},
-            {"id": "timing", "nav": "타이밍", "emoji": "🗓️", "title": "움직일 때와 쉴 때",
-             "widgets": ["years:love"], "pick": ["love.years", "love.best", "love.this_year", "natal.dayun"],
-             "ask": "앞으로 3년 흐름과, 지금 움직일지 기다릴지를 사실표 근거로 말해 줘."},
-            {"id": "final", "nav": "최종 진단", "emoji": "✨", "title": "최종 진단",
-             "widgets": [], "pick": ["love", "natal.character"],
-             "ask": "연애 탭 전체를 정리하는 결론과, 오늘부터 할 한 가지."},
-        ]},
-    "career": {
-        "title": "일과 커리어", "hand": "Career", "theme": "sky",
-        "sub": "사주로 읽는 일하는 방식과 때",
-        "chapters": [
-            {"id": "wonguk", "nav": "원국", "emoji": "📜", "title": "일로 읽는 나의 원국",
-             "widgets": ["wonguk"], "pick": ["natal", "career.guanlu", "career.guan"],
-             "ask": "원국을 일 관점에서 풀어 줘: 일간 기질, 관성(직장·책임)과 인성(뒷받침), 관록궁, 일에 닿는 신살·귀인."},
-            {"id": "why", "nav": "일 기질", "emoji": "👁️", "title": "일에서의 나의 기질",
-             "widgets": [], "pick": ["natal.strength", "natal.geguk", "natal.geguk_mean", "natal.dayun", "career"],
-             "ask": "일에서 강점과 걸림돌이 생기는 구조적 이유를 풀고, 스스로 확인해 볼 일 습관 체크리스트를 만들어 줘."},
-            {"id": "map", "nav": "커리어 지도", "emoji": "🧭", "title": "나의 커리어 지도",
-             "widgets": [], "pick": ["career", "natal.astro"],
-             "ask": "잘 맞는 일의 결과 분야(사실표 fit_jobs·관록궁 삼방), 조직에서의 자리, 협업 방식을 카드로 풀어 줘."},
-            {"id": "howto", "nav": "실전", "emoji": "💼", "title": "성과를 내는 실전 설계",
-             "widgets": [], "pick": ["career", "natal.character"],
-             "ask": "사실표 근거로 일의 행동 설계를 3단계(steps)로, 그리고 피할 것을 알려 줘."},
-            {"id": "calendar", "nav": "월별", "emoji": "📊", "title": "월별 커리어 시그널",
-             "widgets": ["calendar:career"], "pick": ["career.months", "career.best"],
-             "ask": "앞으로 12개월 커리어 시그널을 풀어 줘: 밀고 나갈 달과 다듬을 달, 이유. 사실표의 달만 쓴다."},
-            {"id": "mentor", "nav": "귀인", "emoji": "🤝", "title": "나를 끌어줄 귀인 미리보기",
-             "widgets": [], "pick": ["natal.classic_sinsal", "natal.guiin", "career.palaces"],
-             "ask": "천을귀인·관록궁 삼방으로 본, 일에서 도움이 되는 사람의 결(인상·일하는 방식)과 그런 사람을 만나는 자리를 풀어 줘. 예언이 아니라 결을 설명한다."},
-            {"id": "timing", "nav": "타이밍", "emoji": "🗓️", "title": "움직일 때와 다질 때",
-             "widgets": ["years:career"], "pick": ["career.years", "career.best", "natal.dayun"],
-             "ask": "앞으로 3년 커리어 흐름과 지금 할 일을 사실표 근거로 말해 줘."},
-            {"id": "final", "nav": "최종 진단", "emoji": "✨", "title": "최종 진단",
-             "widgets": [], "pick": ["career", "natal.character"],
-             "ask": "직장 탭 전체 결론과 이번 주에 할 한 가지."},
-        ]},
-    "money": {
-        "title": "돈의 흐름", "hand": "Money", "theme": "mint",
-        "sub": "사주로 읽는 돈이 모이는 방식",
-        "chapters": [
-            {"id": "wonguk", "nav": "원국", "emoji": "📜", "title": "돈으로 읽는 나의 원국",
-             "widgets": ["wonguk"], "pick": ["natal", "money.caibo", "money.cai"],
-             "ask": "원국을 돈 관점에서 풀어 줘: 재성(돈의 별)·식상(돈을 낳는 재주)·비겁, 재백궁, 돈에 닿는 신살·귀인(암록·금여 등)."},
-            {"id": "why", "nav": "모이고 새는 이유", "emoji": "👁️", "title": "돈이 모이고 새는 이유",
-             "widgets": [], "pick": ["natal.strength", "natal.elements", "natal.dayun", "money"],
-             "ask": "돈이 모이는 구조와 새기 쉬운 구조를 풀고, 스스로 확인할 돈 습관 체크리스트를 만들어 줘."},
-            {"id": "map", "nav": "재물 지도", "emoji": "🗺️", "title": "나의 재물 지도",
-             "widgets": [], "pick": ["money", "natal.astro"],
-             "ask": "버는 방식(월급형·사업형·재주형)의 결, 재백궁 삼방, 점성 차트의 돈 관련 신호를 카드로 풀어 줘. 투자 조언은 하지 않는다."},
-            {"id": "howto", "nav": "습관", "emoji": "💰", "title": "돈을 지키는 습관 설계",
-             "widgets": [], "pick": ["money", "natal.character"],
-             "ask": "사실표 근거로 돈 습관 설계를 3단계(steps)로, 피할 것을 알려 줘. 구체 투자 상품은 권하지 않는다."},
-            {"id": "calendar", "nav": "월별", "emoji": "📊", "title": "월별 머니 시그널",
-             "widgets": ["calendar:money"], "pick": ["money.months", "money.best"],
-             "ask": "앞으로 12개월 돈의 시그널: 들어오기 좋은 달, 지출을 조심할 달과 이유. 사실표의 달만 쓴다."},
-            {"id": "partner", "nav": "재물 귀인", "emoji": "🤝", "title": "재물 귀인 미리보기",
-             "widgets": [], "pick": ["natal.guiin", "natal.classic_sinsal", "money.palaces"],
-             "ask": "돈 흐름에 도움이 되는 사람·자리의 결을 풀어 줘. 예언이 아니라 결을 설명한다."},
-            {"id": "timing", "nav": "타이밍", "emoji": "🗓️", "title": "모을 때와 쓸 때",
-             "widgets": ["years:money"], "pick": ["money.years", "money.best", "natal.dayun"],
-             "ask": "앞으로 3년 돈 흐름과 지금 할 일을 사실표 근거로 말해 줘."},
-            {"id": "final", "nav": "최종 진단", "emoji": "✨", "title": "최종 진단",
-             "widgets": [], "pick": ["money", "natal.character"],
-             "ask": "금전 탭 전체 결론과 이번 달에 할 한 가지."},
-        ]},
+    "love": _today_domain_tab("love", "연애", "오늘의 연애", "Love", "rose", "💗"),
+    "career": _today_domain_tab("career", "직장", "오늘의 직장운", "Career", "sky", "💼"),
+    "money": _today_domain_tab("money", "금전", "오늘의 금전운", "Money", "mint", "💰"),
     "life": {
         "title": "평생 흐름", "hand": "Life", "theme": "lilac",
-        "sub": "원국·대운·자미 대한으로 보는 인생의 결",
+        "sub": "타고난 결과 앞으로의 흐름 (연애·일·돈)",
         "chapters": [
-            {"id": "wonguk", "nav": "원국", "emoji": "📜", "title": "원국 완전 풀이",
+            {"id": "wonguk", "emoji": "📜", "title": "원국 완전 풀이",
              "widgets": ["wonguk"], "pick": ["natal"],
              "ask": "원국 전체를 풀어 줘: 일간, 오행 분포, 신강약·격국·용신, 신살·귀인, 자미 명궁·사화, 점성 태양·달·상승궁."},
-            {"id": "decades", "nav": "연대별", "emoji": "🕰️", "title": "연대별 나의 모습",
+            {"id": "love_nature", "emoji": "💞", "title": "타고난 연애의 결",
+             "widgets": ["animals"],
+             "pick": ["natal.character", "love.spouse_star", "love.spouse_seat", "love.day_stage", "love.dohwa",
+                      "love.hongyeom", "love.ziwei_spouse", "love.venus", "love.moon", "love.meet_paths", "love.animals"],
+             "ask": "타고난 연애의 결을 풀어 줘: 연애 기질, 배우자성·배우자궁, 도화·홍염, 끌리는 상대와 잘 맞는 상대의 결(부처궁·금성·달), 인연이 들어오는 자리, 띠 궁합(사실표 분류 그대로). 예언이 아니라 결을 설명한다."},
+            {"id": "love_flow", "emoji": "📊", "title": "연애 흐름: 12개월과 3년",
+             "widgets": ["calendar:love", "years:love"], "pick": ["love.months", "love.years", "love.best", "love.this_year"],
+             "ask": "앞으로 12개월과 3년의 연애 흐름을 풀어 줘: 밀고 나갈 때, 다듬을 때와 그 이유. 사실표의 달·해만 쓴다."},
+            {"id": "career_nature", "emoji": "🧭", "title": "타고난 일의 결",
+             "widgets": [],
+             "pick": ["natal.character", "natal.strength", "natal.geguk", "natal.geguk_mean", "natal.yongsin",
+                      "career.guanlu", "career.guan", "career.palaces", "career.fit_jobs", "career.extra",
+                      "natal.classic_sinsal", "natal.guiin", "natal.astro"],
+             "ask": "타고난 일의 결을 풀어 줘: 일하는 기질, 관성·관록궁, 잘 맞는 분야, 조직에서의 자리, 도움이 되는 사람(귀인)의 결. 예언이 아니라 결을 설명한다."},
+            {"id": "career_flow", "emoji": "📈", "title": "일의 흐름: 12개월과 3년",
+             "widgets": ["calendar:career", "years:career"], "pick": ["career.months", "career.years", "career.best", "natal.dayun"],
+             "ask": "앞으로 12개월과 3년의 일 흐름을 풀어 줘: 밀고 나갈 때, 다질 때와 그 이유. 사실표의 달·해만 쓴다."},
+            {"id": "money_nature", "emoji": "🪙", "title": "타고난 돈의 결",
+             "widgets": [],
+             "pick": ["natal.character", "natal.strength", "natal.elements", "natal.yongsin", "money.caibo", "money.cai",
+                      "money.palaces", "money.extra", "natal.guiin", "natal.astro"],
+             "ask": "타고난 돈의 결을 풀어 줘: 재성·식상·비겁, 재백궁, 돈이 모이는 구조와 새기 쉬운 구조, 버는 방식의 결. 투자 조언은 하지 않는다."},
+            {"id": "money_flow", "emoji": "💹", "title": "돈의 흐름: 12개월과 3년",
+             "widgets": ["calendar:money", "years:money"], "pick": ["money.months", "money.years", "money.best"],
+             "ask": "앞으로 12개월과 3년의 돈 흐름을 풀어 줘: 들어오기 좋은 때, 지출을 조심할 때와 이유. 사실표의 달·해만 쓴다. 투자 조언은 하지 않는다."},
+            {"id": "decades", "emoji": "🕰️", "title": "연대별 나의 모습",
              "widgets": ["decades"], "pick": ["life.phases", "life.decades", "life.current"],
              "ask": "연대별 흐름(청년·중년·장년)을 풀고, 지금 연대에서 중요한 것을 말해 줘."},
-            {"id": "dayun", "nav": "대운", "emoji": "🌊", "title": "대운 여덟 걸음",
+            {"id": "dayun", "emoji": "🌊", "title": "대운 여덟 걸음",
              "widgets": [], "pick": ["life.dayun_narr", "natal.dayun"],
              "ask": "대운(10년 단위 큰 흐름) 여덟 걸음을 차례로 풀고, 지금 대운의 과제를 말해 줘."},
-            {"id": "years", "nav": "3년", "emoji": "🗓️", "title": "앞으로 3년",
-             "widgets": ["years:love", "years:career", "years:money"], "pick": ["love.years", "career.years", "money.years", "life.years"],
-             "ask": "앞으로 3년을 연애·일·돈을 함께 놓고 풀어 줘. 해마다 무게가 실리는 영역."},
-            {"id": "final", "nav": "최종 진단", "emoji": "✨", "title": "평생 흐름 최종 진단",
-             "widgets": [], "pick": ["natal", "life.current"],
-             "ask": "인생 전체 흐름의 결론과 지금 세울 방향."},
+            {"id": "final", "emoji": "✨", "title": "평생 흐름 최종 진단",
+             "widgets": [], "pick": ["natal", "life.current", "love.best", "career.best", "money.best"],
+             "ask": "인생 전체 흐름의 결론과 지금 세울 방향을 연애·일·돈을 함께 놓고 말해 줘."},
         ]},
 }
 
@@ -228,6 +199,62 @@ def _clean(s) -> str:
     return s.strip()
 
 
+_NUM = re.compile(r"\d+(?:\.\d+)?")
+_NUM_CTX = re.compile(r"(STEP\s*)?(\d+(?:\.\d+)?)\s*(단계|가지|번째|걸음|순위)?")
+_SENT = re.compile(r"(?<=[.!?])\s+")
+_SURE = re.compile("반드시|틀림없|할 것이다|될 것이다|올 것이다|운명의 상대")
+# 챕터의 틀로 늘 쓰는 기간 말 (대운 10년, 앞으로 12개월·3년). 사람마다 다른 숫자가 아니라 허용한다
+_GENERIC = re.compile("10년|12개월|3년")
+
+
+def _grounded_sentence(sent: str, allowed: set[str]) -> bool:
+    """문장 속 숫자가 모두 사실표에 있으면 통과. '3단계', '2가지', 'STEP 1' 같은 순서 표기는 허용."""
+    if _SURE.search(sent):
+        return False
+    for step, n, unit in _NUM_CTX.findall(_GENERIC.sub("", sent)):
+        counting = (step or unit) and float(n) <= 10
+        if n not in allowed and not counting:
+            return False
+    return True
+
+
+def _ground_text(s: str, allowed: set[str]) -> str:
+    return " ".join(x for x in _SENT.split(s or "") if x and _grounded_sentence(x, allowed)).strip()
+
+
+def ground(body: dict, facts_part: dict) -> dict:
+    """사실표에 없는 숫자(날짜·나이·개월 수 등)나 단정 표현이 든 문장·항목을 뺀다.
+
+    AI 가 '3개월 안에', '35세에' 처럼 사실표에 없는 숫자를 지어내는 것을 막는 마지막 거름망.
+    저장된 풀이에도 읽을 때마다 적용한다.
+    """
+    allowed = set(_NUM.findall(json.dumps(facts_part, ensure_ascii=False)))
+    out = dict(body)
+    out["headline"] = _ground_text(body.get("headline", ""), allowed)
+    out["lead"] = _ground_text(body.get("lead", ""), allowed)
+    out["closing"] = _ground_text(body.get("closing", ""), allowed)
+    blocks = []
+    for b in body.get("blocks", []):
+        b = dict(b)
+        if b["type"] in ("text", "quote", "callout"):
+            b["body"] = _ground_text(b.get("body", ""), allowed)
+            if not b["body"]:
+                continue
+        elif b["type"] == "checklist":
+            b["items"] = [x for x in b["items"] if _grounded_sentence(x, allowed)]
+            if not b["items"]:
+                continue
+        else:
+            b["items"] = [dict(i, body=_ground_text(i["body"], allowed)) for i in b["items"]
+                          if _grounded_sentence(i.get("title", ""), allowed)]
+            b["items"] = [i for i in b["items"] if i["body"]]
+            if not b["items"]:
+                continue
+        blocks.append(b)
+    out["blocks"] = blocks
+    return out
+
+
 def normalize(obj: dict) -> dict:
     """AI 답을 화면이 기대하는 모양으로 정리한다. 모양이 틀리면 ValueError."""
     blocks = []
@@ -280,7 +307,10 @@ def generate(tab: str, chapter: str, facts: dict, use_ai: bool = True) -> dict:
     key = cache_key(tab, chapter, part)
     hit = content_store.get_chapter(key)
     if hit:
-        return hit
+        body = ground(hit, part)
+        if len(body["blocks"]) >= 2:
+            return body
+        return rule_chapter(tab, chapter, facts)
     if use_ai and ai.available():
         prompt = ("[사실표]\n" + json.dumps(part, ensure_ascii=False, indent=1)
                   + f"\n\n[탭] {TABS[tab]['title']}\n[챕터] {ch['title']}\n[요청] {ch['ask']}"
@@ -289,6 +319,9 @@ def generate(tab: str, chapter: str, facts: dict, use_ai: bool = True) -> dict:
             try:
                 body = normalize(ai.run_json(SYSTEM, prompt))
                 content_store.put_chapter(key, tab, chapter, "ai", body)
+                body = ground(body, part)
+                if len(body["blocks"]) < 2:
+                    raise ValueError("근거 없는 문장을 빼고 나니 남는 게 없어")
                 body["source"] = "ai"
                 return body
             except (RuntimeError, ValueError):

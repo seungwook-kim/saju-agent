@@ -166,6 +166,8 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .cal b{display:block;font-size:.95rem}
 .cal small{display:block;font-size:.7rem;color:var(--muted)}
 .cal .tag{font-size:.68rem;font-weight:800;margin-top:2px}
+.cal>div{border-radius:14px;background:#fff;padding:8px 4px;text-align:center;box-shadow:0 3px 10px rgba(80,30,60,.05)}
+.cal>div small{display:block;font-size:.7rem;color:var(--muted)}
 .cal .t4{background:var(--accent);color:#fff}.cal .t4 small{color:#ffe}
 .cal .t2{background:var(--soft)}
 .cal .t-3{background:#f3f1f2;color:var(--muted)}

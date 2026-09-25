@@ -154,8 +154,10 @@ def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
         parts = [f"{lo}~{hi}세 이야기: {saju} 시기와 {ziwei} 시기가 겹치는 때야.",
                  saju_story, ziwei_story, astro_story,
                  f"그래서 이 시기 연애는 {love}. 일은 {career}. 돈은 {money}. 몸은 {health}."]
-        short = (f"지금 {lo}~{hi}세는 {saju} 시기와 {pname} 시기가 겹치는 때야. "
-                 f"아래 연대별 토글을 펼치면 점술가 풀이가 나와.")
+        # 자미 궁이 없으면(시간 미상 등) '시기와  시기' 처럼 빈칸이 생겨서 나눠 쓴다
+        short = ((f"지금 {lo}~{hi}세는 {saju} 시기와 {pname} 시기가 겹치는 때야. " if pname
+                  else f"지금 {lo}~{hi}세는 {saju} 시기야. ")
+                 + "아래 연대별 토글을 펼치면 점술가 풀이가 나와.")
         decades.append({"range": (lo, hi), "saju": saju, "ziwei": ziwei,
                         "palace": pname, "parts": parts, "short": short,
                         "line": " / ".join(parts)})
@@ -218,7 +220,7 @@ def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
         _xu = y - birth.year + 1
         _xb = (_xstart + (_xu - 1)) % 12 if sex == "male" else (_xstart - (_xu - 1)) % 12
         _xp = next((p for p in pals if p["branch"] == _xb), None)
-        line = (f"{y}년 | {age}세 | {ganzhi_str(ys, yb)} | "
+        line = (f"{y}년 | 그해 만 {age}세 | {ganzhi_str(ys, yb)} | "
                 f"유년 {pal['name'] if pal else '제외(시간 미상)'} | "
                 f"사화 록{sihua[0]} 권{sihua[1]} 과{sihua[2]} 기{sihua[3]} | "
                 f"목성 {js} | 토성 {ss} | 소운 {_xp['name'] if _xp else '제외(시간 미상)'}"

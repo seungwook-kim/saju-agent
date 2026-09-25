@@ -7,8 +7,8 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
   .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const pad=n=>String(n).padStart(2,'0');
 
-const TAB_ORDER=['today','love','career','money','life'];
-const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',life:'평생'};
+const TAB_ORDER=['today','love','career','money','life','match','pick'];
+const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',life:'평생',match:'궁합',pick:'길일'};
 const EL_STEM={갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'금',신:'금',임:'수',계:'수'};
 const EL_BRANCH={자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'};
 const TAG_CLASS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
@@ -36,6 +36,7 @@ $('fMain').addEventListener('submit',async e=>{
   btn.disabled=true;btn.textContent='계산하는 중...';$('homeErr').innerHTML='';
   try{
     const j=await postJSON('/api/v2/report',q);
+    S.person=q;                         // 궁합·길일에 다시 쓴다 (브라우저 메모리에만)
     Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,
       chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today'});
     showResult();
@@ -59,11 +60,12 @@ $('tabs').addEventListener('click',e=>{
 });
 
 function openTab(tab){
+  if(TOOLS[tab]) return openTool(tab);
   S.tab=tab;S.queue=[];
   const o=S.outline[tab],f=S.facts;
   document.body.dataset.theme=o.theme;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
-  const chips=['일주 '+f.natal.day_pillar,f.meta.age+'세',f.meta.sex,'오늘 '+f.meta.target];
+  const chips=['일주 '+f.natal.day_pillar,'만 '+f.meta.age+'세',f.meta.sex,'오늘 '+f.meta.target];
   if(!f.meta.hour_known) chips.push('시간 모름: 시주 제외');
   let h='<div class="tab-hero"><div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
     '<p class="hero-sub">'+esc(o.sub)+'</p><div class="meta-chips">'+
@@ -149,7 +151,8 @@ function widget(w){
   const f=S.facts;
   switch(name){
     case 'wonguk': return wonguk(f.natal);
-    case 'gauge': return gauge(f.today);
+    case 'gauge': return arg==='today'?gauge(f.today):dgauge(f.today.domains[arg],arg);
+    case 'dsys': return dsys(f.today.domains[arg],arg);
     case 'systems': return systems(f.today);
     case 'almanac': return almanac(f.today);
     case 'animals': return animals(f.love.animals);
@@ -191,7 +194,25 @@ function gauge(t){
   return card('<div class="gauge"><div class="ring" style="--v:'+s.total+'"><span>'+s.total+'</span></div>'+
     '<div><div style="font-weight:800;margin-bottom:.4rem">'+esc(t.heads.total)+'</div><div class="bars">'+
     bars.map(([k,v])=>'<div class="bar"><span>'+k+'</span><div class="t"><i data-w="'+v+'"></i></div><b>'+v+'</b></div>').join('')+
-    '</div></div></div><p style="margin:.8rem 0 0">'+esc(t.agreement)+' '+esc(t.focus)+'</p>');
+    '</div></div></div><p class="fine" style="margin:.7rem 0 0">총운 = 연애·직장·금전 점수의 평균 + 오늘 공통 기운</p>'+
+    '<p style="margin:.5rem 0 0">'+esc(t.agreement)+' '+esc(t.focus)+'</p>');
+}
+// 연애·직장·금전 탭: 오늘 그 영역 점수와 세 체계가 더하고 뺀 신호
+const DOM_WORD={love:'연애',career:'직장',money:'금전'};
+function sign(p){return p>0?'+'+p:String(p);}
+function dgauge(d,dom){
+  return card('<div class="gauge"><div class="ring" style="--v:'+d.score+'"><span>'+d.score+'</span></div>'+
+    '<div><div style="font-weight:800;margin-bottom:.5rem">'+esc(d.head)+'</div><div class="chips" style="margin:0">'+
+    d.systems.map(s=>'<span class="chip'+(s.points>0?' a':'')+'">'+esc(s.name)+' '+sign(s.points)+'</span>').join('')+
+    '</div><p class="fine" style="margin:.5rem 0 0">오늘 '+DOM_WORD[dom]+' 점수 · 칩은 체계별 가감 신호</p></div></div>');
+}
+function dsys(d,dom){
+  return d.systems.map(s=>{
+    const cls=s.points>0?'good':s.points<0?'bad':'mid';
+    const lines=s.lines.length?s.lines:['오늘 '+DOM_WORD[dom]+'에 따로 걸리는 신호는 없어.'];
+    return '<div class="sys"><div class="sys-h">'+esc(s.name)+'<span class="sig '+cls+'">'+DOM_WORD[dom]+' '+sign(s.points)+'</span></div><ul>'+
+      lines.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ul></div>';
+  }).join('');
 }
 function systems(t){
   const cls={좋음:'good',보통:'mid',조심:'bad',나쁨:'bad'};
@@ -272,6 +293,97 @@ document.addEventListener('submit',async e=>{
   box.scrollTop=box.scrollHeight;
 });
 
+
+// ---------------- 궁합·길일 (계산만, AI 없음)
+const TOOLS={
+  match:{title:'두 사람 궁합',hand:'Match',theme:'rose',sub:'사주·자미두수·점성술로 본 두 사람의 결'},
+  pick:{title:'길일 고르기',hand:'Lucky day',theme:'mint',sub:'기간 안에서 나에게 좋은 날 순서'},
+};
+S.tools={};
+function toolHero(o){
+  return '<div class="tab-hero"><div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
+    '<p class="hero-sub">'+esc(o.sub)+'</p></div>';
+}
+function openTool(tab){
+  S.tab=tab;S.queue=[];
+  const o=TOOLS[tab];
+  document.body.dataset.theme=o.theme;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  let h=toolHero(o);
+  if(tab==='match'){
+    const sex2=S.person&&S.person.sex==='female'?'male':'female';
+    h+='<form class="card form" id="fMatch" autocomplete="off"><h4 style="margin:0">상대의 정보</h4>'+
+      '<div class="row2"><div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth2">눌러서 선택</button>'+
+      '<input type="hidden" name="birth2" value=""><input type="hidden" name="leap2" value=""></div>'+
+      '<label class="f"><span>달력</span><select name="calendar2" data-cal="birth2"><option value="solar">양력</option><option value="lunar">음력</option></select></label></div>'+
+      '<div class="row2"><label class="f"><span>태어난 시간</span><input name="birth2_time" type="time" value="12:00"></label>'+
+      '<label class="check"><input name="unknown_time2" type="checkbox" value="1"> 시간 모름</label></div>'+
+      '<div class="row2"><label class="f"><span>성별</span><select name="sex2"><option value="male"'+(sex2==='male'?' selected':'')+'>남자</option>'+
+      '<option value="female"'+(sex2==='female'?' selected':'')+'>여자</option></select></label>'+
+      '<label class="f"><span>태어난 도시</span><input name="city2" value="서울"></label></div>'+
+      '<button class="go" type="submit">궁합 보기</button>'+
+      '<p class="fine">상대의 생년월일도 이 컴퓨터 메모리에서만 계산하고 저장하지 않아.</p></form><div id="toolOut"></div>';
+  }else{
+    const d0=new Date(),d1=new Date(Date.now()+30*864e5);
+    const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    h+='<form class="card form" id="fPick" autocomplete="off">'+
+      '<div class="row2"><label class="f"><span>시작 날짜</span><input name="from_date" type="date" value="'+iso(d0)+'"></label>'+
+      '<label class="f"><span>끝 날짜</span><input name="to_date" type="date" value="'+iso(d1)+'"></label></div>'+
+      '<label class="f"><span>무엇을 위한 날</span><select name="domain"><option value="total">전체</option><option value="love">연애·만남</option>'+
+      '<option value="career">일·면접·계약</option><option value="money">돈·거래</option></select></label>'+
+      '<button class="go" type="submit">좋은 날 찾기</button></form><div id="toolOut"></div>';
+  }
+  $('page').innerHTML=h;
+  window.scrollTo(0,0);
+  if(S.tools[tab]) $('toolOut').innerHTML=S.tools[tab];
+  animate($('page'));
+}
+document.addEventListener('submit',async e=>{
+  const id=e.target.id;
+  if(id!=='fMatch'&&id!=='fPick') return;
+  e.preventDefault();
+  const form=e.target,btn=form.querySelector('.go'),q={...(S.person||{})};
+  new FormData(form).forEach((v,k)=>{q[k]=v;});
+  if(id==='fMatch'&&!q.birth2){$('toolOut').innerHTML='<div class="err">상대의 생년월일을 골라 줘.</div>';return;}
+  btn.disabled=true;const label=btn.textContent;btn.textContent='계산하는 중...';
+  try{
+    const j=await postJSON(id==='fMatch'?'/api/match':'/api/pick',q);
+    const html=id==='fMatch'?matchView(j.data):pickView(j.data);
+    S.tools[id==='fMatch'?'match':'pick']=html;
+    $('toolOut').innerHTML=html;animate($('toolOut'));
+    $('toolOut').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){$('toolOut').innerHTML='<div class="err">'+esc(err.message)+'</div>';}
+  finally{btn.disabled=false;btn.textContent=label;}
+});
+function section(n,emoji,title,inner){
+  return '<section class="chapter"><div class="ch-label">CHAPTER · '+pad(n)+'</div><div class="ch-head">'+
+    '<div class="ch-emoji" aria-hidden="true">'+emoji+'</div><div class="ch-title">'+esc(title)+'</div></div>'+inner+'</section>';
+}
+function matchView(d){
+  const who=(x,t)=>'<div class="c"><b>'+t+'</b><p>일간 '+esc(x.ilgan)+' · '+esc(x.animal)+'띠 · 태양 '+esc(x.sun)+'</p></div>';
+  let h=section(1,'💞','두 사람 점수',card('<div class="gauge"><div class="ring" style="--v:'+d.score+'"><span>'+d.score+'</span></div>'+
+    '<div><div style="font-weight:800">'+esc(d.head)+'</div><p class="fine" style="margin:.5rem 0 0">점수는 출발점일 뿐, 맞춰 가는 방향을 보는 참고값이야.</p></div></div>'));
+  h+=section(2,'🔍','둘의 결',card('<div class="cards">'+who(d.a,'나')+who(d.b,'상대')+'</div>')+
+    d.story.map(x=>'<p class="blk">'+esc(x)+'</p>').join(''));
+  if(d.strengths.length) h+=section(3,'🤝','잘 맞는 점','<div class="blk checklist"><ul>'+d.strengths.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>');
+  if(d.cautions.length) h+=section(4,'🧭','맞춰 갈 점','<div class="blk checklist"><ul>'+d.cautions.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>');
+  if(d.info.length) h+=section(5,'📎','참고',card('<ul style="margin:0;padding-left:1.1rem">'+d.info.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'));
+  return h;
+}
+function pickView(d){
+  const key=d.domain==='total'?null:d.domain;
+  const val=r=>key?r[key]:Math.round((r.love+r.career+r.money)/3);
+  const top=d.rows.slice(0,5);
+  let h=section(1,'🗓️',d.dom_name+' 좋은 날 순서',d.story.map(x=>'<p class="blk">'+esc(x)+'</p>').join(''));
+  h+=section(2,'🏅','상위 다섯 날',card('<div class="bars">'+top.map(r=>'<div class="bar" style="grid-template-columns:110px 1fr 34px">'+
+    '<span>'+r.rank+'위 '+esc(r.label)+'</span><div class="t"><i data-w="'+val(r)+'"></i></div><b>'+val(r)+'</b></div>').join('')+'</div>'+
+    '<p class="fine" style="margin:.6rem 0 0">'+top.map(r=>esc(r.label)+' '+esc(r.ganzhi)+'일 ('+esc(r.god)+')').join(' · ')+'</p>'));
+  h+=section(3,'📋','기간 전체',card('<div class="cal">'+d.rows.slice().sort((a,b)=>a.rank-b.rank).map(r=>
+    '<div class="'+(r.rank<=5?'t4':r.rank<=10?'t2':'')+'">'+
+    '<b style="display:block">'+esc(r.label)+'</b><small>'+esc(r.ganzhi)+' · '+val(r)+'점</small></div>').join('')+'</div>'));
+  return h;
+}
+
 // ---------------- 생년월일 캘린더 선택기
 // 글자로 입력하지 않고 연대, 연도, 월, 일 순서로 눌러서 고른다.
 // 음력은 그해 실제 달 목록(윤달 포함)과 그달 일수를 서버에서 받아 보여 준다.
@@ -279,8 +391,9 @@ const DP={form:null,name:'',cal:'solar',y:0,m:0,d:0,leap:false,step:'year',decad
 const NOW=new Date(),THIS_Y=NOW.getFullYear(),MIN_Y=1900;
 const WK=['일','월','화','수','목','금','토'];
 function dpF(form,name){
-  return {val:form.querySelector('input[name="'+name+'"]'),leap:form.querySelector('input[name="leap"]'),
-    cal:form.querySelector('select[name="calendar"]'),btn:form.querySelector('[data-dp="'+name+'"]')};
+  const n2=name==='birth2'?'2':'';
+  return {val:form.querySelector('input[name="'+name+'"]'),leap:form.querySelector('input[name="leap'+n2+'"]'),
+    cal:form.querySelector('select[name="calendar'+n2+'"]'),btn:form.querySelector('[data-dp="'+name+'"]')};
 }
 function dpText(cal,v,leap,ym){
   const head=cal==='lunar'?'음력 ':'양력 ';
@@ -408,8 +521,9 @@ async function dayExists(cal,y,m,d){
   const dt=new Date(y,m-1,d);
   return dt.getMonth()===m-1&&dt<=NOW;
 }
-document.querySelectorAll('select[data-cal]').forEach(sel=>{
-  sel.addEventListener('change',async()=>{
+document.addEventListener('change',async e=>{
+  const sel=e.target.closest('select[data-cal]');
+  if(sel){
     const form=sel.form,name=sel.dataset.cal,f=dpF(form,name);
     f.leap.value='';
     const v=f.val.value;
@@ -421,9 +535,12 @@ document.querySelectorAll('select[data-cal]').forEach(sel=>{
       }
     }
     dpRefresh(form,name);
-  });
-});
-document.querySelector('input[name="unknown_time"]').addEventListener('change',e=>{
-  document.querySelector('input[name="birth_time"]').disabled=e.target.checked;
+    return;
+  }
+  const unk=e.target.closest('input[type="checkbox"][name^="unknown_time"]');
+  if(unk){
+    const t=unk.form.querySelector('input[name="'+(unk.name==='unknown_time2'?'birth2_time':'birth_time')+'"]');
+    if(t) t.disabled=unk.checked;
+  }
 });
 document.querySelectorAll('[data-dp]').forEach(b=>dpRefresh(b.form,b.dataset.dp));

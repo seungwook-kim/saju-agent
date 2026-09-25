@@ -98,11 +98,10 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
 
     # 올해(세운) 도화
     tyb = year_pillar(datetime(today.year, today.month, today.day, 12, 0))[1]
-    from .match import DOHWA_MAP
-    my_dh_chars = {d for base, d in DOHWA_MAP if (yb in base or db in base)}
-    timing = ("올해는 도화운의 해, 평소보다 만남·소개가 늘어나기 쉬운 흐름"
-              if tyb in my_dh_chars else
-              "올해는 도화운보다 내실을 다지기 좋은 흐름, 매력은 일상의 자리에서 쌓이는 흐름")
+    # 올해 연애 한 줄은 세운 시그널(배우자성·도화·일지 합충)을 따른다. 도화만 보면
+    # 배우자성이 드는 해에도 '내실을 다질 해'로 나와 월운·세운 표와 엇갈렸다.
+    from .signals import love_year_line
+    timing = love_year_line(natal, sex, today.year)
 
     # 5. 자미두수 정통 (시간 미상이면 명반 배치 불가)
     zw = ziwei_chart(birth, hour, minute, sex, city, today)
