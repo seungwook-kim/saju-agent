@@ -39,7 +39,7 @@ MAX_BODY = 64_000           # 요청 본문 상한(바이트)
 
 # 채팅 기본 모델. 구독 인증을 쓰는 로컬 AI CLI 명령으로 부른다.
 from .ai import AI_CLI, AI_MODEL  # noqa: E402,F401  (예전 이름 유지)
-AI_LABEL = "구독 AI 모델"                                          # 화면에 보이는 이름
+from .ai import LABEL as AI_LABEL  # noqa: E402  화면에 보이는 이름 (구독 AI / OpenRouter)
 AI_TIMEOUT = 120
 
 

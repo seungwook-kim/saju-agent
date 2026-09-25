@@ -165,6 +165,20 @@ python -m pytest
     `LOVE_FORTUNE_AI=0` 이면 AI 없이 기본 풀이만.
   - 예전 화면의 채팅창에서는 OpenAI 호환 LLM(예: Ollama `http://localhost:11434/v1`)도 연결할 수 있다.
 
+### AI 연결 방식 바꾸기 (공개 서비스용 OpenRouter)
+
+기본은 이 PC 에 로그인된 구독 AI 를 CLI 로 부른다. 서비스로 공개할 때는 OpenRouter API 로 바꾼다.
+
+```bash
+LOVE_FORTUNE_AI_BACKEND=openrouter
+OPENROUTER_API_KEY=...                     # OpenRouter 에서 발급한 키
+LOVE_FORTUNE_OPENROUTER_MODEL=제공사/모델   # OpenRouter 모델 이름 (필수, 기본값 없음)
+```
+
+- 키나 모델 이름이 없으면 AI 를 끈 것으로 보고 기본 풀이만 보여 준다.
+- 보내는 내용은 CLI 방식과 같다 (개인정보를 뺀 계산 결과와 요청). 챕터 저장 키에 모델 이름이 들어가서,
+  모델을 바꾸면 풀이를 새로 만든다.
+
 ### 데이터베이스 파일
 
 - `db/init.sql` → `data/fortune.db`: 검증한 기준 데이터 (생기복덕표 등). 첫 실행 때 자동 생성.

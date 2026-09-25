@@ -1,9 +1,13 @@
-"""ai.py, 구독 AI 모델을 로컬 CLI 명령으로 부른다 (상담 채팅·챕터 풀이 공용).
+"""ai.py, AI 모델 호출 (상담 채팅·챕터 풀이 공용).
 
-- 도구는 전부 끄고(--tools ""), 대화는 저장하지 않는다(--no-session-persistence).
-- 시스템 프롬프트는 임시 파일로, 본문은 표준입력으로 넘긴다 (명령줄 길이 제한 회피).
-- 보내는 것은 개인정보를 뺀 계산 결과와 요청뿐이다.
-- 동시에 도는 호출 수를 제한한다 (PC 부담·구독 사용량).
+두 가지 방식 중 하나를 쓴다 (환경변수 LOVE_FORTUNE_AI_BACKEND):
+- cli (기본): 이 PC 에 로그인된 구독 AI 를 로컬 CLI 명령으로 부른다.
+  도구는 전부 끄고(--tools ""), 대화는 저장하지 않는다(--no-session-persistence).
+  시스템 프롬프트는 임시 파일로, 본문은 표준입력으로 넘긴다 (명령줄 길이 제한 회피).
+- openrouter: OpenRouter API(https://openrouter.ai/api/v1/chat/completions)로 부른다.
+  OPENROUTER_API_KEY 와 LOVE_FORTUNE_OPENROUTER_MODEL(예: 제공사/모델 이름)을 넣어야 켜진다.
+  서비스로 공개할 때 쓰는 방식이다.
+어느 쪽이든 보내는 것은 개인정보를 뺀 계산 결과와 요청뿐이고, 동시에 도는 호출 수를 제한한다.
 """
 from __future__ import annotations
 
@@ -15,19 +19,60 @@ import subprocess
 import tempfile
 import threading
 
-AI_CLI = os.environ.get("LOVE_FORTUNE_AI_CLI", "claude")          # 실행할 명령 이름
-AI_MODEL = os.environ.get("LOVE_FORTUNE_AI_MODEL", "claude-sonnet-5")
+BACKEND = os.environ.get("LOVE_FORTUNE_AI_BACKEND", "cli").strip().lower()
+AI_CLI = os.environ.get("LOVE_FORTUNE_AI_CLI", "claude")          # 실행할 명령 이름 (cli)
+OPENROUTER_URL = os.environ.get("LOVE_FORTUNE_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
+OPENROUTER_MODEL = os.environ.get("LOVE_FORTUNE_OPENROUTER_MODEL", "").strip()
+# 챕터 풀이 저장 키에도 들어가서, 모델을 바꾸면 풀이를 새로 만든다
+AI_MODEL = (OPENROUTER_MODEL if BACKEND == "openrouter"
+            else os.environ.get("LOVE_FORTUNE_AI_MODEL", "claude-sonnet-5"))
+LABEL = "AI 모델" if BACKEND == "openrouter" else "구독 AI 모델"      # 화면에 보이는 이름
 AI_TIMEOUT = 180
 PARALLEL = max(1, int(os.environ.get("LOVE_FORTUNE_AI_PARALLEL", "3")))
 _SLOTS = threading.BoundedSemaphore(PARALLEL)
 
 
 def available() -> bool:
+    if BACKEND == "openrouter":
+        return bool(os.environ.get("OPENROUTER_API_KEY") and OPENROUTER_MODEL)
     return shutil.which(AI_CLI) is not None
+
+
+def _run_openrouter(system: str, prompt: str, timeout: int) -> str:
+    import urllib.error
+    import urllib.request
+    key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not key or not OPENROUTER_MODEL:
+        raise RuntimeError("OpenRouter 키나 모델 이름이 없어요")
+    body = json.dumps({"model": OPENROUTER_MODEL,
+                       "messages": [{"role": "system", "content": system},
+                                    {"role": "user", "content": prompt}]}).encode("utf-8")
+    req = urllib.request.Request(OPENROUTER_URL, data=body, method="POST", headers={
+        "Authorization": f"Bearer {key}", "Content-Type": "application/json",
+        "X-Title": os.environ.get("LOVE_FORTUNE_APP_NAME", "love-fortune")})
+    with _SLOTS:
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"AI 호출 실패 (HTTP {e.code})") from None
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            raise RuntimeError(f"AI 연결 실패: {e}") from None
+        except json.JSONDecodeError:
+            raise RuntimeError("AI 응답을 읽지 못했어요") from None
+    try:
+        out = str(data["choices"][0]["message"]["content"] or "").strip()
+    except (KeyError, IndexError, TypeError):
+        raise RuntimeError(f"AI 응답 형식 오류: {str(data)[:200]}") from None
+    if not out:
+        raise RuntimeError("AI 가 빈 답을 보냈어요")
+    return out
 
 
 def run(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> str:
     """답 문자열. 실패하면 RuntimeError (부르는 쪽이 대신 문장을 쓴다)."""
+    if BACKEND == "openrouter":
+        return _run_openrouter(system, prompt, timeout)
     exe = shutil.which(AI_CLI)
     if not exe:
         raise RuntimeError("AI 명령을 찾지 못했어요")

@@ -278,3 +278,35 @@ def test_chart_data_for_pictures(sheet):
     assert sum(p["now_daxian"] for p in pals) == 1 and sum(p["liunian"] for p in pals) == 1
     f = facts.build(BIRTH, None, 0, "female", "서울", TARGET)
     assert f["natal"]["astro"]["wheel"]["asc"] is None and f["natal"]["ziwei"] is None
+
+
+def test_openrouter_backend(monkeypatch):
+    import importlib
+    from love_fortune import ai
+    monkeypatch.setenv("LOVE_FORTUNE_AI_BACKEND", "openrouter")
+    monkeypatch.setenv("LOVE_FORTUNE_OPENROUTER_MODEL", "some-provider/some-model")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    mod = importlib.reload(ai)
+    try:
+        assert mod.available() is False and mod.AI_MODEL == "some-provider/some-model"
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+        assert mod.available() is True
+        seen = {}
+
+        class R:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return json.dumps({"choices": [{"message": {"content": '{"a": 1}'}}]}).encode()
+
+        def fake_open(req, timeout=0):
+            seen["url"], seen["auth"] = req.full_url, req.get_header("Authorization")
+            seen["body"] = json.loads(req.data.decode())
+            return R()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_open)
+        assert mod.run_json("시스템", "질문") == {"a": 1}
+        assert seen["auth"] == "Bearer test-key" and seen["body"]["model"] == "some-provider/some-model"
+        assert seen["body"]["messages"][0] == {"role": "system", "content": "시스템"}
+    finally:
+        monkeypatch.delenv("LOVE_FORTUNE_AI_BACKEND")
+        importlib.reload(ai)

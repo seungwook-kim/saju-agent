@@ -28,6 +28,8 @@
     AI 에는 facts.py 사실표(개인정보 없음)만 넘기고, 사실표 밖의 사실·확률·단정 예언을
     쓰지 못하게 SYSTEM 프롬프트와 chapters.normalize 로 막는다. 프롬프트를 바꾸면
     chapters.PROMPT_VERSION 을 올려 저장된 풀이를 새로 만들게 한다.
+  - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(LOVE_FORTUNE_AI_BACKEND=openrouter)로
+    부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 내장 데이터(음력표·표준시 이력)는 tools/gen_calendar_data.py 로만 다시 만든다.
     이 도구는 개발할 때만 외부 패키지를 쓰고, 앱 실행에는 쓰지 않는다.
 
