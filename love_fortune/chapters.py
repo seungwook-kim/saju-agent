@@ -107,7 +107,7 @@ TABS = {
         "chapters": [
             {"id": "overview", "emoji": "🎍", "title": "한 해를 여는 기운",
              "widgets": ["ny"],
-             "pick": ["newyear.year", "newyear.ganzhi", "newyear.age", "newyear.god", "newyear.rel",
+             "pick": ["newyear.year", "newyear.ganzhi", "newyear.age", "newyear.age_kr", "newyear.god", "newyear.rel",
                       "newyear.signals", "newyear.dayun_note", "natal.character"],
              "ask": "그해 간지가 나에게 어떤 기운인지(십신), 배우자 자리와의 관계, 연애·일·돈 세운 시그널, 교운기 여부로 그해의 큰 그림을 풀어 줘. 사실표의 해만 말한다."},
             {"id": "tojeong", "emoji": "📖", "title": "토정비결",

@@ -98,7 +98,7 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, today
                  "tag": r["labels"][dom], "score": r["scores"][dom], "why": r["why"][dom]} for r in months]
 
     return {
-        "year": y, "ganzhi": STEMS_KR[ys] + BRANCHES_KR[yb], "age": age_end,
+        "year": y, "ganzhi": STEMS_KR[ys] + BRANCHES_KR[yb], "age": age_end, "age_kr": y - birth.year + 1,
         "god": f"{god}({GOD_SHORT[god]})",
         "rel": f"그해 지지 {j(BRANCHES_KR[yb], '은')} 내 일지(배우자 자리)와 {rel if rel.endswith('사이') else rel + ' 사이'}야.",
         "signals": {d: {"tag": sig["labels"][d], "why": list(sig["why"][d])} for d in DOMAINS},
