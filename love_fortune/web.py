@@ -1982,6 +1982,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(b'{"ok":true}', "application/json")
         elif self.path.split("?")[0] == "/api/lunar-year":
             self._lunar_year()
+        elif path == "/api/name/hanja":
+            self._name_hanja()
         elif self.path == "/api/glossary":
             from .glossary import TERMS
             body = json.dumps(TERMS, ensure_ascii=False).encode("utf-8")
@@ -2067,6 +2069,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/chat": self._chat,
             "/api/v2/report": self._v2_report, "/api/v2/chapter": self._v2_chapter,
             "/api/v2/share": self._v2_share, "/api/v2/shared": self._v2_shared,
+            "/api/name": self._name,
         }
         route = routes.get(self.path)
         if route is None:
@@ -2172,6 +2175,29 @@ class Handler(BaseHTTPRequestHandler):
             prefetch.submit_all(f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
                     "rules": chapters.rule_all(f), "ai": ai_on})
+
+    def _name_hanja(self):
+        """이름 한 글자의 인명용 한자 목록 (훈음·원획). ?r=민&s=1 (s=1 이면 성)."""
+        from urllib.parse import parse_qs, urlparse
+        from . import naming
+        qs = parse_qs(urlparse(self.path).query)
+        r = (qs.get("r", [""])[0] or "")[:1]
+        if not r or naming.split_syllable(r) is None:
+            self._fail(400, "한글 한 글자를 넣어 줘")
+            return
+        self._json({"r": r, "items": naming.hanja_for(r, qs.get("s", ["0"])[0] == "1")})
+
+    def _name(self, q: dict):
+        """이름 풀이. 사주 결과 토큰이 있으면 원국 오행과 함께 본다."""
+        from . import naming
+        hanja = q.get("hanja") or []
+        if not isinstance(hanja, list) or len(hanja) > 5:
+            raise ValueError("한자 선택 형식 오류")
+        hanja = [int(x) if str(x).isdigit() else None for x in hanja]
+        ctx = _context(str(q.get("token", ""))) or {}
+        natal = (ctx.get("facts") or {}).get("natal", {}).get("elements")
+        self._json(naming.analyze(str(q.get("surname", "")).strip(), str(q.get("given", "")).strip(),
+                                  hanja, natal))
 
     def _v2_share(self, q: dict):
         """지금 결과를 저장하고 링크 이름을 준다 (사실표·상담 요약만, 개인정보 없음)."""

@@ -11,6 +11,7 @@ report_*.md
 match_*.md
 pick_*.md
 tools/.skyfield/
+tools/.cache/
 
 # 실행할 때 db/init.sql 로 만드는 DB
 data/

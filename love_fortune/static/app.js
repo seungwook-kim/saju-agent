@@ -7,8 +7,8 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
   .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const pad=n=>String(n).padStart(2,'0');
 
-const TAB_ORDER=['today','love','career','money','newyear','life','past','match','pick'];
-const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',newyear:'신년',life:'평생',past:'되짚기',match:'궁합',pick:'길일'};
+const TAB_ORDER=['today','love','career','money','newyear','life','past','match','pick','name'];
+const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',newyear:'신년',life:'평생',past:'되짚기',match:'궁합',pick:'길일',name:'이름'};
 const EL_STEM={갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'금',신:'금',임:'수',계:'수'};
 const EL_BRANCH={자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'};
 const TAG_CLASS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
@@ -337,6 +337,7 @@ const TOOLS={
   past:{title:'지나온 해 되짚기',hand:'Look back',theme:'lilac',sub:'계산이 가리킨 신호를 네 기억과 맞춰 봐'},
   match:{title:'두 사람 궁합',hand:'Match',theme:'rose',sub:'사주·자미두수·점성술로 본 두 사람의 결'},
   pick:{title:'길일 고르기',hand:'Lucky day',theme:'mint',sub:'기간 안에서 나에게 좋은 날 순서'},
+  name:{title:'이름 풀이',hand:'Name',theme:'sky',sub:'소리·획수·내 사주로 이름을 봐'},
 };
 S.tools={};
 function toolHero(o,tab){
@@ -352,6 +353,11 @@ function openTool(tab){
   if(tab==='past'){
     $('page').innerHTML=h+pastView(S.facts.past);
     window.scrollTo(0,0);pastTally();
+    return;
+  }
+  if(tab==='name'){
+    $('page').innerHTML=h+nameForm();window.scrollTo(0,0);
+    if(S.tools.name) $('toolOut').innerHTML=S.tools.name;
     return;
   }
   if(tab==='match'){
@@ -487,6 +493,76 @@ document.addEventListener('click',e=>{
   if(!S.pastAns[key]) delete S.pastAns[key];
   box.querySelectorAll('button').forEach(x=>{x.className=S.pastAns[key]===x.dataset.v?'on '+x.dataset.v:'';});
   pastTally();
+});
+
+
+// ---------------- 이름 풀이 (소리·획수·사주)
+const EL_CLS={목:'el-목',화:'el-화',토:'el-토',금:'el-금',수:'el-수'};
+const REL_TXT={same:'같은 기운',gen:'상생',ke:'상극'};
+function nameForm(){
+  return '<form class="card form" id="fName" autocomplete="off"><div class="row2">'+
+    '<label class="f"><span>성 (한글)</span><input name="surname" maxlength="2" placeholder="예: 김"></label>'+
+    '<label class="f"><span>이름 (한글)</span><input name="given" maxlength="3" placeholder="예: 지현"></label></div>'+
+    '<button class="ghost" type="button" id="nmPick">한자도 고르기 (선택)</button><div id="nmHanja"></div>'+
+    '<button class="go" type="submit">이름 풀이 보기</button>'+
+    '<p class="fine">한자를 고르면 획수(원획법)로 원형이정 네 격과 81수리까지 봐. 안 고르면 소리만 봐. 이름은 저장하지 않아.</p></form><div id="toolOut"></div>';
+}
+async function nmPick(){
+  const f=$('fName'),name=(f.surname.value.trim()+f.given.value.trim());
+  const ns=f.surname.value.trim().length;
+  if(!name){$('nmHanja').innerHTML='<div class="err">성과 이름을 먼저 넣어 줘.</div>';return;}
+  $('nmHanja').innerHTML='<p class="fine">불러오는 중...</p>';
+  let h='';
+  for(let i=0;i<name.length;i++){
+    const r=await fetch('/api/name/hanja?r='+encodeURIComponent(name[i])+'&s='+(i<ns?1:0)).then(x=>x.json()).catch(()=>({items:[]}));
+    h+='<label class="f"><span>'+esc(name[i])+(i<ns?' (성)':'')+'</span><select data-nmi="'+i+'"><option value="">한자 없음 / 모름</option>'+
+      (r.items||[]).map(x=>'<option value="'+x.cp+'">'+esc(x.hun)+' · '+x.strokes+'획</option>').join('')+'</select></label>';
+  }
+  $('nmHanja').innerHTML='<div class="nm-grid">'+h+'</div><p class="fine">뜻(훈음)과 획수로 골라. 성은 많이 쓰는 한자가 맨 위야.</p>';
+}
+function nameView(d){
+  const chain=s=>'<div class="nm-chain">'+d.name.split('').map((c,i)=>'<span class="nm-syl"><b>'+esc(c)+'</b><i class="'+EL_CLS[s.elements[i]]+'">'+s.elements[i]+'</i></span>'+
+    (i<s.relations.length?'<span class="nm-rel '+s.relations[i]+'">'+REL_TXT[s.relations[i]]+'</span>':'')).join('')+'</div>';
+  const mj=d.sound.major,mn=d.sound.minor;
+  let h=section(1,'🔊','소리로 본 이름 (발음오행)',card(chain(mj)+'<p style="margin:.5rem 0 0">'+esc(mj.school)+'로 보면 소리 흐름이 <b>'+esc(mj.verdict)+'</b>이야. '+
+    (mj.relations.includes('ke')?'상극(서로 누르는 사이)이 있어 부를 때 기운이 부딪친다고 보는 쪽이야.':'글자끼리 같은 기운이거나 서로 살리는 흐름이야.')+'</p>')+
+    card(chain(mn)+'<p style="margin:.5rem 0 0">'+esc(mn.school)+'로 보면 <b>'+esc(mn.verdict)+'</b>이야. 두 학설은 ㅇㅎ과 ㅁㅂㅍ을 거꾸로 봐서 결과가 다를 수 있어.</p>','다른 학설로 보면'));
+  h+=section(2,'☯️','모음의 음양',card('<div class="chips">'+d.name.split('').map((c,i)=>'<span class="chip'+(d.vowel.marks[i]==='양'?' a':'')+'">'+esc(c)+' '+d.vowel.marks[i]+'</span>').join('')+'</div>'+
+    '<p style="margin:.5rem 0 0">'+(d.vowel.balanced?'밝은 모음(양)과 어두운 모음(음)이 섞여 소리의 균형이 좋은 편이야.':'모음이 한쪽('+d.vowel.marks[0]+')으로만 모여 있어. 작명에서는 둘이 섞이는 쪽을 더 좋게 봐.')+'</p>'));
+  if(d.suri){
+    const s=d.suri,cls={good:'up',bad:'down',half:'',split:''};
+    h+=section(3,'🔢','획수로 본 이름 (원형이정 81수리)',
+      '<div class="cards">'+['won','hyeong','i','jeong'].map(k=>{const g=s.ge[k];return '<div class="c"><b>'+g.label+' '+g.num+'수 <span class="pill '+cls[g.tag]+'">'+g.tag_kr+'</span></b>'+
+        '<p><small>'+esc(g.period)+' · '+esc(g.name)+'</small><br>'+esc(g.mean)+'</p></div>';}).join('')+'</div>'+
+      card('<p style="margin:0">글자별 원획: '+d.name.split('').map((c,i)=>esc(c)+' '+s.strokes[i]+'획('+s.yinyang[i]+')').join(' · ')+'</p>'+
+        '<p style="margin:.4rem 0 0">'+(s.yy_balanced?'획수의 홀짝(음양)이 섞여 있어 균형이 좋은 편이야.':'획수가 모두 '+s.yinyang[0]+'이라 음양이 한쪽으로 쏠려 있어.')+'</p>'+
+        (s.note?'<p class="fine" style="margin:.4rem 0 0">'+esc(s.note)+'</p>':'')+
+        '<p class="fine" style="margin:.4rem 0 0">81수리 길흉은 네 곳의 작명 자료를 대조해 다수결로 정했고, 둘로 갈린 수는 엇갈림으로 적었어.</p>'));
+  }else{
+    h+=section(3,'🔢','획수로 본 이름',card('<p style="margin:0">한자를 모두 고르면 원형이정 네 격과 81수리 길흉까지 볼 수 있어.</p>'));
+  }
+  if(d.saju){
+    const m=d.saju.missing,f=d.saju.filled;
+    h+=section(4,'🧩','내 사주와 함께',card('<p style="margin:0">'+(m.length?'내 원국(여덟 글자)에는 '+m.join('·')+' 기운이 비어 있어. '+
+      (f.length?'이름 소리(다수설)가 '+f.join('·')+' 기운을 보태 줘서 빈자리를 채우는 쪽이야.':'이름 소리에는 이 기운이 없어. 작명에서는 빈 기운을 이름으로 보태는 방법을 쓰기도 해.'):
+      '내 원국에는 다섯 기운이 다 있어서, 이름 소리로 따로 채울 빈자리는 없어.')+'</p>'));
+  }
+  return h;
+}
+document.addEventListener('click',e=>{if(e.target.id==='nmPick'){e.preventDefault();nmPick();}});
+document.addEventListener('submit',async e=>{
+  if(e.target.id!=='fName') return;
+  e.preventDefault();
+  const f=e.target,btn=f.querySelector('.go');
+  const name=f.surname.value.trim()+f.given.value.trim();
+  const hanja=name.split('').map((_,i)=>{const s=f.querySelector('[data-nmi="'+i+'"]');return s&&s.value?+s.value:null;});
+  btn.disabled=true;
+  try{
+    const d=await postJSON('/api/name',{surname:f.surname.value.trim(),given:f.given.value.trim(),hanja,token:S.token});
+    const html=nameView(d);S.tools.name=html;$('toolOut').innerHTML=html;
+    $('toolOut').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){$('toolOut').innerHTML='<div class="err">'+esc(err.message)+'</div>';}
+  finally{btn.disabled=false;}
 });
 
 // ---------------- 생년월일 캘린더 선택기

@@ -326,4 +326,13 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .duo small{color:var(--muted);font-weight:500}
 .duo .bar{grid-template-columns:34px 1fr 30px;margin:2px 0}
 
+/* 이름 풀이 */
+.nm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.nm-chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.nm-syl{display:inline-grid;justify-items:center;background:#fff;border-radius:14px;padding:6px 10px;box-shadow:0 3px 10px rgba(80,30,60,.06)}
+.nm-syl b{font-size:1.4rem}
+.nm-syl i{font-style:normal;font-weight:800;font-size:.8rem}
+.nm-rel{font-size:.72rem;font-weight:800;border-radius:99px;padding:.05rem .5rem}
+.nm-rel.gen,.nm-rel.same{background:#e3f6ea;color:#2a8a55}.nm-rel.ke{background:#fde6e6;color:#c2413b}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

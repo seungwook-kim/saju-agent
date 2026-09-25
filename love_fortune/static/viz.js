@@ -103,6 +103,7 @@ const HERO_ART={
   money:'<ellipse cx="50" cy="60" rx="22" ry="8"/><path d="M28 60 V50 M72 60 V50"/><ellipse cx="50" cy="50" rx="22" ry="8"/><ellipse cx="74" cy="36" rx="18" ry="7" class="soft"/><path d="M56 36 V28 M92 36 V28" class="soft"/><ellipse cx="74" cy="28" rx="18" ry="7" class="soft"/>',
   life:'<path d="M14 74 L44 34 L60 52 L76 30 L106 74Z"/><circle cx="92" cy="20" r="7" class="soft"/>',
   newyear:'<path d="M60 18 L66 34 L84 34 L70 44 L75 62 L60 51 L45 62 L50 44 L36 34 L54 34Z"/><path d="M20 70 H100" class="soft"/>',
+  name:'<rect x="26" y="22" width="68" height="44" rx="8"/><path d="M38 36 H82 M38 46 H70 M38 56 H60" class="soft"/>',
   past:'<circle cx="60" cy="44" r="28"/><path d="M60 26 V44 L72 52"/><path d="M26 30 l6 8 l8 -4" class="soft"/>',
   match:'<circle cx="46" cy="46" r="22"/><circle cx="74" cy="46" r="22" class="soft"/>',
   pick:'<rect x="30" y="24" width="60" height="50" rx="6"/><line x1="30" y1="38" x2="90" y2="38"/><path d="M44 18 V30 M76 18 V30"/><path d="M50 56 l7 7 l14 -16" class="soft"/>',
