@@ -162,6 +162,7 @@ function widget(w){
     case 'decades': return decades(f.life,f.meta.age);
     case 'mingpan': return mingpan(f.natal.ziwei,f.meta);
     case 'ny': return nyCard(f.newyear);
+    case 'ilju': return iljuCard(f.natal.ilju);
     case 'nycal': return nyCal(f.newyear);
     case 'wheel': return wheel(f.natal.astro.wheel);
   }
@@ -199,6 +200,13 @@ function gauge(t){
     bars.map(([k,v])=>'<div class="bar"><span>'+k+'</span><div class="t"><i data-w="'+v+'"></i></div><b>'+v+'</b></div>').join('')+
     '</div></div></div><p class="fine" style="margin:.7rem 0 0">총운 = 연애·직장·금전 점수의 평균 + 오늘 공통 기운</p>'+
     '<p style="margin:.5rem 0 0">'+esc(t.agreement)+' '+esc(t.focus)+'</p>');
+}
+// 일주 카드
+function iljuCard(c){
+  return '<div class="ilju"><div class="ilju-big"><span class="el-'+EL_STEM[c.pillar[0]]+'">'+esc(c.pillar[0])+'</span>'+
+    '<span class="el-'+EL_BRANCH[c.pillar[1]]+'">'+esc(c.pillar[1])+'</span></div>'+
+    '<div class="ilju-t">'+esc(c.title)+'</div><div class="ilju-m">요즘 부르는 말: '+esc(c.modern)+'</div>'+
+    '<div class="chips" style="justify-content:center">'+['십이운성 '+c.stage,'배우자 자리 '+c.spouse_god].concat(c.marks.map(m=>m.name)).map(x=>'<span class="chip a">'+esc(x)+'</span>').join('')+'</div></div>';
 }
 // 신년운세: 한 해 요약 카드와 열두 달 표
 const NY_CLS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
@@ -399,7 +407,14 @@ function matchView(d){
     d.story.map(x=>'<p class="blk">'+esc(x)+'</p>').join(''));
   if(d.strengths.length) h+=section(3,'🤝','잘 맞는 점','<div class="blk checklist"><ul>'+d.strengths.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>');
   if(d.cautions.length) h+=section(4,'🧭','맞춰 갈 점','<div class="blk checklist"><ul>'+d.cautions.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>');
-  if(d.info.length) h+=section(5,'📎','참고',card('<ul style="margin:0;padding-left:1.1rem">'+d.info.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'));
+  if(d.dates){
+    const row=r=>'<div class="duo"><b>'+esc(r.label)+' <small>'+esc(r.ganzhi)+'</small></b>'+
+      '<div class="bar"><span>나</span><div class="t"><i data-w="'+r.me+'"></i></div><b>'+r.me+'</b></div>'+
+      '<div class="bar"><span>상대</span><div class="t"><i data-w="'+r.you+'"></i></div><b>'+r.you+'</b></div></div>';
+    h+=section(5,'🗓️','둘이 만나기 좋은 날 (앞으로 '+d.dates.days+'일)',card(d.dates.good.map(row).join(''),'둘 다 연애 흐름이 괜찮은 날')+
+      card(d.dates.tense.map(row).join('')+'<p class="fine" style="margin:.4rem 0 0">이런 날은 큰 이야기보다 가볍게 보내면 좋아.</p>','둘 다 예민하기 쉬운 날'));
+  }
+  if(d.info.length) h+=section(6,'📎','참고',card('<ul style="margin:0;padding-left:1.1rem">'+d.info.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'));
   return h;
 }
 function pickView(d){
@@ -663,8 +678,10 @@ function cardInfo(){
   if(tab==='today') return {title:o.title,hand:o.hand,score:t.scores.total,head:t.heads.total,
     lines:['연애 '+t.scores.love+' · 직장 '+t.scores.career+' · 금전 '+t.scores.money,t.focus],chips};
   if(t.domains[tab]){const d=t.domains[tab];return {title:o.title,hand:o.hand,score:d.score,head:d.head,lines:d.reasons.slice(0,2),chips};}
-  if(tab==='life') return {title:o.title,hand:o.hand,score:null,head:f.natal.character.split('. ')[0]+'.',
-    lines:[f.natal.geguk_mean,'용신 '+f.natal.yongsin],chips:['일간 '+f.natal.ilgan,f.natal.strength,f.natal.geguk]};
+  if(tab==='life'){const c=f.natal.ilju;return {title:c.pillar+' 일주',hand:c.title,score:null,head:f.natal.character.split('. ')[0]+'.',
+    lines:[f.natal.geguk_mean,'요즘 부르는 말: '+c.modern],chips:['십이운성 '+c.stage,f.natal.strength,...c.marks.map(m=>m.name)].slice(0,4)};}
+  if(tab==='newyear'){const ny=f.newyear;return {title:ny.year+' '+ny.ganzhi+'년',hand:'New Year',score:null,head:ny.rel,
+    lines:['연애 '+ny.signals.love.tag+' · 일 '+ny.signals.career.tag+' · 돈 '+ny.signals.money.tag],chips:['만 '+ny.age+'세','나에게 '+ny.god.split('(')[0]]};}
   const r=$('toolOut')&&$('toolOut').querySelector('.ring span');
   return {title:o.title,hand:o.hand,score:r?+r.textContent:null,
     head:($('toolOut')&&$('toolOut').querySelector('.gauge b, .gauge div div'))?.textContent||o.sub||'',lines:[],chips};

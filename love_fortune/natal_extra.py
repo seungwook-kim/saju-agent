@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+from .josa import j
 from .manseryuk import BRANCHES_KR, STEMS_KR, ZODIAC_ANIMALS
 from .match import STAGE_NAMES, TWELVE_STAGES
 
@@ -141,3 +142,31 @@ def animal_compat(my_branch: int) -> dict:
         row = {"animal": ZODIAC_ANIMALS[b], "branch": BRANCHES_KR[b], "why": why or warn}
         (good if why and not warn else bad if warn else mid).append(row)
     return {"me": ZODIAC_ANIMALS[my_branch], "good": good, "mid": mid, "bad": bad}
+
+
+# ---------------------------------------------------------------- 일주 카드
+# 일간 물상: 일간 기질 풀이(yongsin.ILGAN_CHARACTER)의 첫 비유와 같다
+STEM_IMAGE = {0: "소나무", 1: "덩굴", 2: "한낮의 태양", 3: "촛불", 4: "큰 산", 5: "기름진 밭",
+              6: "바위", 7: "보석", 8: "넓은 바다", 9: "새벽 이슬"}
+# 요즘 널리 쓰는 색 이름 (오방색: 목 푸른·화 붉은·토 누런·금 흰·수 검은).
+# 띠에 색을 붙이는 것은 2007년 무렵부터 퍼진 요즘 표현이고 전통 풍속은 아니다 (문화일보 2026 설특집 기사 등)
+STEM_COLOR = {0: "푸른", 1: "푸른", 2: "붉은", 3: "붉은", 4: "누런", 5: "누런", 6: "흰", 7: "흰", 8: "검은", 9: "검은"}
+# 백호대살 일곱 간지 (여러 사주 사이트 공통): 갑진·을미·병술·정축·무진·임술·계축
+BAEKHO = {(0, 4), (1, 7), (2, 10), (3, 1), (4, 4), (8, 10), (9, 1)}
+
+
+def ilju_card(natal: dict, spouse_god: str, jindohwa: bool) -> dict:
+    """일주(태어난 날의 간지) 카드. 전통 물상(일간 비유 + 일지 띠 동물)이 중심이고 색 이름은 요즘 표현으로 따로 둔다."""
+    from .manseryuk import KUIGANG
+    ds, db = natal["ilgan_stem"], natal["day_branch"]
+    marks = []
+    if (ds, db) in KUIGANG:
+        marks.append({"name": "괴강", "talk": "결단력이 아주 강한 일주 (연해자평 기준 경진·경술·임진·무술)"})
+    if (ds, db) in BAEKHO:
+        marks.append({"name": "백호", "talk": "한번 잡은 목표를 끝까지 밀어붙이는 센 기운의 일주"})
+    if jindohwa:
+        marks.append({"name": "진도화", "talk": "일주 자체에 사람을 끄는 매력이 담긴 일주"})
+    stage = STAGE_NAMES[TWELVE_STAGES[ds].index(db)]
+    return {"pillar": STEMS_KR[ds] + BRANCHES_KR[db], "image": STEM_IMAGE[ds], "animal": ZODIAC_ANIMALS[db],
+            "title": f"{j(STEM_IMAGE[ds], '와')} {ZODIAC_ANIMALS[db]}", "modern": f"{STEM_COLOR[ds]} {ZODIAC_ANIMALS[db]}",
+            "stage": stage, "spouse_god": spouse_god, "marks": marks}

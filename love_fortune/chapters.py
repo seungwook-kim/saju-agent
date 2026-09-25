@@ -127,6 +127,9 @@ TABS = {
         "title": "평생 흐름", "hand": "Life", "theme": "lilac",
         "sub": "타고난 결과 앞으로의 흐름 (연애·일·돈)",
         "chapters": [
+            {"id": "ilju", "emoji": "🎴", "title": "나의 일주",
+             "widgets": ["ilju"], "pick": ["natal.ilju", "natal.character", "love.spouse_seat", "love.day_stage"],
+             "ask": "일주(태어난 날의 간지)를 일간의 비유와 일지의 띠 동물, 십이운성, 배우자 자리의 십성, 일주에 붙은 신살로 풀어 줘. 색 이름(modern)은 요즘 표현이라고 밝힌다."},
             {"id": "wonguk", "emoji": "📜", "title": "원국 완전 풀이",
              "widgets": ["wonguk", "mingpan", "wheel"], "pick": ["natal"],
              "ask": "원국 전체를 풀어 줘: 일간, 오행 분포, 신강약·격국·용신, 신살·귀인, 자미 명궁·사화, 점성 태양·달·상승궁."},

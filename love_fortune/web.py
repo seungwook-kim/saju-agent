@@ -1128,6 +1128,24 @@ def api_match_data(r: dict) -> dict:
                   "sun": r["b_sun"]}}
 
 
+def together_days(a: tuple, b: tuple, start: date, days: int = 30) -> dict:
+    """두 사람의 날마다 연애 점수를 맞대어 '둘 다 좋은 날'과 '둘 다 예민한 날'을 고른다.
+
+    둘 중 낮은 점수를 먼저 본다 (한 사람만 좋은 날보다 둘 다 무난한 날이 만나기 편하다). 같으면 평균.
+    """
+    from .taekil import pick_dates
+    end = start + timedelta(days=days - 1)
+    ra = {x["date"]: x for x in pick_dates(*a, start, end, "love")["rows"]}
+    rb = {x["date"]: x for x in pick_dates(*b, start, end, "love")["rows"]}
+    rows = [{"date": d, "label": ra[d]["label"], "ganzhi": ra[d]["ganzhi"],
+             "me": ra[d]["love"], "you": rb[d]["love"],
+             "both": min(ra[d]["love"], rb[d]["love"]), "avg": round((ra[d]["love"] + rb[d]["love"]) / 2)}
+            for d in sorted(ra) if d in rb]
+    good = sorted(rows, key=lambda r: (-r["both"], -r["avg"], r["date"]))[:5]
+    tense = sorted(rows, key=lambda r: (r["both"], r["avg"], r["date"]))[:2]
+    return {"start": start.isoformat(), "days": days, "good": good, "tense": tense}
+
+
 def api_pick_data(r: dict) -> dict:
     """택일 결과 JSON. PII 없음."""
     dom_name = {"total": "총운", "love": "연애", "career": "직장",
@@ -2120,7 +2138,9 @@ class Handler(BaseHTTPRequestHandler):
         _text, md = build_match_report(*a, *b, r)
         _page, summary = render_match_page(r, "")
         token = _remember(md, summary, date.today().isoformat())
-        self._json({"token": token, "data": api_match_data(r)})
+        data = api_match_data(r)
+        data["dates"] = together_days(a, b, date.today(), 30)
+        self._json({"token": token, "data": data})
 
     def _api_pick(self, q: dict):
         from .taekil import pick_dates

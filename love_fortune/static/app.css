@@ -311,4 +311,18 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .nycal .nd.t-3,.sw.t-3{background:#d9d3d7}.nycal .nd.t-9,.sw.t-9{background:#e2837d}
 .sw{display:inline-block;width:12px;height:12px;border-radius:3px;background:#f1eef0;margin:0 3px 0 8px;vertical-align:-1px}
 
+/* 일주 카드 */
+.ilju{background:linear-gradient(160deg,#fff,var(--soft));border-radius:24px;padding:22px 16px;text-align:center;
+  box-shadow:0 10px 30px rgba(80,30,60,.1);margin:10px 0}
+.ilju-big{font-size:4rem;font-weight:900;line-height:1;letter-spacing:.05em}
+.ilju-t{font-size:1.3rem;font-weight:900;margin-top:10px}
+.ilju-m{font-size:.8rem;color:var(--muted);margin:4px 0 8px}
+
+/* 둘이 만나기 좋은 날 */
+.duo{padding:8px 0;border-top:1px dashed var(--line)}
+.duo:first-of-type{border-top:0}
+.duo>b{display:block;font-size:.9rem;margin-bottom:4px}
+.duo small{color:var(--muted);font-weight:500}
+.duo .bar{grid-template-columns:34px 1fr 30px;margin:2px 0}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

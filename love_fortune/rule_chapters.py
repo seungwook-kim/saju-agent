@@ -298,6 +298,10 @@ def flow(f: dict, dom: str) -> dict:
     return chapter(f"{word}의 흐름: 12개월과 3년", best_line(D["best"], dom), blocks)
 
 
+def L_day_stage(f: dict) -> str:
+    return f["love"]["day_stage"]
+
+
 def life(f: dict, ch: str) -> dict:
     n, Li = f["natal"], f["life"]
     current = Li["current"].split(" 아래 ")[0]
@@ -312,6 +316,16 @@ def life(f: dict, ch: str) -> dict:
             text("자미두수 명반", zw["guo"], *zw["sihua"]) if zw else None,
             text("태어날 때 하늘", sky),
             sinsal_cards(n["classic_sinsal"]),
+        ])
+    if ch == "ilju":
+        c = n["ilju"]
+        return chapter(f"{c['pillar']} 일주: {c['title']}", n["character"], [
+            text("일주 그림", f"일간 {j(c['pillar'][0], '은')} {j(c['image'], '이고')} 일지 {j(c['pillar'][1], '은')} {c['animal']}띠 자리야. "
+                 f"그래서 {c['pillar']} 일주는 '{c['title']}'로 그려 볼 수 있어.",
+                 f"요즘 색으로 부르는 말로는 '{c['modern']}'인데, 띠에 색을 붙이는 건 요즘 생긴 표현이야."),
+            text("일주의 기운 단계", L_day_stage(f)),
+            text("배우자 자리", f["love"]["spouse_seat"].split(". 팁")[0]),
+            cards("일주에 붙은 신살", [(m["name"], m["talk"]) for m in c["marks"]]),
         ])
     if ch == "love_nature":
         return love_nature(f)

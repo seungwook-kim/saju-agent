@@ -324,3 +324,14 @@ def test_look_back_and_new_year(sheet):
     assert ny["ziwei"]["hua"] and len(ny["sky"]) == 2
     from love_fortune.newyear import target_year
     assert target_year(date(2026, 3, 1)) == 2026 and target_year(date(2026, 9, 1)) == 2027
+
+
+def test_together_days_and_ilju(sheet):
+    from love_fortune.web import together_days
+    a = (date(1990, 5, 5), 14, 30, "female", "서울")
+    b = (date(1988, 3, 3), 9, 0, "male", "부산")
+    t = together_days(a, b, date(2026, 10, 1), 30)
+    assert len(t["good"]) == 5 and len(t["tense"]) == 2
+    assert t["good"][0]["both"] >= t["good"][-1]["both"] >= t["tense"][0]["both"]
+    c = sheet["natal"]["ilju"]
+    assert c["pillar"] == "경오" and c["title"] == "바위와 말" and c["modern"] == "흰 말"
