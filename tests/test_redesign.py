@@ -310,3 +310,17 @@ def test_openrouter_backend(monkeypatch):
     finally:
         monkeypatch.delenv("LOVE_FORTUNE_AI_BACKEND")
         importlib.reload(ai)
+
+
+def test_look_back_and_new_year(sheet):
+    past = sheet["past"]
+    assert past["rows"] and all(r["year"] < 2026 for r in past["rows"])
+    sat = past["returns"]["saturn"]
+    assert sat and sat[0]["start"][:4] in ("2019", "2020", "2021")          # 1990년생 첫 토성 회귀는 29~30세
+    assert any(m["kind"] == "gyowun" for r in past["rows"] for m in r["marks"])
+    ny = sheet["newyear"]
+    assert ny["year"] == 2027 and ny["ganzhi"] == "정미"                      # 9월 이후엔 다음 해
+    assert set(ny["months"]) == {"love", "career", "money"} and len(ny["months"]["love"]) == 12
+    assert ny["ziwei"]["hua"] and len(ny["sky"]) == 2
+    from love_fortune.newyear import target_year
+    assert target_year(date(2026, 3, 1)) == 2026 and target_year(date(2026, 9, 1)) == 2027

@@ -336,7 +336,59 @@ def life(f: dict, ch: str) -> dict:
     ])
 
 
+# ---------------------------------------------------------------- 신년운세
+
+def newyear(f: dict, ch: str) -> dict:
+    ny = f["newyear"]
+    y = ny["year"]
+    words = {"love": "연애", "career": "일", "money": "돈"}
+    if ch == "overview":
+        sig = ny["signals"]
+        return chapter(f"{y}년 {ny['ganzhi']}년, 만 {ny['age']}세의 한 해",
+                       f"{y}년 기운은 나에게 {ny['god']}으로 다가와. {ny['rel']}", [
+            cards("세 영역의 한 해", [(f"{words[d]}: {sig[d]['tag']}", ", ".join(sig[d]["why"]) or "특별히 걸리는 신호 없이 잔잔한 해")
+                                   for d in ("love", "career", "money")]),
+            callout(ny["dayun_note"]),
+            text("타고난 나와 함께 보면", f["natal"]["character"]),
+        ])
+    if ch == "months":
+        blocks = []
+        for d in ("love", "career", "money"):
+            rows = ny["months"][d]
+            push = [r for r in rows if r["tag"] in ("밀고 나갈 때", "좋은 흐름")]
+            care = [r for r in rows if r["tag"] in ("다듬을 때", "조심할 때")]
+            body = []
+            if push:
+                body.append("힘이 실리는 달은 " + ", ".join(f"{r['label']}({r['ganzhi']})" for r in push) + "이야.")
+            if care:
+                body.append("다듬을 달은 " + ", ".join(f"{r['label']}({r['ganzhi']})" for r in care) + "이야.")
+            blocks.append(text(f"{words[d]}의 열두 달", *(body or ["특별히 튀는 달 없이 잔잔한 흐름이야."])))
+        return chapter(f"{y}년 달마다 흐름", "밀고 나갈 달과 다듬을 달을 미리 알아 두면 한 해를 쓰기 편해.", blocks)
+    if ch == "ziwei":
+        z = ny["ziwei"]
+        if not z:
+            return chapter("자미두수로 본 한 해", "태어난 시간을 몰라 자미두수 명반을 세우지 못해서 이 부분은 보지 않았어.", [
+                text("대신 이렇게 봐", "한 해의 흐름은 사주 세운(한 해를 여는 기운·달마다 흐름)과 점성술(하늘의 큰 별) 챕터로 볼 수 있어.",
+                     "태어난 시간을 알게 되면 다시 넣어 봐. 그해의 중심 자리와 사화가 붙는 자리까지 볼 수 있어."),
+            ])
+        return chapter(f"{y}년의 중심은 {z['palace']} 자리", z["line"], [
+            checklist("그해 사화(록권과기)가 붙는 자리", z["hua"]),
+        ])
+    if ch == "sky":
+        return chapter(f"{y}년 목성과 토성", "목성은 기회와 넓어짐을, 토성은 과제와 다짐을 보는 별이야.",
+                       [text("", line) for line in ny["sky"]])
+    sig = ny["signals"]
+    top = max(("love", "career", "money"), key=lambda d: ["조심할 때", "다듬을 때", "무난한 흐름", "좋은 흐름", "밀고 나갈 때"].index(sig[d]["tag"]))
+    return chapter(f"{y}년은 {words[top]}에 힘이 실리는 해", ny["rel"], [
+        text("정리하면", *(f"{words[d]}은 {sig[d]['tag']}." if d != "love" else f"연애는 {sig[d]['tag']}." for d in ("love", "career", "money"))),
+        text("미리 표시해 둘 달", *(f"{words[d]}: {', '.join(ny['best'][d])}" for d in ("love", "career", "money"))),
+        callout(ny["dayun_note"]),
+    ])
+
+
 def build(tab: str, ch: str, facts: dict) -> dict:
+    if tab == "newyear":
+        return newyear(facts, ch)
     if tab == "today":
         return today(facts, ch)
     if tab in ("love", "career", "money"):

@@ -7,8 +7,8 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
   .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const pad=n=>String(n).padStart(2,'0');
 
-const TAB_ORDER=['today','love','career','money','life','match','pick'];
-const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',life:'평생',match:'궁합',pick:'길일'};
+const TAB_ORDER=['today','love','career','money','newyear','life','past','match','pick'];
+const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',newyear:'신년',life:'평생',past:'되짚기',match:'궁합',pick:'길일'};
 const EL_STEM={갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'금',신:'금',임:'수',계:'수'};
 const EL_BRANCH={자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'};
 const TAG_CLASS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
@@ -37,7 +37,7 @@ $('fMain').addEventListener('submit',async e=>{
   try{
     const j=await postJSON('/api/v2/report',q);
     S.person=q;                         // 궁합·길일에 다시 쓴다 (브라우저 메모리에만)
-    S.shareId=null;
+    S.shareId=null;S.pastAns={};
     Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,
       chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today'});
     showResult();
@@ -161,6 +161,8 @@ function widget(w){
     case 'years': return years(f[arg].years,arg);
     case 'decades': return decades(f.life,f.meta.age);
     case 'mingpan': return mingpan(f.natal.ziwei,f.meta);
+    case 'ny': return nyCard(f.newyear);
+    case 'nycal': return nyCal(f.newyear);
     case 'wheel': return wheel(f.natal.astro.wheel);
   }
   return '';
@@ -197,6 +199,25 @@ function gauge(t){
     bars.map(([k,v])=>'<div class="bar"><span>'+k+'</span><div class="t"><i data-w="'+v+'"></i></div><b>'+v+'</b></div>').join('')+
     '</div></div></div><p class="fine" style="margin:.7rem 0 0">총운 = 연애·직장·금전 점수의 평균 + 오늘 공통 기운</p>'+
     '<p style="margin:.5rem 0 0">'+esc(t.agreement)+' '+esc(t.focus)+'</p>');
+}
+// 신년운세: 한 해 요약 카드와 열두 달 표
+const NY_CLS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
+function nyCard(ny){
+  const w={love:'연애',career:'일',money:'돈'};
+  return card('<div style="text-align:center"><div style="font-size:2.2rem;font-weight:900;letter-spacing:-.03em">'+ny.year+
+    ' <span class="accent">'+esc(ny.ganzhi)+'</span></div><p class="fine" style="margin:.2rem 0 .8rem">만 '+ny.age+'세의 한 해 · 나에게 '+esc(ny.god)+'</p></div>'+
+    '<div class="cards">'+['love','career','money'].map(d=>'<div class="c"><b>'+w[d]+'</b><p><span class="pill '+
+      (['밀고 나갈 때','좋은 흐름'].includes(ny.signals[d].tag)?'up':['다듬을 때','조심할 때'].includes(ny.signals[d].tag)?'down':'')+'">'+
+      esc(ny.signals[d].tag)+'</span></p></div>').join('')+'</div>');
+}
+function nyCal(ny){
+  const w={love:'연애',career:'일',money:'돈'};
+  let h='<div class="nycal"><div></div>'+ny.months.love.map(r=>'<div class="nh">'+esc(r.label)+'</div>').join('');
+  ['love','career','money'].forEach(d=>{
+    h+='<div class="nr">'+w[d]+'</div>'+ny.months[d].map(r=>'<div class="nd '+(NY_CLS[r.tag]||'')+'" title="'+esc(r.label+' '+r.ganzhi+': '+r.tag+(r.why.length?' ('+r.why.join(', ')+')':''))+'"></div>').join('');
+  });
+  return card(h+'</div><div class="legend"><span class="sw t4"></span>밀고 나갈 때 <span class="sw t2"></span>좋은 흐름 '+
+    '<span class="sw"></span>무난 <span class="sw t-3"></span>다듬을 때 <span class="sw t-9"></span>조심할 때 (칸을 길게 누르면 이유)</div>',ny.year+'년 열두 달');
 }
 // 연애·직장·금전 탭: 오늘 그 영역 점수와 세 체계가 더하고 뺀 신호
 const DOM_WORD={love:'연애',career:'직장',money:'금전'};
@@ -297,6 +318,7 @@ document.addEventListener('submit',async e=>{
 
 // ---------------- 궁합·길일 (계산만, AI 없음)
 const TOOLS={
+  past:{title:'지나온 해 되짚기',hand:'Look back',theme:'lilac',sub:'계산이 가리킨 신호를 네 기억과 맞춰 봐'},
   match:{title:'두 사람 궁합',hand:'Match',theme:'rose',sub:'사주·자미두수·점성술로 본 두 사람의 결'},
   pick:{title:'길일 고르기',hand:'Lucky day',theme:'mint',sub:'기간 안에서 나에게 좋은 날 순서'},
 };
@@ -311,6 +333,11 @@ function openTool(tab){
   document.body.dataset.theme=o.theme;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   let h=toolHero(o,tab);
+  if(tab==='past'){
+    $('page').innerHTML=h+pastView(S.facts.past);
+    window.scrollTo(0,0);pastTally();
+    return;
+  }
   if(tab==='match'){
     const sex2=S.person&&S.person.sex==='female'?'male':'female';
     h+='<form class="card form" id="fMatch" autocomplete="off"><h4 style="margin:0">상대의 정보</h4>'+
@@ -388,6 +415,56 @@ function pickView(d){
     '<b style="display:block">'+esc(r.label)+'</b><small>'+esc(r.ganzhi)+' · '+val(r)+'점</small></div>').join('')+'</div>'));
   return h;
 }
+
+
+// ---------------- 지나온 해 되짚기: 계산이 가리킨 신호를 사용자가 기억과 맞춰 본다 (답은 이 화면 메모리에만)
+const MARK_ICON={gyowun:'🔄',daxian:'🧭',saturn:'🪐',jupiter:'✨'};
+S.pastAns=S.pastAns||{};
+function ansBtns(key){
+  const a=S.pastAns[key]||'';
+  return '<div class="ans" data-key="'+esc(key)+'">'+[['yes','맞았어'],['no','아니야'],['skip','기억 안 나']].map(([v,t])=>
+    '<button type="button" data-v="'+v+'" class="'+(a===v?'on '+v:'')+'">'+t+'</button>').join('')+'</div>';
+}
+function pastView(p){
+  if(!p||!p.rows.length) return '<div class="card"><p>되짚어 볼 지난해가 아직 없어.</p></div>';
+  let h='<div class="card tally" id="pastTally"></div>';
+  h+='<p class="fine" style="margin:0 4px 10px">'+esc(p.note)+' 교운기는 대운이 바뀌는 앞뒤 해, 토성 회귀는 토성이 태어날 때 자리로 돌아오는 때야. '+
+    '계산이 맞힌 걸 증명하는 게 아니라, 네 기억과 얼마나 겹치는지 스스로 보는 놀이야.</p>';
+  p.rows.slice().reverse().forEach(r=>{
+    if(!r.signals.length&&!r.marks.length) return;
+    h+='<div class="yr-card"><div class="yr-head"><b>'+r.year+'</b><span>만 '+r.age+'세 · '+esc(r.ganzhi)+'년</span></div>';
+    r.marks.forEach((m,i)=>{
+      h+='<div class="claim mark"><div><span class="ico">'+(MARK_ICON[m.kind]||'•')+'</span>'+esc(m.text)+
+        '<small>'+(m.kind==='jupiter'?'이 해에 새 기회가 오거나 넓어진 일이 있었어?':'이 해에 일·관계·사는 곳 같은 큰 변화가 있었어?')+'</small></div>'+ansBtns(r.year+'m'+i)+'</div>';
+    });
+    r.signals.forEach(sg=>{
+      h+='<div class="claim '+sg.dir+'"><div><span class="pill '+sg.dir+'">'+esc(sg.word)+' '+esc(sg.tag)+'</span>'+
+        (sg.why.length?'<small>'+esc(sg.why.join(', '))+'</small>':'')+
+        '<small>'+(sg.dir==='up'?esc(sg.word)+' 쪽이 잘 풀리거나 기회가 있었어?':esc(sg.word)+' 쪽이 답답하거나 힘들었어?')+'</small></div>'+
+        ansBtns(r.year+sg.domain)+'</div>';
+    });
+    h+='</div>';
+  });
+  return h;
+}
+function pastTally(){
+  const box=$('pastTally');if(!box) return;
+  const v=Object.values(S.pastAns),yes=v.filter(x=>x==='yes').length,no=v.filter(x=>x==='no').length,n=yes+no;
+  const total=document.querySelectorAll('.ans').length;
+  box.innerHTML='<div class="gauge"><div class="ring" style="--v:'+(n?Math.round(yes/n*100):0)+'"><span>'+(n?Math.round(yes/n*100)+'%':'-')+'</span></div>'+
+    '<div><div style="font-weight:800">내 기억과 겹친 정도</div><p class="fine" style="margin:.3rem 0 0">맞았어 '+yes+' · 아니야 '+no+
+    ' · 답한 것 '+v.length+' / '+total+'</p><p class="fine" style="margin:.3rem 0 0">'+
+    (n>=5?(yes/n>=0.6?'꽤 많이 겹쳤어. 앞으로의 흐름도 같은 계산으로 봤으니 참고해 봐.':'겹친 게 많지 않아. 사주는 경향일 뿐이라 그럴 수 있어.'):'다섯 개 넘게 고르면 겹친 정도를 알려 줄게.')+
+    '</p></div></div>';
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.ans button');if(!b) return;
+  const box=b.parentElement,key=box.dataset.key;
+  S.pastAns[key]=S.pastAns[key]===b.dataset.v?'':b.dataset.v;
+  if(!S.pastAns[key]) delete S.pastAns[key];
+  box.querySelectorAll('button').forEach(x=>{x.className=S.pastAns[key]===x.dataset.v?'on '+x.dataset.v:'';});
+  pastTally();
+});
 
 // ---------------- 생년월일 캘린더 선택기
 // 글자로 입력하지 않고 연대, 연도, 월, 일 순서로 눌러서 고른다.
@@ -611,7 +688,7 @@ $('shCard').addEventListener('click',()=>{
   if(!m) return;
   try{
     const j=await postJSON('/api/v2/shared',{id:m[1]});
-    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,shareId:m[1],
+    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,shareId:m[1],pastAns:{},
       chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today',person:null});
     showResult();
   }catch(e){$('homeErr').innerHTML='<div class="err">'+esc(e.message)+'</div>';}

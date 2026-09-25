@@ -180,4 +180,15 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
         },
     }
     base["natal"]["day_pillar"] = STEMS_KR[natal["ilgan_stem"]] + BRANCHES_KR[natal["day_branch"]]
+    from .astro import natal_chart
+    from .manseryuk import dayun as _dayun
+    from .past import look_back
+    from . import newyear
+    _chart = natal_chart(birth, hour, minute, city)
+    _nc = _chart["positions"]
+    _du = _dayun(birth, hour, minute, sex, city, target)
+    base["past"] = look_back(birth, natal, sex, _du, zw, _nc["saturn"]["lon"], _nc["jupiter"]["lon"], target)
+    base["newyear"] = newyear.build(birth, hour, minute, sex, city, target, natal, _du,
+                                    _chart["asc"]["sign"] if hour is not None else None,
+                                    {k: v["lon"] for k, v in _nc.items()})
     return base
