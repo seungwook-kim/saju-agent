@@ -45,7 +45,8 @@
       <p class="fine">생년월일은 이 컴퓨터 메모리에만 두고 저장하지 않아. AI 풀이에는 계산 결과만 보내.</p>
     </form>
     <div id="homeErr"></div>
-    <p class="legacy"><a href="/classic">궁합 보기 · 길일 고르기 (예전 화면)</a></p>
+    <div id="recent"></div>
+    <p class="legacy"><a href="/classic">예전 화면</a></p>
   </section>
 
   <!-- 결과 화면 -->
@@ -53,7 +54,7 @@
     <header class="topbar">
       <button class="back" id="btnBack" type="button">‹ 다시 입력</button>
       <div class="logo small"><span class="accent">종합</span> 사주</div>
-      <span class="spacer"></span>
+      <button class="share-btn" id="btnShare" type="button">저장·공유</button>
     </header>
     <nav class="tabs" id="tabs"></nav>
     <div id="page"></div>
@@ -69,6 +70,23 @@
   <button class="ghost" id="dpClose" type="button">닫기</button>
 </div>
 
+<!-- 저장·공유 -->
+<div class="scrim" id="shScrim"></div>
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+  <h3 id="shTitle">저장·공유</h3>
+  <div class="sh-row">
+    <button class="go" id="shLink" type="button">다시 보기 링크 만들기</button>
+    <div id="shLinkOut"></div>
+  </div>
+  <div class="sh-row">
+    <button class="ghost" id="shCard" type="button">지금 탭을 이미지 카드로 저장</button>
+    <div id="shCardOut"></div>
+  </div>
+  <p class="fine">링크에는 생년월일·이름·도시가 들어가지 않아. 다만 사주 원국(여덟 글자)은 보이니, 믿는 사람에게만 보내 줘.</p>
+  <button class="ghost" id="shClose" type="button">닫기</button>
+</div>
+
+<script src="/static/viz.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

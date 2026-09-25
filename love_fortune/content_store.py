@@ -1,4 +1,4 @@
-"""content_store.py, AI 챕터 풀이 저장소 (data/content.db, db/content.sql 로 생성)."""
+"""content_store.py, AI 챕터 풀이·저장한 결과 저장소 (data/content.db, db/content.sql 로 생성)."""
 from __future__ import annotations
 
 import json
@@ -45,3 +45,18 @@ def put_chapter(key: str, tab: str, chapter: str, source: str, body: dict) -> No
         con.execute("INSERT OR REPLACE INTO chapter VALUES (?,?,?,?,?,?)",
                     (key, tab, chapter, source, json.dumps(body, ensure_ascii=False), time.time()))
         con.commit()
+
+
+def put_share(share_id: str, facts: dict, summary: str) -> None:
+    with closing(_con()) as con:
+        con.execute("INSERT OR REPLACE INTO share VALUES (?,?,?,?)",
+                    (share_id, json.dumps(facts, ensure_ascii=False), summary, time.time()))
+        con.commit()
+
+
+def get_share(share_id: str) -> dict | None:
+    with closing(_con()) as con:
+        row = con.execute("SELECT facts_json, summary, created FROM share WHERE id=?", (share_id,)).fetchone()
+    if not row:
+        return None
+    return {"facts": json.loads(row["facts_json"]), "summary": row["summary"], "created": row["created"]}

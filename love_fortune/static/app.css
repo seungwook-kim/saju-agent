@@ -224,4 +224,64 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .dp-wk.sun{color:#d4553f}
 #dpClose{margin-top:12px}
 
+/* 저장·공유 */
+.share-btn{justify-self:end;border:1px solid var(--line);background:#fff;border-radius:999px;padding:.35rem .9rem;
+  font-weight:700;font-size:.85rem;color:var(--accent);cursor:pointer;min-height:36px;white-space:nowrap}
+#sheet{position:fixed;z-index:50;left:50%;top:50%;transform:translate(-50%,-50%);width:min(460px,calc(100vw - 24px));
+  max-height:calc(100vh - 32px);overflow-y:auto;display:none;background:#fff;border-radius:22px;padding:18px;
+  box-shadow:0 20px 60px rgba(40,20,30,.25)}
+#sheet.on{display:block;animation:rise .2s var(--ease)}
+#sheet h3{margin:0 0 12px}
+@media (max-width:520px){#sheet{top:auto;bottom:0;left:0;transform:none;width:100%;border-radius:22px 22px 0 0}}
+.sh-row{display:grid;gap:8px;margin-bottom:12px}
+.linkbox{display:flex;gap:6px}.linkbox input{flex:1;font-size:.85rem}.linkbox button{width:auto;padding:0 14px}
+.card-preview{width:100%;border-radius:14px;box-shadow:0 6px 20px rgba(80,30,60,.12)}
+.go.dl{display:grid;place-items:center;text-decoration:none;margin-top:8px}
+.recent{display:grid;gap:6px}
+.recent a{display:flex;justify-content:space-between;gap:8px;text-decoration:none;color:var(--ink);background:var(--soft);
+  border-radius:12px;padding:.55rem .8rem;font-weight:700;font-size:.9rem}
+.recent small{color:var(--muted);font-weight:500}
+
+/* 탭 머리 그림 */
+.hero-art{width:96px;height:68px;display:block;margin:0 auto 4px;fill:none;stroke:var(--accent);stroke-width:3;
+  stroke-linecap:round;stroke-linejoin:round}
+.hero-art .soft{stroke:var(--accent2)}
+
+/* 오행 상생도 */
+.ohaeng{display:grid;grid-template-columns:200px 1fr;gap:10px;align-items:center;margin-top:10px}
+.ohaeng svg{width:200px;height:200px}
+.o-name{font-size:15px;font-weight:900;fill:#fff;text-anchor:middle;dominant-baseline:middle}
+.o-n{font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:middle}
+@media (max-width:420px){.ohaeng{grid-template-columns:1fr}.ohaeng svg{margin:0 auto}}
+
+/* 자미두수 명반 */
+.mingpan{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,auto);gap:4px}
+.pal{background:var(--soft);border-radius:10px;padding:5px 5px 4px;font-size:.7rem;line-height:1.35;min-height:92px;
+  display:flex;flex-direction:column;border:2px solid transparent}
+.pal.now{border-color:var(--accent)}
+.pal.ming .pal-top b{color:var(--accent)}
+.pal-top{display:flex;justify-content:space-between;align-items:center}
+.pal-top b{font-size:.74rem}
+.yr{background:var(--accent);color:#fff;border-radius:6px;padding:0 4px;font-size:.62rem;font-weight:800}
+.pal-main{font-weight:800;font-size:.78rem;margin-top:2px}
+.pal-min{color:var(--muted);font-size:.64rem;flex:1}
+.pal-bot{display:flex;justify-content:space-between;color:var(--faint);font-size:.62rem}
+.pal-center{grid-row:2/4;grid-column:2/4;background:#fff;border:1px dashed var(--line);border-radius:12px;padding:10px;
+  display:flex;flex-direction:column;justify-content:center;gap:2px;text-align:center;font-size:.76rem}
+.pal-center b{font-size:.9rem;margin-bottom:4px}
+.hua{display:inline-block;border-radius:5px;padding:0 3px;margin-left:3px;font-size:.62rem;font-weight:900;color:#fff;vertical-align:1px}
+.h-rok{background:#2a9a6e}.h-gwon{background:#3b77c9}.h-gwa{background:#b7852c}.h-gi{background:#c2413b}
+.legend{font-size:.72rem;color:var(--muted);margin-top:10px;line-height:1.9}
+.legend .hua{margin:0 2px 0 6px}
+.legend .ln{display:inline-block;width:16px;height:3px;border-radius:2px;margin:0 3px 3px 8px;vertical-align:middle}
+
+/* 출생 차트 */
+.wheel{width:100%;max-width:340px;display:block;margin:0 auto}
+.w-sign{font-size:11px;fill:#6b5e68;text-anchor:middle;dominant-baseline:middle;font-weight:700}
+.w-body{font-size:11px;fill:#fff;text-anchor:middle;dominant-baseline:middle;font-weight:900}
+.w-retro{font-size:9px;fill:#c2413b;font-weight:900}
+.w-asc{font-size:10px;fill:var(--accent);font-weight:900;text-anchor:end;dominant-baseline:middle}
+.w-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78rem;margin-top:8px;justify-content:center}
+.w-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

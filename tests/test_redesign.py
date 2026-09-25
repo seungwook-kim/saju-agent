@@ -249,3 +249,32 @@ def test_domain_phrases_are_casual():
     from pathlib import Path
     src = Path(__file__).resolve().parent.parent / "love_fortune" / "domains.py"
     assert not re.findall(r'"[^"\n]*다"', src.read_text(encoding="utf-8"))
+
+
+def test_share_roundtrip(server):
+    rep = _post(server + "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30",
+                                            "sex": "female", "city": "서울"})
+    sh = _post(server + "/api/v2/share", {"token": rep["token"]})
+    assert sh["path"] == "/r/" + sh["id"]
+    with urllib.request.urlopen(server + sh["path"]) as r:
+        assert "app.js" in r.read().decode("utf-8")
+    got = _post(server + "/api/v2/shared", {"id": sh["id"]})
+    assert got["facts"] == rep["facts"] and got["token"] != rep["token"]
+    blob = json.dumps(got, ensure_ascii=False)
+    assert "1990-05-05" not in blob and "서울" not in blob
+    ch = _post(server + "/api/v2/chapter", {"token": got["token"], "tab": "life", "chapter": "wonguk"})
+    assert ch["blocks"]
+    for bad in ("../x", "short"):
+        with pytest.raises(urllib.error.HTTPError):
+            _post(server + "/api/v2/shared", {"id": bad})
+
+
+def test_chart_data_for_pictures(sheet):
+    w = sheet["natal"]["astro"]["wheel"]
+    assert len(w["bodies"]) == 7 and w["asc"] is not None
+    assert all(0 <= b["lon"] < 360 for b in w["bodies"])
+    pals = sheet["natal"]["ziwei"]["palaces"]
+    assert sorted(p["branch"] for p in pals) == sorted("자축인묘진사오미신유술해")
+    assert sum(p["now_daxian"] for p in pals) == 1 and sum(p["liunian"] for p in pals) == 1
+    f = facts.build(BIRTH, None, 0, "female", "서울", TARGET)
+    assert f["natal"]["astro"]["wheel"]["asc"] is None and f["natal"]["ziwei"] is None

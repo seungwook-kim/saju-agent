@@ -106,7 +106,7 @@ TABS = {
         "sub": "타고난 결과 앞으로의 흐름 (연애·일·돈)",
         "chapters": [
             {"id": "wonguk", "emoji": "📜", "title": "원국 완전 풀이",
-             "widgets": ["wonguk"], "pick": ["natal"],
+             "widgets": ["wonguk", "mingpan", "wheel"], "pick": ["natal"],
              "ask": "원국 전체를 풀어 줘: 일간, 오행 분포, 신강약·격국·용신, 신살·귀인, 자미 명궁·사화, 점성 태양·달·상승궁."},
             {"id": "love_nature", "emoji": "💞", "title": "타고난 연애의 결",
              "widgets": ["animals"],

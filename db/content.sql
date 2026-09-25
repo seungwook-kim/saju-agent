@@ -26,3 +26,12 @@ CREATE INDEX IF NOT EXISTS chapter_tab ON chapter (tab, chapter);
 
 -- 예전 버전의 삽화 목록 표는 쓰지 않는다
 DROP TABLE IF EXISTS portrait;
+
+-- 저장·공유한 결과. id = 무작위 링크 이름. 계산 결과(사실표)와 상담용 요약만 둔다.
+-- 생년월일·시간·도시·이름은 넣지 않는다. 다만 사주 원국은 들어 있어서, 링크를 받은 사람은 원국을 볼 수 있다.
+CREATE TABLE IF NOT EXISTS share (
+    id          TEXT PRIMARY KEY,
+    facts_json  TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    created     REAL NOT NULL
+);

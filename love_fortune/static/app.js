@@ -37,6 +37,7 @@ $('fMain').addEventListener('submit',async e=>{
   try{
     const j=await postJSON('/api/v2/report',q);
     S.person=q;                         // 궁합·길일에 다시 쓴다 (브라우저 메모리에만)
+    S.shareId=null;
     Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,
       chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today'});
     showResult();
@@ -67,7 +68,7 @@ function openTab(tab){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const chips=['일주 '+f.natal.day_pillar,'만 '+f.meta.age+'세',f.meta.sex,'오늘 '+f.meta.target];
   if(!f.meta.hour_known) chips.push('시간 모름: 시주 제외');
-  let h='<div class="tab-hero"><div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
+  let h='<div class="tab-hero">'+heroArt(tab)+'<div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
     '<p class="hero-sub">'+esc(o.sub)+'</p><div class="meta-chips">'+
     chips.map((c,i)=>'<span class="chip'+(i===0?' a':'')+'">'+esc(c)+'</span>').join('')+'</div></div>';
   o.chapters.forEach((c,i)=>{
@@ -159,6 +160,8 @@ function widget(w){
     case 'calendar': return calendar(f[arg].months,arg);
     case 'years': return years(f[arg].years,arg);
     case 'decades': return decades(f.life,f.meta.age);
+    case 'mingpan': return mingpan(f.natal.ziwei,f.meta);
+    case 'wheel': return wheel(f.natal.astro.wheel);
   }
   return '';
 }
@@ -179,9 +182,7 @@ function wonguk(n){
   row('지장간',p=>'<span class="sm">'+p.hidden.map(esc).join(' ')+'</span>');
   row('12운성',p=>'<span class="sm">'+esc(p.stage)+'</span>');
   h+='</div>';
-  const total=Object.values(n.elements).reduce((a,b)=>a+b,0)||1;
-  h+='<div class="elbars">'+Object.entries(n.elements).map(([e,v])=>
-    '<div class="elbar"><b class="el-'+e+'">'+e+'</b><div class="t"><i data-w="'+Math.round(v/total*100)+'"></i></div><span>'+v+'</span></div>').join('')+'</div>';
+  h+=ohaeng(n.elements);
   const chips=[['일간 '+n.ilgan,'a'],[n.strength,''],[n.geguk,''],['용신 '+n.yongsin,'']];
   h+='<div class="chips">'+chips.map(([c,k])=>'<span class="chip '+k+'">'+esc(c)+'</span>').join('')+'</div>';
   const tags=[].concat(n.guiin||[],n.sinsal||[],n.pairs||[]);
@@ -300,8 +301,8 @@ const TOOLS={
   pick:{title:'길일 고르기',hand:'Lucky day',theme:'mint',sub:'기간 안에서 나에게 좋은 날 순서'},
 };
 S.tools={};
-function toolHero(o){
-  return '<div class="tab-hero"><div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
+function toolHero(o,tab){
+  return '<div class="tab-hero">'+heroArt(tab)+'<div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
     '<p class="hero-sub">'+esc(o.sub)+'</p></div>';
 }
 function openTool(tab){
@@ -309,7 +310,7 @@ function openTool(tab){
   const o=TOOLS[tab];
   document.body.dataset.theme=o.theme;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
-  let h=toolHero(o);
+  let h=toolHero(o,tab);
   if(tab==='match'){
     const sex2=S.person&&S.person.sex==='female'?'male':'female';
     h+='<form class="card form" id="fMatch" autocomplete="off"><h4 style="margin:0">상대의 정보</h4>'+
@@ -342,7 +343,11 @@ document.addEventListener('submit',async e=>{
   const id=e.target.id;
   if(id!=='fMatch'&&id!=='fPick') return;
   e.preventDefault();
-  const form=e.target,btn=form.querySelector('.go'),q={...(S.person||{})};
+  if(!S.person){                      // 저장 링크로 연 결과엔 생년월일이 없다 (저장하지 않으니까)
+    $('toolOut').innerHTML='<div class="err">저장 링크로 연 결과라 내 생년월일이 없어. 처음 화면에서 입력하면 궁합·길일을 볼 수 있어.</div>';
+    return;
+  }
+  const form=e.target,btn=form.querySelector('.go'),q={...S.person};
   new FormData(form).forEach((v,k)=>{q[k]=v;});
   if(id==='fMatch'&&!q.birth2){$('toolOut').innerHTML='<div class="err">상대의 생년월일을 골라 줘.</div>';return;}
   btn.disabled=true;const label=btn.textContent;btn.textContent='계산하는 중...';
@@ -544,3 +549,70 @@ document.addEventListener('change',async e=>{
   }
 });
 document.querySelectorAll('[data-dp]').forEach(b=>dpRefresh(b.form,b.dataset.dp));
+
+// ---------------- 저장·공유
+// 링크: 서버에 계산 결과(사실표)만 저장하고 /r/<id> 로 다시 연다. 이 브라우저의 '최근 저장' 목록에는 id 와 이름표만 둔다.
+const RECENT_KEY='saju.recent';
+function recentList(){try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');}catch(_){return [];}}
+function recentSave(item){
+  try{const l=recentList().filter(x=>x.id!==item.id);l.unshift(item);localStorage.setItem(RECENT_KEY,JSON.stringify(l.slice(0,8)));}catch(_){}
+}
+function renderRecent(){
+  const l=recentList();
+  $('recent').innerHTML=l.length?'<div class="card"><h4 style="margin:0 0 .5rem">최근 저장한 결과</h4><div class="recent">'+
+    l.map(x=>'<a href="/r/'+encodeURIComponent(x.id)+'">'+esc(x.label)+'<small>'+esc(x.date)+'</small></a>').join('')+'</div></div>':'';
+}
+function openSheet(){$('sheet').classList.add('on');$('shScrim').classList.add('on');$('shLinkOut').innerHTML='';$('shCardOut').innerHTML='';}
+function closeSheet(){$('sheet').classList.remove('on');$('shScrim').classList.remove('on');}
+$('btnShare').addEventListener('click',openSheet);
+$('shClose').addEventListener('click',closeSheet);
+$('shScrim').addEventListener('click',closeSheet);
+$('shLink').addEventListener('click',async()=>{
+  const b=$('shLink');b.disabled=true;
+  try{
+    const j=S.shareId?{id:S.shareId,path:'/r/'+S.shareId}:await postJSON('/api/v2/share',{token:S.token});
+    S.shareId=j.id;
+    const url=location.origin+j.path,f=S.facts;
+    recentSave({id:j.id,label:'일주 '+f.natal.day_pillar+' · 만 '+f.meta.age+'세 '+f.meta.sex,date:f.meta.target});
+    $('shLinkOut').innerHTML='<div class="linkbox"><input readonly value="'+esc(url)+'"><button class="ghost" type="button" id="shCopy">복사</button></div>'+
+      '<p class="fine">이 주소로 언제든 다시 열 수 있어. 오늘 운세 부분은 저장한 날('+esc(f.meta.target)+') 기준이야.</p>';
+    $('shCopy').onclick=async()=>{try{await navigator.clipboard.writeText(url);$('shCopy').textContent='복사됨';}catch(_){$('shLinkOut').querySelector('input').select();}};
+  }catch(e){$('shLinkOut').innerHTML='<div class="err">'+esc(e.message)+'</div>';}
+  finally{b.disabled=false;}
+});
+function cardInfo(){
+  const f=S.facts,t=f.today,tab=S.tab,o=S.outline[tab]||TOOLS[tab]||{title:'종합 사주',hand:''};
+  const chips=['일주 '+f.natal.day_pillar,...(t.keywords||[]).slice(0,2)];
+  if(tab==='today') return {title:o.title,hand:o.hand,score:t.scores.total,head:t.heads.total,
+    lines:['연애 '+t.scores.love+' · 직장 '+t.scores.career+' · 금전 '+t.scores.money,t.focus],chips};
+  if(t.domains[tab]){const d=t.domains[tab];return {title:o.title,hand:o.hand,score:d.score,head:d.head,lines:d.reasons.slice(0,2),chips};}
+  if(tab==='life') return {title:o.title,hand:o.hand,score:null,head:f.natal.character.split('. ')[0]+'.',
+    lines:[f.natal.geguk_mean,'용신 '+f.natal.yongsin],chips:['일간 '+f.natal.ilgan,f.natal.strength,f.natal.geguk]};
+  const r=$('toolOut')&&$('toolOut').querySelector('.ring span');
+  return {title:o.title,hand:o.hand,score:r?+r.textContent:null,
+    head:($('toolOut')&&$('toolOut').querySelector('.gauge b, .gauge div div'))?.textContent||o.sub||'',lines:[],chips};
+}
+$('shCard').addEventListener('click',()=>{
+  const c=shareCard(cardInfo());
+  c.toBlob(async blob=>{
+    const file=new File([blob],'saju-'+S.tab+'.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:'종합 사주'});return;}catch(_){}
+    }
+    const url=URL.createObjectURL(blob);
+    $('shCardOut').innerHTML='<img class="card-preview" src="'+url+'" alt="공유 카드 미리보기">'+
+      '<a class="go dl" href="'+url+'" download="saju-'+S.tab+'.png">이미지 내려받기</a>';
+  },'image/png');
+});
+// 저장 링크로 들어오면 그 결과를 연다
+(async function openShared(){
+  renderRecent();
+  const m=location.pathname.match(/^\/r\/([A-Za-z0-9_-]{8,16})$/);
+  if(!m) return;
+  try{
+    const j=await postJSON('/api/v2/shared',{id:m[1]});
+    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,shareId:m[1],
+      chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today',person:null});
+    showResult();
+  }catch(e){$('homeErr').innerHTML='<div class="err">'+esc(e.message)+'</div>';}
+})();

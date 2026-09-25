@@ -37,6 +37,27 @@ def today_domain(ma: dict, dom: str) -> dict:
             "tips": list(d.get("tips") or []), "avoid": d.get("avoid") or ""}
 
 
+def _wheel(birth: date, hour: int | None, minute: int, city: str) -> dict:
+    """출생 차트 원 그림용: 행성 황경·역행, 상승점 황경(시간 미상이면 None), 각도 관계."""
+    from .astro import ASPECTS, BODY_KR, natal_chart
+    nc = natal_chart(birth, hour, minute, city)
+    pos = nc["positions"]
+    bodies = [{"key": b, "name": BODY_KR[b], "lon": p["lon"], "sign": p["sign"], "retro": p["retro"]}
+              for b, p in pos.items()]
+    aspects = []
+    keys = list(pos)
+    for i in range(len(keys)):
+        for k in range(i + 1, len(keys)):
+            diff = abs(pos[keys[i]]["lon"] - pos[keys[k]]["lon"])
+            diff = min(diff, 360.0 - diff)
+            for ang, name, orb in ASPECTS:
+                if abs(diff - ang) <= orb:
+                    aspects.append({"a": keys[i], "b": keys[k], "type": name})
+                    break
+    return {"bodies": bodies, "asc": nc["asc"]["lon"] if hour is not None else None,
+            "aspects": aspects}
+
+
 def build(birth: date, hour: int | None, minute: int, sex: str, city: str, target: date) -> dict:
     natal = four_pillars(birth, hour, minute, city)
     ma = detailed_reading(birth, hour, minute, sex, city, target)
@@ -70,8 +91,13 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
     palaces = []
     if zw:
         for p in zw["palaces"]:
+            dx = p["daxian"]
             palaces.append({"name": p["name"], "ganzhi": p["stem_kr"] + p["branch_kr"],
-                            "stars": list(p["stars"]), "daxian": list(p["daxian"]) if p["daxian"] else None})
+                            "branch": p["branch_kr"], "stars": list(p["stars"]),
+                            "hua": dict(p["hua"]), "daxian": list(dx) if dx else None,
+                            # 지금 걸린 자리: 대한(세는나이 기준), 올해 유년
+                            "now_daxian": bool(dx and dx[0] <= zw["xusui"] <= dx[1]),
+                            "liunian": bool(p["liunian"])})
     base = {
         "meta": {"target": target.isoformat(), "sex": "남성" if sex == "male" else "여성",
                  "age": age, "age_kr": target.year - birth.year + 1, "hour_known": hour is not None},
@@ -95,7 +121,8 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
             "astro": {"sun": ast["sun"]["sign"], "moon": ast["moon"]["sign"], "venus": ast["venus"]["sign"],
                       "asc": ast["ascendant"] if hour is not None else None,
                       "mc": ast["mc"] if hour is not None else None,
-                      "aspects": list(ast["aspects"])[:8]},
+                      "aspects": list(ast["aspects"])[:8],
+                      "wheel": _wheel(birth, hour, minute, city)},
         },
         "today": {
             "agreement": ma["today"]["agreement"], "focus": ma["today"]["focus"],

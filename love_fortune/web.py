@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import html
+import re
 import json
 import os
 import secrets
@@ -1898,7 +1899,10 @@ def app_page() -> str:
 from pathlib import Path  # noqa: E402
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+SHARE_ID = re.compile(r"[A-Za-z0-9_-]{8,16}")
+SHARE_PATH = re.compile(r"/r/[A-Za-z0-9_-]{8,16}")
 STATIC_FILES = {"app.html": "text/html; charset=utf-8", "app.css": "text/css; charset=utf-8",
+                "viz.js": "text/javascript; charset=utf-8",
                 "app.js": "text/javascript; charset=utf-8"}
 
 
@@ -1949,8 +1953,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
-        if path == "/":
-            self._static("app.html")
+        if path == "/" or SHARE_PATH.fullmatch(path):
+            self._static("app.html")          # 저장 링크(/r/<id>)도 같은 화면이 열어서 불러온다
         elif path == "/classic":
             self._send(app_page().encode("utf-8"),
                        "text/html; charset=utf-8")
@@ -2044,6 +2048,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/pick": self._api_pick, "/download": self._download,
             "/api/chat": self._chat,
             "/api/v2/report": self._v2_report, "/api/v2/chapter": self._v2_chapter,
+            "/api/v2/share": self._v2_share, "/api/v2/shared": self._v2_shared,
         }
         route = routes.get(self.path)
         if route is None:
@@ -2147,6 +2152,26 @@ class Handler(BaseHTTPRequestHandler):
             prefetch.submit_all(f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
                     "rules": chapters.rule_all(f), "ai": ai_on})
+
+    def _v2_share(self, q: dict):
+        """지금 결과를 저장하고 링크 이름을 준다 (사실표·상담 요약만, 개인정보 없음)."""
+        from . import content_store
+        ctx = self._v2_ctx(q)
+        share_id = secrets.token_urlsafe(8)
+        content_store.put_share(share_id, ctx["facts"], ctx["summary"])
+        self._json({"id": share_id, "path": f"/r/{share_id}"})
+
+    def _v2_shared(self, q: dict):
+        """저장한 결과를 다시 연다. 챕터·상담이 이어지게 새 토큰을 붙인다."""
+        from . import chapters, content_store
+        share_id = str(q.get("id", ""))
+        got = content_store.get_share(share_id) if SHARE_ID.fullmatch(share_id) else None
+        if not got:
+            raise ValueError("없는 링크야")
+        f = got["facts"]
+        token = _remember("", got["summary"], f["meta"]["target"], facts=f)
+        self._json({"token": token, "facts": f, "outline": chapters.outline(),
+                    "rules": chapters.rule_all(f), "ai": _ai_on(), "shared": True})
 
     def _v2_ctx(self, q: dict) -> dict:
         ctx = _context(str(q.get("token", "")))
