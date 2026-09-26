@@ -418,8 +418,13 @@ def life(f: dict, ch: str) -> dict:
             cards("세 시기", [(p.split(":")[0], p.split(":", 1)[-1]) for p in Li["phases"]]),
         ])
     if ch == "dayun":
+        rel = Li.get("dayun_rel") or []
+        now = next((r for r in rel if r["now"]), None)
         return chapter("대운 여덟 걸음", dayun_now(n), [
+            callout(f"지금 대운과 원국: {now['line']}") if now else None,
             steps("10년씩 걷는 큰 흐름", [(s.split(":")[0], dayun_plain(s.split(":", 1)[-1].strip())) for s in Li["dayun_narr"]]),
+            cards("대운이 원국과 만나는 자리", [(f"{r['ganzhi']}운 ({r['from']}~{r['to']}세)", r["line"].split("운은 ", 1)[-1])
+                                         for r in rel]),
         ])
     return chapter("평생 흐름 정리", current, [
         text("타고난 그릇", strength_line(n)),

@@ -204,6 +204,8 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
     _chart = natal_chart(birth, hour, minute, city)
     _nc = _chart["positions"]
     _du = _dayun(birth, hour, minute, sex, city, target)
+    from .dayun_rel import build as _dayun_rel
+    base["life"]["dayun_rel"] = _dayun_rel(natal["pillars"], _du)
     base["past"] = look_back(birth, natal, sex, _du, zw, _nc["saturn"]["lon"], _nc["jupiter"]["lon"], target)
     base["newyear"] = newyear.build(birth, hour, minute, sex, city, target, natal, _du,
                                     _chart["asc"]["sign"] if hour is not None else None,

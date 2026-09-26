@@ -181,6 +181,18 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .years .y p{font-size:.72rem;color:var(--muted);margin:.2rem 0 0}
 
 /* 부품: 연대 */
+/* 대운 x 원국 표 */
+.drel{overflow-x:auto}
+.drel table{width:100%;border-collapse:separate;border-spacing:0 4px;font-size:.85rem}
+.drel th{font-weight:600;color:var(--muted);font-size:.78rem;padding:2px 4px}
+.drel td{background:#fff;padding:7px 4px;text-align:center;white-space:nowrap}
+.drel td:first-child{border-radius:12px 0 0 12px}.drel td:last-child{border-radius:0 12px 12px 0}
+.drel td small{display:block;color:var(--accent);font-weight:700;font-size:.7rem}
+.drel tr.now td{background:var(--soft)}
+.rb{display:inline-block;border-radius:6px;padding:1px 5px;margin:1px;font-size:.74rem;font-weight:700}
+.rb.good{background:#dff4ea;color:#1f7a55}.rb.hard{background:#fde2e2;color:#b42318}
+.rb.mid{background:#fff1dc;color:#9a5b00}.rb.none{color:var(--faint);font-weight:400}
+.drel .fine{margin-top:6px;line-height:1.7}
 .timeline{display:grid;gap:8px}
 .timeline .row{background:#fff;border-radius:14px;padding:10px 14px;font-size:.9rem}
 

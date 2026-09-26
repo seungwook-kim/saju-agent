@@ -170,6 +170,7 @@ function widget(w){
     case 'calendar': return calendar(f[arg].months,arg);
     case 'years': return years(f[arg].years,arg);
     case 'decades': return decades(f.life,f.meta.age);
+    case 'dayunrel': return dayunRel(f.life.dayun_rel||[]);
     case 'mingpan': return mingpan(f.natal.ziwei,f.meta);
     case 'ny': return nyCard(f.newyear);
     case 'ilju': return iljuCard(f.natal.ilju);
@@ -303,6 +304,20 @@ function decades(life,age){
     return '<div class="row"'+(now?' style="outline:2px solid var(--accent2)"':'')+'><b>'+d.range[0]+'~'+d.range[1]+'세'+(now?' · 지금':'')+'</b><br>'+
       esc(d.parts[1]||d.parts[0]||'')+'</div>';
   }).join('')+'</div>';
+}
+
+// 대운 x 원국: 대운마다 해·달·날·시 자리와 합(손잡음)·충(부딪침)·형·파·해
+const REL_SHORT={'천간합':'간합','천간충':'간충','합':'합','삼합':'삼합','충':'충','형':'형','파':'파','해':'해'};
+const REL_TONE={'천간합':'good','합':'good','삼합':'good','충':'hard','천간충':'hard','형':'mid','파':'mid','해':'mid'};
+function dayunRel(rows){
+  if(!rows.length) return '';
+  const cols=[['year','해'],['month','달'],['day','날'],['hour','시']].filter(c=>rows[0].cells[c[0]]);
+  const cell=ks=>ks&&ks.length?ks.map(k=>'<span class="rb '+REL_TONE[k]+'">'+REL_SHORT[k]+'</span>').join(''):'<span class="rb none">·</span>';
+  return '<div class="drel"><table><thead><tr><th>나이</th><th>대운</th>'+cols.map(c=>'<th>'+c[1]+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr'+(r.now?' class="now"':'')+'><td>'+r.from+'~'+r.to+(r.now?'<small>지금</small>':'')+'</td><td><b>'+esc(r.ganzhi)+'</b></td>'+
+      cols.map(c=>'<td>'+cell(r.cells[c[0]])+'</td>').join('')+'</tr>').join('')+
+    '</tbody></table><p class="fine">해·달·날·시는 태어난 해(집안·윗사람)·달(일터)·날(나와 배우자)·시(자녀·앞날) 자리야. '+
+    '<span class="rb good">합</span>은 손잡음, <span class="rb hard">충</span>은 부딪침, <span class="rb mid">형·파·해</span>는 조임·틀어짐·서운함. 간합·간충은 하늘 글자끼리야.</p></div>';
 }
 
 // ---------------- 애니메이션

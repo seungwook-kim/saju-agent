@@ -166,8 +166,9 @@ TABS = {
              "widgets": ["decades"], "pick": ["life.phases", "life.decades", "life.current"],
              "ask": "연대별 흐름(청년·중년·장년)을 풀고, 지금 연대에서 중요한 것을 말해 줘."},
             {"id": "dayun", "emoji": "🌊", "title": "대운 여덟 걸음",
-             "widgets": [], "pick": ["life.dayun_narr", "natal.dayun"],
-             "ask": "대운(10년 단위 큰 흐름) 여덟 걸음을 차례로 풀고, 지금 대운의 과제를 말해 줘."},
+             "widgets": ["dayunrel"], "pick": ["life.dayun_narr", "life.dayun_rel", "natal.dayun"],
+             "ask": "대운(10년 단위 큰 흐름) 여덟 걸음을 차례로 풀고, 지금 대운의 과제를 말해 줘. "
+                    "각 대운이 원국의 어느 자리(해·달·날·시)와 합·충·형·파·해로 만나는지는 사실표(life.dayun_rel) 그대로만 쓴다."},
             {"id": "final", "emoji": "✨", "title": "평생 흐름 최종 진단",
              "widgets": [], "pick": ["natal", "life.current", "love.best", "career.best", "money.best"],
              "ask": "인생 전체 흐름의 결론과 지금 세울 방향을 연애·일·돈을 함께 놓고 말해 줘."},
