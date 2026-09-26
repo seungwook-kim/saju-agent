@@ -3,7 +3,6 @@ from datetime import date
 
 from love_fortune.cli import build_report
 from love_fortune.synthesis import detailed_reading
-from love_fortune.web import api_report_data
 
 BIRTH, TARGET = date(1995, 2, 28), date(2026, 9, 24)
 
@@ -39,10 +38,3 @@ def test_report_order_today_first_then_natal_then_period():
     assert "태양은 지금" not in text and "태어날 때" in text
     assert "오미쿠지" not in text.split("[용어 풀이")[0]
     assert "## 오늘 세 체계 종합" in md and "1995" not in md and "부산" not in md
-
-
-def test_web_data_has_today_and_monthly():
-    d = api_report_data(BIRTH, 12, 0, "male", "부산", TARGET)
-    assert d["today"]["systems"] and d["today"]["almanac"] and len(d["monthly"]) == 12
-    assert "omikuji" not in d["luck"]
-    assert d["scores"]["love"]["score"] == detailed_reading(BIRTH, 12, 0, "male", "부산", TARGET)["love"]["score"]

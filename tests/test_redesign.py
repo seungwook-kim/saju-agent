@@ -120,9 +120,7 @@ def test_v2_api_flow(server):
 def test_static_paths(server):
     with urllib.request.urlopen(server + "/") as r:
         assert "app.js" in r.read().decode("utf-8")
-    with urllib.request.urlopen(server + "/classic") as r:
-        assert r.status == 200
-    for bad in ("/static/../web.py", "/static/x.js", "/img/abc.webp", "/api/v2/portrait"):
+    for bad in ("/classic", "/static/../web.py", "/static/x.js", "/img/abc.webp", "/api/v2/portrait"):
         with pytest.raises(urllib.error.HTTPError) as e:
             urllib.request.urlopen(server + bad)
         assert e.value.code == 404

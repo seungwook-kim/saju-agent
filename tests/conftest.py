@@ -1,0 +1,4 @@
+"""시험은 AI 없이 돈다 (계산 풀이만). 서버 시험이 AI 미리 만들기를 부르지 않게 한다."""
+import os
+
+os.environ["LOVE_FORTUNE_AI"] = "0"

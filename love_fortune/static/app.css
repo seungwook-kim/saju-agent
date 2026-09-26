@@ -54,7 +54,6 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .go:disabled{opacity:.6}
 .ghost{min-height:44px;border:1px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;width:100%}
 .fine{font-size:.75rem;color:var(--faint);margin:0}
-.legacy{text-align:center;font-size:.85rem}
 .err{background:#fff1f0;border:1px solid #f3b8b3;border-radius:14px;padding:.8rem 1rem;font-size:.9rem;margin:10px 0}
 
 /* 결과: 상단 */

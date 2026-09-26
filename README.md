@@ -163,13 +163,12 @@ python -m pytest
   - 미리 만들기 (`prefetch.py`): 입력하자마자 모든 탭의 AI 풀이를 총운부터 대기열에 넣고,
     화면이 연 탭의 챕터를 맨 앞으로 당긴다. 새 사람 한 명당 AI 호출이 최대 33번 생긴다 (챕터 수만큼).
     끄려면 `LOVE_FORTUNE_PREFETCH=0` (연 탭만 만든다).
-- 예전 화면은 `http://localhost:8765/classic` 에 그대로 있다 (다운로드·OpenAI 호환 LLM 연결 등).
 - 맨 아래 **AI 상담**: 리포트를 아는 상담 에이전트와 대화 (구독 AI 모델, 실패 시 로컬 규칙 에이전트)
   - 도구는 전부 끄고, 대화는 저장하지 않으며, 생년월일을 뺀 요약만 보낸다.
   - 모델·명령: 환경변수 `LOVE_FORTUNE_AI_MODEL`(기본 claude-sonnet-5), `LOVE_FORTUNE_AI_CLI`
   - 동시에 도는 AI 호출 수: `LOVE_FORTUNE_AI_PARALLEL`(기본 3, 미리 만들기는 한 자리를 상담용으로 남긴다).
     `LOVE_FORTUNE_AI=0` 이면 AI 없이 기본 풀이만.
-  - 예전 화면의 채팅창에서는 OpenAI 호환 LLM(예: Ollama `http://localhost:11434/v1`)도 연결할 수 있다.
+  - 채팅 API(`/api/chat`)에 `backend=openai`·`endpoint`·`api_key` 를 주면 OpenAI 호환 LLM(예: Ollama `http://localhost:11434/v1`)도 부를 수 있다.
 
 ### AI 연결 방식 바꾸기 (공개 서비스용 OpenRouter)
 

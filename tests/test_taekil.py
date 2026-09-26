@@ -4,7 +4,7 @@ from datetime import date
 
 from love_fortune.taekil import pick_dates, MAX_DAYS
 from love_fortune.cli import build_pick_report
-from love_fortune.web import render_pick_page, local_agent_reply
+from love_fortune.web import pick_summary, local_agent_reply
 
 BIRTH = date(1995, 2, 28)
 S = date(2026, 10, 1)
@@ -65,8 +65,8 @@ def test_pick_report_clean():
 def test_pick_web_and_chat():
     from love_fortune.taekil import pick_dates as _pd
     r = _pd(BIRTH, 12, 0, "male", "부산", S, E, "career")
-    page, summary = render_pick_page(r, "tok777")
-    assert "tok777" in page and "길일" in page
-    assert "1995" not in page and "부산" not in page
+    summary = pick_summary(r)
+    assert "택일" in summary and "직장 기준" in summary
+    assert "1995" not in summary and "부산" not in summary
     reply = local_agent_reply("좋은 날 골라줘", summary)
     assert "택일" in reply or "상위" in reply

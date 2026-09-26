@@ -245,29 +245,29 @@ def _post(base, path, obj):
 
 
 def test_api_report_lunar_input(server):
-    code, j = _post(server, "/api/report", {"birth": "1995-01-29", "calendar": "lunar",
+    code, j = _post(server, "/api/v2/report", {"birth": "1995-01-29", "calendar": "lunar",
                                             "birth_time": "12:00", "sex": "male", "city": "부산"})
     assert code == 200 and j["token"]
 
 
 def test_api_errors_are_readable(server):
-    code, j = _post(server, "/api/report", {"birth": "2023-03-01", "calendar": "lunar",
+    code, j = _post(server, "/api/v2/report", {"birth": "2023-03-01", "calendar": "lunar",
                                             "leap": "1", "sex": "male"})
     assert code == 400 and "윤3월" in j["error"]
-    code, j = _post(server, "/api/report", {"birth": "1995-02-28", "sex": "모름"})
+    code, j = _post(server, "/api/v2/report", {"birth": "1995-02-28", "sex": "모름"})
     assert code == 400 and "성별" in j["error"]
-    code, j = _post(server, "/api/report", {"birth": "1995-02-28", "birth_time": "25:00"})
+    code, j = _post(server, "/api/v2/report", {"birth": "1995-02-28", "birth_time": "25:00"})
     assert code == 400
 
 
 def test_api_report_mu_year(server):
-    code, j = _post(server, "/api/report", {"birth": "1998-06-15", "birth_time": "10:00",
+    code, j = _post(server, "/api/v2/report", {"birth": "1998-06-15", "birth_time": "10:00",
                                             "sex": "female", "city": "서울"})
     assert code == 200
 
 
-def test_form_error_page_does_not_crash(server):
-    req = urllib.request.Request(server + "/report", data="birth=abc".encode(),
+def test_form_error_is_readable(server):
+    req = urllib.request.Request(server + "/api/v2/report", data="birth=abc".encode(),
                                  headers={"Content-Type": "application/x-www-form-urlencoded"})
     with pytest.raises(urllib.error.HTTPError) as ei:
         urllib.request.urlopen(req, timeout=30)
@@ -275,13 +275,25 @@ def test_form_error_page_does_not_crash(server):
     assert "YYYY-MM-DD" in ei.value.read().decode("utf-8")
 
 
+def test_old_pages_are_gone(server):
+    for path in ("/classic",):
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(server + path, timeout=30)
+        assert e.value.code == 404
+    for path in ("/report", "/match", "/pick", "/download", "/api/report"):
+        req = urllib.request.Request(server + path, data=b"{}", headers={"Content-Type": "application/json"})
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req, timeout=30)
+        assert e.value.code == 404, path
+
+
 def test_birth_is_picked_not_typed():
     import re
-    from love_fortune.web import app_page
-    h = app_page()
+    from love_fortune.web import STATIC_DIR
+    h = (STATIC_DIR / "app.html").read_text(encoding="utf-8") + (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     # 생년월일은 글자·날짜 입력칸이 아니라 누르는 버튼 + 숨은 값이다
     assert not re.search(r'name="birth2?" type="(?:text|date)"', h)
-    assert h.count('class="datebtn" data-dp=') == 4
+    assert h.count('class="datebtn" data-dp=') == 2
     assert 'name="leap" type="checkbox"' not in h
 
 
@@ -294,7 +306,7 @@ def test_lunar_year_api(server):
 
 
 def test_chat_local_backend(server):
-    code, j = _post(server, "/api/report", {"birth": "1995-02-28", "sex": "male"})
+    code, j = _post(server, "/api/v2/report", {"birth": "1995-02-28", "sex": "male"})
     code, j = _post(server, "/api/chat", {"token": j["token"], "message": "오늘 연애운 어때",
                                           "backend": "local"})
     assert code == 200 and j["mode"] == "local" and j["reply"]

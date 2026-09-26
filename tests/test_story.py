@@ -5,7 +5,7 @@ from datetime import date
 from love_fortune.story import build_stories
 from love_fortune.synthesis import detailed_reading
 from love_fortune.cli import build_report
-from love_fortune.web import render_report_page, agent_context, local_agent_reply
+from love_fortune.web import agent_context, local_agent_reply
 
 BIRTH = date(1995, 2, 28)
 TARGET = date(2026, 9, 20)
@@ -39,10 +39,6 @@ def test_stories_in_report_and_page():
     text, md = build_report(BIRTH, 12, 0, "male", "부산", TARGET,
                             "all", True)
     assert "[이야기]" in md
-    page = render_report_page(md, text, "tok123", "2026-09-20")
-    assert "오늘 이야기" in page and "연애 이야기" in page
-    assert "직장 이야기" in page and "금전 이야기" in page
-    assert "평생 이야기" in page
 
 
 def test_story_chat():

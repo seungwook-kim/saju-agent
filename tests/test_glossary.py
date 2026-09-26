@@ -4,7 +4,7 @@ from datetime import date
 
 from love_fortune.glossary import TERMS, explain
 from love_fortune.cli import build_report
-from love_fortune.web import render_report_page, agent_context, local_agent_reply
+from love_fortune.web import agent_context, local_agent_reply
 
 BIRTH = date(1995, 2, 28)
 TARGET = date(2026, 9, 20)
@@ -37,10 +37,3 @@ def test_glossary_chat():
     assert local_agent_reply("상승궁이 뭔가요", summary).startswith("상승궁:")
     # 궁합이 도화보다 먼저 잡혀야 함 (긴 용어 우선)
     assert local_agent_reply("궁합이 뭐야", summary).startswith("궁합:")
-
-
-def test_glossary_web_card():
-    md, text, _ = agent_context(BIRTH, 12, 0, "male", "부산", TARGET)
-    page = render_report_page(md, text, "tok123", "2026-09-20")
-    assert "용어 풀이" in page
-    assert "일간" in page

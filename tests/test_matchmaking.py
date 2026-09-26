@@ -4,7 +4,7 @@ from datetime import date
 
 from love_fortune.matchmaking import compatibility
 from love_fortune.cli import build_match_report
-from love_fortune.web import render_match_page, local_agent_reply
+from love_fortune.web import match_summary, local_agent_reply
 
 A = (date(1995, 2, 28), 12, 0, "male", "부산")
 B = (date(1997, 6, 15), 9, 0, "female", "서울")
@@ -46,14 +46,11 @@ def test_report_no_pii_and_clean():
     assert "할 것이다" not in text
 
 
-def test_web_match_page_and_chat():
+def test_match_summary_and_chat():
     r = _r()
-    page, summary = render_match_page(r, "tok999")
-    assert "tok999" in page
-    assert str(r["score"]) in page
-    assert "잘 맞는 점" in page
-    assert "1995" not in page and "부산" not in page
-    assert not HAN.search(page)
+    summary = match_summary(r)
+    assert str(r["score"]) in summary and "잘맞는점" in summary
+    assert "1995" not in summary and "부산" not in summary
     reply = local_agent_reply("우리 궁합 어때", summary)
     assert "궁합" in reply
     reply2 = local_agent_reply("궁합이 뭐야", summary)
@@ -66,5 +63,5 @@ def test_match_story():
                       date(1997, 6, 15), 9, 0, "female", "서울")
     assert len(r["story"]) >= 3 and str(r["score"]) in r["story"][0]
     assert "할 것이다" not in "".join(r["story"])
-    reply = local_agent_reply("우리 궁합 어때", render_match_page(r, "t")[1])
+    reply = local_agent_reply("우리 궁합 어때", match_summary(r))
     assert "두 사람 점수" in reply

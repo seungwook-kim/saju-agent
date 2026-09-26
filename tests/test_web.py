@@ -1,7 +1,7 @@
 """tests for web.py, 로컬 채팅 에이전트 + 개인정보 제외 검증."""
 from datetime import date
 
-from love_fortune.web import agent_context, local_agent_reply, render_report_page
+from love_fortune.web import agent_context, local_agent_reply
 
 
 def _ctx():
@@ -75,30 +75,3 @@ def test_local_agent_month_lookup():
     _, _, summary = _ctx()
     r = local_agent_reply("이번달 운세 어때", summary)
     assert "이번 달 전체 흐름은요" in r and "평균" in r
-
-
-def test_api_report_data_clean():
-    from love_fortune.web import api_report_data, api_match_data, api_pick_data, app_page
-    import json
-    d = api_report_data(date(1995, 2, 28), 12, 0, "male", "부산", date(2026, 9, 20))
-    blob = json.dumps(d, ensure_ascii=False)
-    for pii in ("1995-02-28", "부산", "male"):
-        assert pii not in blob, pii
-    assert "1995" not in d["summary"]
-    for k in ("scores", "stories", "career", "money", "ziwei", "astro",
-              "lifetime", "ilun", "luck", "god", "month_line"):
-        assert k in d, k
-    assert len(d["ilun"]) == 30 and len(d["ziwei"]["palaces"]) == 12
-    d2 = api_report_data(date(1995, 2, 28), None, 0, "male", "부산", date(2026, 9, 20))
-    assert d2["hour_unknown"] is True and d2["ziwei"] is None
-    page = app_page()
-    assert "v-fortune" in page and "/api/report" in page
-    assert "—" not in page  # 폼 기본값(예시 날짜)은 의도된 플레이스홀더
-
-
-def test_report_page_renders_without_pii():
-    md, text, _ = _ctx()
-    page = render_report_page(md, text, "tok123", "2026-09-20")
-    assert "tok123" in page
-    for pii in ("1995", "부산"):
-        assert pii not in page

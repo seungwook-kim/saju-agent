@@ -6,8 +6,7 @@ from love_fortune.domains import (career_score, money_score, total_score,
                                   band_headline)
 from love_fortune.synthesis import detailed_reading
 from love_fortune.cli import build_report
-from love_fortune.web import (render_report_page, agent_context,
-                              local_agent_reply)
+from love_fortune.web import agent_context, local_agent_reply
 
 BIRTH = date(1995, 2, 28)
 TARGET = date(2026, 9, 20)
@@ -91,23 +90,3 @@ def test_no_cjk_in_outputs():
         r = local_agent_reply(q, summary)
         assert not HAN.search(r), (q, HAN.search(r).group(0))
         assert not KANA.search(r)
-
-
-def test_web_tabs():
-    md, text, _ = agent_context(BIRTH, 12, 0, "male", "부산", TARGET)
-    page = render_report_page(md, text, "tok123", "2026-09-20")
-    for tab in ("tab-total", "tab-love", "tab-career", "tab-money"):
-        assert tab in page, tab
-    for word in ("오늘 총운", "오늘 연애운", "오늘 직장운", "오늘 금전운"):
-        assert word in page, word
-    assert "tok123" in page
-    assert not HAN.search(page)
-    # 링 점수와 본문 점수 일치 (회귀: 기본값 50 표시 버그 방지)
-    import re as _re
-    md_score = int(_re.search(r"오늘 총운: \*\*(\d+)점", md).group(1))
-    ring = _re.search(r'<div class="ring"[^>]*>(\d+)</div>', page).group(1)
-    assert ring == str(md_score), (ring, md_score)
-    assert f"오늘 총운은 {md_score}점" in page
-    assert "0~9세" in page and "80~89세" in page
-    assert "연대별 타임라인" in page
-    assert "<details>" in page and "연도별 표 펼치기" in page
