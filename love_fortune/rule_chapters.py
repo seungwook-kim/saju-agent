@@ -102,17 +102,93 @@ def best_line(best: list[str], dom: str) -> str:
     return f"앞으로 열두 달 중 {DOMAIN_WORD[dom]}에 가장 힘이 실리는 때는 {', '.join(best)}이야."
 
 
+PILLAR_PLAIN = {"년지": "태어난 해", "월지": "태어난 달", "일지": "태어난 날", "시지": "태어난 시"}
+
+
 def sinsal_cards(lines: list[str]) -> dict | None:
+    """'천을귀인: 축·미, 시지에 있어 …' → 글자 목록은 빼고 자리를 쉬운 말로. '아님'인 줄은 뺀다."""
+    import re
     items = []
     for x in lines:
         name, _, body = x.partition(":")
-        items.append((name.strip(), body.strip()))
+        body = body.strip()
+        if "아님" in body.split(",")[0]:
+            continue
+        body = re.sub(r"^[가-힣](·[가-힣])*,\s*", "", body)          # 앞의 지지 글자 목록
+        body = re.sub(r"^[가-힣]+ [가-힣](·[가-힣]+ [가-힣])*,\s*", "", body)   # '고진 신·과숙 진,' 같은 목록
+        for k, v in PILLAR_PLAIN.items():
+            body = body.replace(k, v)
+        items.append((name.strip(), body))
     return cards("원국에 든 별과 살", items)
 
 
+GROUP_PLAIN = {"비겁": "나와 같은 편 기운", "인성": "나를 받쳐 주는 기운", "식상": "표현하고 만드는 기운",
+               "재성": "돈과 결과의 기운", "관성": "나를 다듬는 규율의 기운"}
+GOD_GROUP = {"비견": "비겁", "겁재": "비겁", "정인": "인성", "편인": "인성", "식신": "식상", "상관": "식상",
+             "정재": "재성", "편재": "재성", "정관": "관성", "편관": "관성"}
+
+
+def _yongsin_plain(y: str) -> str:
+    """'관성·식상·재성 기운 (힘을 빼고 다스리는 쪽)' → 뜻을 풀어 쓴 말."""
+    head, _, tail = y.partition(" (")
+    groups = [g for g in head.replace(" 기운", "").split("·") if g in GROUP_PLAIN]
+    plain = ", ".join(f"{GROUP_PLAIN[g]}({g})" for g in groups)
+    return f"{plain}처럼 {tail.rstrip(')')}" if plain else y
+
+
 def strength_line(n: dict) -> str:
-    return (f"내 사주는 {n['strength']}이고 격국(타고난 그릇의 모양)은 {n['geguk']}이야. "
-            f"{n['geguk_mean']} 균형을 잡아 주는 기운(용신)은 {n['yongsin']}이야.")
+    strong = "센 편(신강)" if "신강" in n["strength"] else "약한 편(신약)"
+    return (f"내 사주는 나를 이루는 기운이 {strong}이야. 타고난 그릇의 모양(격국)은 {n['geguk']}인데, "
+            f"{n['geguk_mean']} 그래서 균형을 잡아 주는 기운(용신)은 {_yongsin_plain(n['yongsin'])}이야.")
+
+
+def ten_gods_plain(n: dict) -> str:
+    """여덟 글자를 나와의 관계 다섯 무리로 세어 말로 푼다."""
+    count = {g: 0 for g in GROUP_PLAIN}
+    for p in n["pillars"]:
+        for god in (p["stem_god"], p["branch_god"]):
+            if god in GOD_GROUP:
+                count[GOD_GROUP[god]] += 1
+    parts = [f"{GROUP_PLAIN[g]}({g}) {c}개" for g, c in count.items() if c]
+    none = [f"{GROUP_PLAIN[g]}" for g, c in count.items() if not c]
+    out = "나(태어난 날의 하늘 글자)를 빼고 나머지 글자들을 나와의 관계로 나누면 " + ", ".join(parts) + "야."
+    if none:
+        out += " " + "·".join(none) + " 쪽은 원국에 없어서, 운에서 들어올 때 그쪽 일이 움직이기 쉬워."
+    return out
+
+
+def ziwei_plain(zw: dict) -> str:
+    """자미두수 명반 요약을 말로 푼다."""
+    from .narrate import PALACE_TALK
+    talk = {"록": "복이 붙는 기운(화록)", "권": "힘이 실리는 기운(화권)", "과": "이름이 나는 기운(화과)", "기": "막힘이 걸리는 기운(화기)"}
+    ming = next((p for p in zw["palaces"] if p["name"] == "명궁"), None)
+    mains = [s for s in (ming["stars"] if ming else []) if s in STAR14]
+    out = []
+    if ming:
+        out.append(f"자미두수 명반에서 나를 보는 자리(명궁)의 주인 별은 {j('·'.join(mains) or '빈자리', '이야')}.")
+    for h in ("록", "권", "과", "기"):
+        for p in zw["palaces"]:
+            star = next((s for s, v in (p.get("hua") or {}).items() if v == h), None)
+            if star:
+                out.append(f"태어난 해의 {j(talk[h], '은')} {star} 별에 붙어 {p['name'].replace('(배우자)', '')} 자리"
+                           f"({PALACE_TALK.get(p['name'], '')})에 들어가.")
+    return " ".join(out)
+
+
+STAR14 = ("자미", "천기", "태양", "무곡", "천동", "염정", "천부", "태음", "탐랑", "거문", "천상", "천량", "칠살", "파군")
+
+
+def dayun_plain(s: str) -> str:
+    """'천간 기는 나에게 …, 지지 묘는 일지와 …' → 하늘 글자·땅 글자로 풀어 쓴다."""
+    return (s.replace("천간 ", "이 10년의 하늘 글자 ", 1)
+             .replace("지지 ", "땅 글자 ", 1)
+             .replace("일지와", "내 배우자 자리(태어난 날의 땅 글자)와"))
+
+
+def house_plain(s: str) -> str:
+    import re
+    from .narrate import HOUSE_TALK
+    return re.sub(r"(\d+)번 하우스 칸", lambda m: f"{m.group(1)}번 하우스({HOUSE_TALK[int(m.group(1))]} 영역) 칸", s)
 
 
 def dayun_now(n: dict) -> str:
@@ -123,7 +199,7 @@ def dayun_now(n: dict) -> str:
     if not step:
         return _end(head) if head else ""
     name, _, rest = step.partition(": ")
-    return f"지금은 대운(10년 단위 큰 흐름) {j(name, '을')} 지나는 중이야. {rest}"
+    return f"지금은 대운(10년 단위 큰 흐름) {j(name, '을')} 지나는 중이야. {dayun_plain(rest)}"
 
 
 def ziwei_now(n: dict) -> str:
@@ -144,7 +220,7 @@ def ziwei_now(n: dict) -> str:
 
 
 def born_with(extra: list[str]) -> list[str]:
-    return [x for x in extra if x.startswith("태어날 때")]
+    return [house_plain(x) for x in extra if x.startswith("태어날 때")]
 
 
 def run_now(extra: list[str]) -> list[str]:
@@ -224,7 +300,7 @@ def today_domain(f: dict, ch: str, dom: str) -> dict:
     if ch == "howto":
         if dom == "love":
             L = f["love"]
-            todo = [L["spouse_seat"].split("팁 ")[-1], L["venus"]["how"],
+            todo = [L["spouse_seat"].split("팁: ")[-1], L["venus"]["how"],
                     "오늘 가 보기 좋은 자리: " + ", ".join(L["meet_paths"])]
             avoid = []
         else:
@@ -258,7 +334,7 @@ def love_nature(f: dict) -> dict:
     zs, v, m = L.get("ziwei_spouse"), L["venus"], L["moon"]
     return chapter("타고난 연애의 결", n["character"], [
         text("배우자를 보는 별(배우자성)", L["spouse_star"]),
-        text("배우자 자리(일지)", L["spouse_seat"]),
+        text("배우자 자리", L["spouse_seat"]),
         text("일주의 기운", L["day_stage"]),
         text("끌림의 별(도화·홍염)", *L["dohwa"], L["hongyeom"]),
         text("내가 사랑하는 방식", f"금성이 {j(v['sign'], '라')} {v['style']}", v["ideal"],
@@ -312,8 +388,8 @@ def life(f: dict, ch: str) -> dict:
             sky += f" 상승궁(첫인상)은 {j(a['asc'], '야')}."
         return chapter("원국 완전 풀이", n["character"], [
             text("타고난 그릇", strength_line(n)),
-            text("십신(나와 다른 기운의 관계)", n["ten_gods"]),
-            text("자미두수 명반", zw["guo"], *zw["sihua"]) if zw else None,
+            text("여덟 글자와 나의 관계(십신)", ten_gods_plain(n)),
+            text("자미두수 명반", ziwei_plain(zw)) if zw else None,
             text("태어날 때 하늘", sky),
             sinsal_cards(n["classic_sinsal"]),
         ])
@@ -324,7 +400,7 @@ def life(f: dict, ch: str) -> dict:
                  f"그래서 {c['pillar']} 일주는 '{c['title']}'로 그려 볼 수 있어.",
                  f"요즘 색으로 부르는 말로는 '{c['modern']}'인데, 띠에 색을 붙이는 건 요즘 생긴 표현이야."),
             text("일주의 기운 단계", L_day_stage(f)),
-            text("배우자 자리", f["love"]["spouse_seat"].split(". 팁")[0]),
+            text("배우자 자리", f["love"]["spouse_seat"].split(" 팁:")[0]),
             cards("일주에 붙은 신살", [(m["name"], m["talk"]) for m in c["marks"]]),
         ])
     if ch == "love_nature":
@@ -339,7 +415,7 @@ def life(f: dict, ch: str) -> dict:
         ])
     if ch == "dayun":
         return chapter("대운 여덟 걸음", dayun_now(n), [
-            steps("10년씩 걷는 큰 흐름", [(s.split(":")[0], s.split(":", 1)[-1]) for s in Li["dayun_narr"]]),
+            steps("10년씩 걷는 큰 흐름", [(s.split(":")[0], dayun_plain(s.split(":", 1)[-1].strip())) for s in Li["dayun_narr"]]),
         ])
     return chapter("평생 흐름 정리", current, [
         text("타고난 그릇", strength_line(n)),

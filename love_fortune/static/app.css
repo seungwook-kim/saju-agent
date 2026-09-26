@@ -334,4 +334,12 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .nm-rel{font-size:.72rem;font-weight:800;border-radius:99px;padding:.05rem .5rem}
 .nm-rel.gen,.nm-rel.same{background:#e3f6ea;color:#2a8a55}.nm-rel.ke{background:#fde6e6;color:#c2413b}
 
+/* 용어 눌러서 뜻 보기 */
+.term{border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;cursor:help;
+  border-bottom:1.5px dashed var(--accent2);line-height:inherit}
+#termTip{position:absolute;z-index:60;width:280px;max-width:calc(100vw - 16px);display:none;background:#2b2230;color:#fff;
+  border-radius:12px;padding:10px 12px;font-size:.85rem;line-height:1.55;box-shadow:0 10px 30px rgba(40,20,30,.3)}
+#termTip.on{display:block;animation:rise .15s var(--ease)}
+#termTip b{display:block;color:#ffd6e0;margin-bottom:2px}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

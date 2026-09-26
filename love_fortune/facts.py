@@ -9,9 +9,13 @@ from datetime import date
 
 from .manseryuk import BRANCHES_KR, STEMS_KR, four_pillars
 from .natal_extra import animal_compat, natal_sinsal, pillars_detail
+from .narrate import GOD_SHORT
 from .signals import best, month_signals, year_signals
+from .today import STAGE_TALK
 from .synthesis import detailed_reading
 
+BASE_PLAIN = {"년지": "태어난 해", "일지": "태어난 날"}
+AT_PLAIN = {"년주": "태어난 해 자리", "월주": "태어난 달 자리", "일주": "태어난 날 자리", "시주": "태어난 시 자리"}
 ELEMENT_OF_STEM = {"갑": "목", "을": "목", "병": "화", "정": "화", "무": "토",
                    "기": "토", "경": "금", "신": "금", "임": "수", "계": "수"}
 
@@ -109,9 +113,9 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
             "ten_gods": ma["dist"][1] if len(ma["dist"]) > 1 else "",
             "strength": ya["strong_label"], "geguk": ya["geguk"], "geguk_mean": ya["geguk_mean"],
             "yongsin": ya["yongsin"],
-            "sinsal": [f"{x['base']} 기준 {x['at']} {x['name']}({x['talk']})" for x in extra["sinsal"]
-                       if x["name"] not in ("지살", "장성살")],
-            "guiin": [f"{g['name']}({g['talk']}) {', '.join(g['at'])}" for g in extra["guiin"]],
+            "sinsal": [f"{BASE_PLAIN[x['base']]} 기준으로 {AT_PLAIN[x['at']]}에 {x['name']}({x['talk']})"
+                       for x in extra["sinsal"] if x["name"] not in ("지살", "장성살")],
+            "guiin": [f"{g['name']}({g['talk']}), {'·'.join(AT_PLAIN[a] for a in g['at'])}에 있어" for g in extra["guiin"]],
             "pairs": extra["pairs"],
             "classic_sinsal": list(ma["shensha_lines"]),
             "dayun": ma["dayun_line"], "dayun_steps": list(ma["dayun_full"]),
@@ -143,8 +147,11 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
         },
         "love": {
             "spouse_star": ma["star_line"],
-            "spouse_seat": f"배우자궁 십성 {ma['god']}: {ma['side']}. 관계 {ma['god_vibe']}. 팁 {ma['god_tip']}",
-            "day_stage": f"일주 십이운성 {ma['stage']}: {ma['stage_love']}",
+            "spouse_seat": (f"배우자 자리(태어난 날의 땅 글자)에는 {ma['god']}({GOD_SHORT[ma['god']]}) 기운이 앉아 있어. "
+                            f"이런 자리는 {ma['side']}. 관계는 {ma['god_vibe']}. 팁: {ma['god_tip']}"),
+            "day_stage": (f"태어난 날의 기운은 열두 단계 중 '{ma['stage']}' 단계야"
+                          f"({STAGE_TALK.get(ma['stage'], '')}). "
+                          + ma["stage_love"].replace("배우자궁 자리", "배우자 자리").replace("배우자궁", "배우자 자리")),
             "dohwa": list(ma["dohwa_lines"]), "hongyeom": ma["hong_line"],
             "ziwei_spouse": ({"star": ma["ziwei_main"], **{k: v for k, v in ma["ziwei_detail"].items()}}
                              if zw else None),

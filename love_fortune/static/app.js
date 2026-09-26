@@ -52,6 +52,7 @@ $('btnBack').addEventListener('click',()=>{
 });
 
 function showResult(){
+  loadGloss().then(()=>{if(S.tab&&S.outline[S.tab]) openTab(S.tab);});
   $('home').classList.remove('on');$('result').classList.add('on');
   $('tabs').innerHTML=TAB_ORDER.map(t=>'<button class="tab" type="button" data-tab="'+t+'">'+TAB_NAME[t]+'</button>').join('');
   openTab('today');
@@ -119,10 +120,10 @@ function fillChapter(tab,ch,b,pending){
   const el=document.querySelector('[data-body="'+ch+'"]');
   if(!el) return;
   const swap=el.dataset.src==='rule'&&b.source==='ai';
-  let h='';
+  let h='';const used=new Set();
   if(b.headline) h+='<div class="headline">'+esc(b.headline)+'</div>';
-  if(b.lead) h+='<p class="lead">'+esc(b.lead)+'</p>';
-  (b.blocks||[]).forEach(x=>{h+=block(x);});
+  if(b.lead) h+='<p class="lead">'+linkTerms(esc(b.lead),used)+'</p>';
+  (b.blocks||[]).forEach(x=>{h+=block(x,used);});
   if(b.closing) h+='<div class="closing">'+esc(b.closing)+'</div>';
   h+='<div class="src">'+(b.source==='ai'?'계산 결과를 근거로 쓴 AI 풀이':
     '계산 결과로 쓴 기본 풀이'+(pending?' · <span class="pending">AI가 더 자세한 풀이를 쓰는 중</span>':''))+'</div>';
@@ -130,17 +131,19 @@ function fillChapter(tab,ch,b,pending){
   el.dataset.src=b.source;
   if(swap){el.style.animation='none';void el.offsetWidth;el.style.animation='rise .5s var(--ease)';}
 }
-function block(x){
+function block(x,used){
+  used=used||new Set();
+  const L=s=>linkTerms(esc(s),used);
   const t=x.title?'<h4>'+esc(x.title)+'</h4>':'';
   switch(x.type){
-    case 'text': return '<div class="blk">'+t+'<p>'+esc(x.body)+'</p></div>';
+    case 'text': return '<div class="blk">'+t+'<p>'+L(x.body)+'</p></div>';
     case 'quote': return '<div class="blk quote"><p>'+esc(x.body)+'</p></div>';
-    case 'callout': return '<div class="blk callout">'+esc(x.body)+'</div>';
-    case 'checklist': return '<div class="blk checklist">'+t+'<ul>'+x.items.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul></div>';
+    case 'callout': return '<div class="blk callout">'+L(x.body)+'</div>';
+    case 'checklist': return '<div class="blk checklist">'+t+'<ul>'+x.items.map(i=>'<li>'+L(i)+'</li>').join('')+'</ul></div>';
     case 'steps': return '<div class="blk">'+t+'<div class="steps">'+x.items.map((i,n)=>
-      '<div class="step"><div class="n">STEP '+(n+1)+'</div><b>'+esc(i.title)+'</b><p>'+esc(i.body)+'</p></div>').join('')+'</div></div>';
+      '<div class="step"><div class="n">STEP '+(n+1)+'</div><b>'+esc(i.title)+'</b><p>'+L(i.body)+'</p></div>').join('')+'</div></div>';
     case 'cards': return '<div class="blk">'+t+'<div class="cards">'+x.items.map(i=>
-      '<div class="c"><b>'+esc(i.title)+'</b><p>'+esc(i.body)+'</p></div>').join('')+'</div></div>';
+      '<div class="c"><b>'+esc(i.title)+'</b><p>'+L(i.body)+'</p></div>').join('')+'</div></div>';
   }
   return '';
 }
@@ -563,6 +566,30 @@ document.addEventListener('submit',async e=>{
     $('toolOut').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(err){$('toolOut').innerHTML='<div class="err">'+esc(err.message)+'</div>';}
   finally{btn.disabled=false;}
+});
+
+
+// ---------------- 용어 눌러서 뜻 보기 (용어 풀이집 /api/glossary)
+const TERM_SKIP=new Set(['사주','태양','금성','수성','화성','목성','토성','음력','기질','궁합','타로','주역','오미쿠지','생명수','달','양']);
+let TERM_RE=null;
+async function loadGloss(){
+  if(S.gloss) return;
+  try{S.gloss=await fetch('/api/glossary').then(r=>r.json());}catch(_){S.gloss={};return;}
+  const keys=Object.keys(S.gloss).filter(k=>k.length>=2&&!TERM_SKIP.has(k)).sort((a,b)=>b.length-a.length);
+  TERM_RE=keys.length?new RegExp('('+keys.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','g'):null;
+}
+function linkTerms(escaped,used){
+  if(!TERM_RE) return escaped;
+  return escaped.replace(TERM_RE,m=>{if(used.has(m)) return m;used.add(m);return '<button type="button" class="term" data-t="'+m+'">'+m+'</button>';});
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.term'),tip=$('termTip');
+  if(!b){if(tip&&!e.target.closest('#termTip')) tip.classList.remove('on');return;}
+  const r=b.getBoundingClientRect();
+  tip.innerHTML='<b>'+esc(b.dataset.t)+'</b>'+esc((S.gloss||{})[b.dataset.t]||'');
+  tip.style.left=Math.max(8,Math.min(window.innerWidth-296,r.left+window.scrollX-20))+'px';
+  tip.style.top=(r.bottom+window.scrollY+6)+'px';
+  tip.classList.add('on');
 });
 
 // ---------------- 생년월일 캘린더 선택기

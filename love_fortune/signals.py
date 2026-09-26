@@ -35,7 +35,7 @@ def _score(natal: dict, sex: str, stem: int, branch: int) -> dict:
     sc = {"love": 0, "career": 0, "money": 0}
     if spouse in groups:
         sc["love"] += 2 * groups.count(spouse)
-        why["love"].append(f"배우자성({spouse})이 드는 때")
+        why["love"].append(f"배우자를 뜻하는 기운({spouse})이 들어오는 때")
     if branch in {d for base, d in DOHWA_MAP if yb in base or db in base}:
         sc["love"] += 2
         why["love"].append("도화(끌림의 별)가 드는 때")
@@ -43,34 +43,34 @@ def _score(natal: dict, sex: str, stem: int, branch: int) -> dict:
     if (db, branch) in {(0, 1), (1, 0), (2, 11), (11, 2), (3, 10), (10, 3), (4, 9), (9, 4),
                         (5, 8), (8, 5), (6, 7), (7, 6)} or (branch in trio and branch != db):
         sc["love"] += 1
-        why["love"].append("배우자 자리(일지)와 손잡는 때")
+        why["love"].append("배우자 자리(태어난 날의 땅 글자)와 손잡는 때")
     if (db + 6) % 12 == branch:
         sc["love"] -= 2
         sc["career"] -= 1
-        why["love"].append("배우자 자리(일지)와 부딪치는 때")
+        why["love"].append("배우자 자리(태어난 날의 땅 글자)와 부딪치는 때")
     if "관성" in groups or "인성" in groups:
         sc["career"] += 2
-        why["career"].append("관성·인성(자리와 뒷받침)이 드는 때")
+        why["career"].append("자리와 뒷받침의 기운(관성·인성)이 들어오는 때")
     if branch in {YIMA_AT[_trio_of(db)], YIMA_AT[_trio_of(yb)]}:
         sc["career"] += 1
         why["career"].append("역마(움직임)가 드는 때")
     if (mb + 6) % 12 == branch:
         sc["career"] -= 1
-        why["career"].append("월지(사회 자리)와 부딪치는 때")
+        why["career"].append("사회생활 자리(태어난 달의 땅 글자)와 부딪치는 때")
     if "재성" in groups:
         sc["money"] += 2 * groups.count("재성")
-        why["money"].append("재성(돈의 별)이 드는 때")
+        why["money"].append("돈의 기운(재성)이 들어오는 때")
     if "식상" in groups:
         sc["money"] += 1
-        why["money"].append("식상(돈을 낳는 재주)이 드는 때")
+        why["money"].append("돈을 낳는 재주의 기운(식상)이 들어오는 때")
     if "겁재" in gods:
         sc["money"] -= 2
-        why["money"].append("겁재(나눠 가져가는 기운)가 드는 때")
+        why["money"].append("나눠 가져가는 기운(겁재)이 들어오는 때")
     idx60 = next(n for n in range(60) if n % 10 == ds and n % 12 == db)
     if branch in KONGWANG[idx60 // 10]:
         for k in sc:
             sc[k] -= 1
-        why["career"].append("공망(비는 자리)에 드는 때")
+        why["career"].append("비어 있는 자리(공망)에 걸리는 때")
     return {"ganzhi": STEMS_KR[stem] + BRANCHES_KR[branch], "god": gods[0],
             "scores": sc, "labels": {k: _label(v) for k, v in sc.items()}, "why": why}
 
