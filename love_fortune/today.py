@@ -44,6 +44,8 @@ PALACE_DOMAIN = {"부처(배우자)": "love", "자녀": "love", "복덕": "love"
                  "재백": "money", "전택": "money"}
 HUA_POINTS = {"록": 3, "권": 2, "과": 1, "기": -3}
 HUA_TALK = {"록": "복이 붙는", "권": "힘이 실리는", "과": "이름이 나는", "기": "막힘이 걸리는"}
+HUA_RESULT = {"록": "풀리기 쉬운 흐름이야.", "권": "힘을 받아 밀고 나가기 쉬운 흐름이야.",
+              "과": "좋은 평을 듣기 쉬운 흐름이야.", "기": "막히기 쉬우니 서두르지 않는 게 좋아."}
 DOMAIN_KR = {"love": "연애", "career": "직장", "money": "금전"}
 
 
@@ -56,7 +58,7 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
     yb = natal["pillars"]["year"][1]
     ts, tb = day_pillar(today)
     pts = {"all": 0, "love": 0, "career": 0, "money": 0}
-    lines = []
+    lines, tags = [], []                     # tags: 줄마다 어느 영역 몫인지 (all = 모든 영역 공통)
     stage = STAGE_NAMES[TWELVE_STAGES[ds].index(tb)]
     pts["all"] += STAGE_POINTS[stage]
     stage_q = j(f"'{stage}'", "야")          # '절'이야 / '묘'야 (따옴표 안 글자로 받침을 본다)
@@ -65,21 +67,26 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
                  + ("힘 있게 움직이기 좋은 날" if STAGE_POINTS[stage] > 0 else
                     "무리하지 말고 페이스를 지키면 좋은 날" if STAGE_POINTS[stage] < 0 else
                     "평소 리듬대로 가면 되는 날") + "이야.")
+    tags.append("all")
     if tb in TIANYI[ds]:
         pts["all"] += 2
         lines.append("오늘은 천을귀인(어려울 때 돕는 귀한 사람의 별)이 드는 날이라 도움을 청하면 통하기 쉬워.")
+        tags.append("all")
     my_dohwa = {d for base, d in DOHWA_MAP if yb in base or db in base}
     if tb in my_dohwa:
         pts["love"] += 3
         lines.append("오늘은 내 도화(사람을 끄는 매력의 별)가 드는 날이라 만남과 호감이 늘기 쉬워.")
+        tags.append("love")
     my_yima = {YIMA_AT[_trio_of(db)], YIMA_AT[_trio_of(yb)]}
     if tb in my_yima:
         pts["career"] += 1
         lines.append("오늘은 역마(움직이고 옮겨 다니는 별)가 드는 날이라 외근·이동이 많은 일에 맞아.")
+        tags.append("career")
     idx60 = next(n for n in range(60) if n % 10 == ds and n % 12 == db)
     if tb in KONGWANG[idx60 // 10]:
         pts["all"] -= 1
         lines.append("오늘 일진이 내 공망(비어 있는 자리)에 들어 약속·결과가 허전하게 비기 쉬우니 확인을 한 번 더 해.")
+        tags.append("all")
     god = ten_god(ds, ts)
     group = GOD_GROUP[god]
     if strong is not None:
@@ -89,13 +96,15 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
             lines.append(f"내 사주는 {'기운이 센 편(신강)' if strong else '기운이 약한 편(신약)'}이라 "
                          f"{'힘을 빼서 쓰는' if strong else '돕고 받쳐 주는'} 기운이 반가운데, 오늘 들어온 "
                          f"{j(f'{god}({GOD_SHORT[god]})', '은')} 딱 그쪽이라 도움이 되는 흐름이야.")
+            tags.append("all")
         else:
             pts["all"] -= 1
             lines.append(f"내 사주는 {'기운이 센 편(신강)' if strong else '기운이 약한 편(신약)'}인데 오늘 들어온 "
                          f"{j(f'{god}({GOD_SHORT[god]})', '은')} 그 균형을 {'더 키우는' if strong else '더 흔드는'} "
                          "쪽이라 과하지 않게 쓰면 좋은 흐름이야.")
+            tags.append("all")
     total = pts["all"] * 3 + pts["love"] + pts["career"] + pts["money"]
-    return {"name": "사주", "points": pts, "lines": lines, "signal": _signal(total / 2),
+    return {"name": "사주", "points": pts, "lines": lines, "tags": tags, "signal": _signal(total / 2),
             "stage": stage}
 
 
@@ -103,11 +112,12 @@ def _ziwei(zw: dict | None) -> dict | None:
     if zw is None:
         return None
     pts = {"all": 0, "love": 0, "career": 0, "money": 0}
-    lines = []
+    lines, tags = [], []
     ld = zw["liuri"]
     lines.append(f"자미두수로 오늘(유일)은 내 {ld['palace']} 자리({ld['branch']})에 걸려, "
                  f"{PALACE_TALK.get(ld['palace'], '그 자리')}에 일이 모이기 쉬운 날이야.")
     dom = PALACE_DOMAIN.get(ld["palace"])
+    tags.append(dom)                         # 영역이 없는 궁이면 None (점수에 안 들어가는 참고 줄)
     if dom:
         pts[dom] += 1
     star_palace = {s: p["name"] for p in zw["palaces"] for s in p["stars"]}
@@ -117,13 +127,15 @@ def _ziwei(zw: dict | None) -> dict | None:
             continue
         d = PALACE_DOMAIN.get(pal, "all")
         pts[d] += HUA_POINTS[hua] if d != "all" else HUA_POINTS[hua] // 2
-        if hua in ("록", "기"):
-            lines.append(f"오늘 일진이 {star}에 {j(f'화{hua}({HUA_TALK[hua]} 기운)', '을')} 붙여 내 {pal} 쪽이 "
-                         + ("풀리기 쉬운 흐름이야." if hua == "록" else "막히기 쉬우니 서두르지 않는 게 좋아."))
+        # 점수에 들어가는 사화는 모두 근거 줄을 남긴다 (예전엔 권·과는 점수만 더하고 줄이 없었다)
+        lines.append(f"오늘 일진이 {star}에 {j(f'화{hua}({HUA_TALK[hua]} 기운)', '을')} 붙여 내 {pal} 쪽이 "
+                     + HUA_RESULT[hua])
+        tags.append(d)
     lm = zw["liuyue"]
     lines.append(f"이번 달(유월)은 {lm['palace']} 자리에 걸려 한 달의 무게가 그쪽에 실려 있어.")
+    tags.append(None)
     total = pts["all"] * 2 + pts["love"] + pts["career"] + pts["money"]
-    return {"name": "자미두수", "points": pts, "lines": lines, "signal": _signal(total)}
+    return {"name": "자미두수", "points": pts, "lines": lines, "tags": tags, "signal": _signal(total)}
 
 
 def _astro(birth: date, hour: int | None, minute: int, city: str, today: date) -> dict:

@@ -293,7 +293,8 @@ def today_domain(f: dict, ch: str, dom: str) -> dict:
     if ch == "systems":
         blocks = []
         for s in d["systems"]:
-            blocks.append(text(s["name"], *(s["lines"] or [f"오늘 {word}에 따로 걸리는 신호는 없어."]),
+            blocks.append(text(s["name"], *(s["lines"] or [f"오늘 {word}에만 따로 걸리는 신호는 없어."]),
+                               *(f"모든 운에 함께 걸리는 것: {x}" for x in s.get("common", [])),
                                _points_line(s["points"], word)))
         blocks.append(callout(t["agreement"]))
         return chapter(f"세 체계로 본 오늘 {word}", d["head"], blocks)

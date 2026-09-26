@@ -369,3 +369,7 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .bd-card p{margin:.2rem 0;font-size:.9rem}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* 영역별 세 체계: 모든 운에 공통으로 걸리는 근거 */
+.sys li.common{color:var(--muted)}
+.sys .cm{display:inline-block;font-size:.7rem;font-weight:700;color:var(--accent);background:var(--soft);
+  border-radius:6px;padding:0 5px;margin-right:5px;vertical-align:1px}

@@ -258,9 +258,11 @@ function dgauge(d,dom){
 function dsys(d,dom){
   return d.systems.map(s=>{
     const cls=s.points>0?'good':s.points<0?'bad':'mid';
-    const lines=s.lines.length?s.lines:['오늘 '+DOM_WORD[dom]+'에 따로 걸리는 신호는 없어.'];
+    const common=s.common||[];
+    const lines=s.lines.length||common.length?s.lines:['오늘 '+DOM_WORD[dom]+'에 따로 걸리는 신호는 없어.'];
     return '<div class="sys"><div class="sys-h">'+esc(s.name)+'<span class="sig '+cls+'">'+DOM_WORD[dom]+' '+sign(s.points)+'</span></div><ul>'+
-      lines.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ul></div>';
+      lines.map(l=>'<li>'+esc(l)+'</li>').join('')+
+      common.map(l=>'<li class="common"><span class="cm">모든 운 공통</span>'+esc(l)+'</li>').join('')+'</ul></div>';
   }).join('');
 }
 function systems(t){

@@ -30,12 +30,23 @@ DOMAIN_WORDS = {
 
 
 def today_domain(ma: dict, dom: str) -> dict:
-    """오늘 하루 한 영역(연애·직장·금전)의 계산 결과: 점수·근거·세 체계 가감·관련 문장·팁."""
+    """오늘 하루 한 영역(연애·직장·금전)의 계산 결과: 점수·근거·세 체계 가감·관련 문장·팁.
+
+    체계별 가감(points)은 점수 계산(today.today_layers 의 adj)과 같게 '모든 영역 공통 몫 + 이 영역 몫'이다.
+    예전엔 이 영역 몫만 보여 줘서, 사주처럼 공통 몫(십이운성·귀인·용신·공망)이 큰 체계가
+    점수에는 들어가는데 화면에는 늘 0으로 보였다. common 은 공통 몫의 근거 문장이다.
+    """
     d = ma[dom]
     systems = []
     for s in ma["today"]["systems"]:
-        lines = [x for x in s["lines"] if any(w in x for w in DOMAIN_WORDS[dom])]
-        systems.append({"name": s["name"], "points": s["points"].get(dom, 0), "lines": lines})
+        if s.get("tags"):                    # 사주·자미두수: 계산할 때 줄마다 영역을 적어 둔다
+            lines = [x for x, t in zip(s["lines"], s["tags"]) if t == dom]
+            common = [x for x, t in zip(s["lines"], s["tags"]) if t == "all"]
+        else:                                # 점성술: 영역별 점수만 있어 낱말로 관련 줄을 고른다
+            lines = [x for x in s["lines"] if any(w in x for w in DOMAIN_WORDS[dom])]
+            common = []
+        systems.append({"name": s["name"], "points": s["points"].get("all", 0) + s["points"].get(dom, 0),
+                        "only": s["points"].get(dom, 0), "lines": lines, "common": common})
     return {"score": d["score"], "head": d["head"], "reasons": list(d["reasons"]),
             "systems": systems, "adj": ma["today"]["adj"].get(dom, 0),
             "tips": list(d.get("tips") or []), "avoid": d.get("avoid") or ""}

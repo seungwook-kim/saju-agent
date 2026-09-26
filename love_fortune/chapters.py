@@ -15,7 +15,7 @@ import re
 
 from . import ai, content_store, rule_chapters
 
-PROMPT_VERSION = "ch-5"
+PROMPT_VERSION = "ch-6"
 
 SYSTEM = """너는 정통 사주명리·자미두수·서양 점성술을 함께 보는 다정한 상담가다.
 아래 규칙을 반드시 지킨다.

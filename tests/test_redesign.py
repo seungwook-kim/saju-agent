@@ -359,3 +359,35 @@ def test_remember_me_is_opt_in_and_device_only():
     assert "delete q.remember;delete q.nick;" in js
     assert "if(remember){peopleSave(" in js
     assert "localStorage.removeItem('saju.recent')" in js and "recentSave" not in js
+
+
+def test_domain_system_points_match_score_math():
+    """영역 탭의 체계별 가감은 점수 계산과 같은 '공통 몫 + 영역 몫'이어야 한다 (예전엔 사주 연애가 늘 0으로 보였다)."""
+    from datetime import date
+    from love_fortune import facts
+    from love_fortune.synthesis import detailed_reading
+    b, target = date(1990, 5, 5), date(2026, 9, 27)
+    f = facts.build(b, 14, 30, "female", "서울", target)
+    ma = detailed_reading(b, 14, 30, "female", "서울", target)
+    raw = {s["name"]: s["points"] for s in ma["today"]["systems"]}
+    for dom in ("love", "career", "money"):
+        for s in f["today"]["domains"][dom]["systems"]:
+            assert s["points"] == raw[s["name"]].get("all", 0) + raw[s["name"]].get(dom, 0), (dom, s["name"])
+    saju = next(s for s in f["today"]["domains"]["love"]["systems"] if s["name"] == "사주")
+    assert saju["common"] and any("십이운성" in x for x in saju["common"])
+
+
+def test_every_domain_point_has_a_reason():
+    """사주·자미두수가 영역 점수에 더하거나 뺀 몫에는 근거 줄이 있어야 한다 (화권·화과 줄 누락 회귀)."""
+    import random
+    from datetime import date, timedelta
+    from love_fortune import facts
+    rnd = random.Random(5)
+    for i in range(60):
+        b = date(rnd.randint(1950, 2008), rnd.randint(1, 12), rnd.randint(1, 28))
+        f = facts.build(b, rnd.choice([None, rnd.randint(0, 23)]), 0, rnd.choice(["male", "female"]), "서울",
+                        date(2026, 9, 27) + timedelta(days=i % 30))
+        for dom in ("love", "career", "money"):
+            for s in f["today"]["domains"][dom]["systems"]:
+                if s["name"] != "점성술" and s["points"]:
+                    assert s["lines"] or s["common"], (dom, s)
