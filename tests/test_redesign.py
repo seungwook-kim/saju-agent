@@ -346,3 +346,16 @@ def test_tojeong_matches_published_examples():
     # 만복가 예시: 계미년 32세 상괘 2, 7월 경신월 큰달 → 중괘 3, 7월 9일 신해일 → 하괘 1
     assert T.gua(1972, 7, 9, 2003)["gua"] == 231
     assert len(GUA) == 144 and {u * 100 + m * 10 + l for u in range(1, 9) for m in range(1, 7) for l in range(1, 4)} == set(GUA)
+
+
+def test_remember_me_is_opt_in_and_device_only():
+    """'이 기기에 기억하기'는 켜야만 저장하고, 브라우저에만 두며, 이름표·기억 칸은 서버에 보내지 않는다."""
+    from love_fortune.web import STATIC_DIR
+    html_ = (STATIC_DIR / "app.html").read_text(encoding="utf-8")
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert 'name="remember" type="checkbox" value="1">' in html_     # 기본은 꺼짐 (checked 없음)
+    assert 'name="remember" type="checkbox" value="1" checked' not in html_
+    assert html_.index('id="people"') < html_.index('id="fMain"')     # 바로 보기가 입력칸보다 위
+    assert "delete q.remember;delete q.nick;" in js
+    assert "if(remember){peopleSave(" in js
+    assert "localStorage.removeItem('saju.recent')" in js and "recentSave" not in js

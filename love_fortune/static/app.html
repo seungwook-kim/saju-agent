@@ -20,6 +20,7 @@
       <div class="hero-title">내 사주 <span class="hand">A to Z</span></div>
       <p class="hero-sub">정통 공식으로 계산하고, 계산된 사실로만 풀어 줄게</p>
     </div>
+    <div id="people"></div>
     <form id="fMain" class="card form" autocomplete="off">
       <div class="row2">
         <div class="f"><span>생년월일</span>
@@ -41,11 +42,14 @@
       </div>
       <label class="f"><span>밤 11시~12시 출생 기준</span>
         <select name="zi"><option value="next">다음날로 보기 (정자시, 기본)</option><option value="split">그날로 보기 (야자시)</option></select></label>
+      <div class="remember">
+        <label class="check"><input name="remember" type="checkbox" value="1"> 이 기기에 기억하기</label>
+        <input name="nick" maxlength="12" placeholder="이름표 (예: 나, 엄마)" aria-label="이름표" hidden>
+      </div>
       <button class="go" type="submit">내 사주 펼쳐 보기</button>
-      <p class="fine">생년월일은 이 컴퓨터 메모리에만 두고 저장하지 않아. AI 풀이에는 계산 결과만 보내.</p>
+      <p class="fine">서버에는 생년월일을 저장하지 않아. '이 기기에 기억하기'를 켜면 이 브라우저에만 남아서 다음에 바로 열 수 있어. AI 풀이에는 계산 결과만 보내.</p>
     </form>
     <div id="homeErr"></div>
-    <div id="recent"></div>
   </section>
 
   <!-- 결과 화면 -->

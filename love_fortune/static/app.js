@@ -32,10 +32,13 @@ $('fMain').addEventListener('submit',async e=>{
   e.preventDefault();
   const form=e.target,btn=form.querySelector('.go');
   const q={};new FormData(form).forEach((v,k)=>{q[k]=v;});
+  const remember=q.remember==='1',nick=String(q.nick||'').trim().slice(0,12)||'나';
+  delete q.remember;delete q.nick;                   // 기억용 칸은 서버에 보내지 않는다
   if(!q.birth){$('homeErr').innerHTML='<div class="err">생년월일을 골라 줘.</div>';return;}
   btn.disabled=true;btn.textContent='계산하는 중...';$('homeErr').innerHTML='';
   try{
     const j=await postJSON('/api/v2/report',q);
+    if(remember){peopleSave(nick,q);form.querySelector('[name="remember"]').checked=false;toggleNick();renderPeople();}
     S.person=q;                         // 궁합·길일에 다시 쓴다 (브라우저 메모리에만)
     S.shareId=null;S.pastAns={};
     Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,
@@ -46,7 +49,7 @@ $('fMain').addEventListener('submit',async e=>{
   }finally{btn.disabled=false;btn.textContent='내 사주 펼쳐 보기';}
 });
 $('btnBack').addEventListener('click',()=>{
-  S.queue=[];
+  S.queue=[];renderPeople();
   $('result').classList.remove('on');$('home').classList.add('on');
   document.body.dataset.theme='rose';window.scrollTo(0,0);
 });
@@ -369,7 +372,10 @@ function openTool(tab){
   }
   if(tab==='match'){
     const sex2=S.person&&S.person.sex==='female'?'male':'female';
+    const pl=people();
     h+='<form class="card form" id="fMatch" autocomplete="off"><h4 style="margin:0">상대의 정보</h4>'+
+      (pl.length?'<div class="ppl-pick"><span>저장한 사람 불러오기</span>'+
+        pl.map((x,i)=>'<button type="button" class="chip" data-p2="'+i+'">'+esc(x.nick)+'</button>').join('')+'</div>':'')+
       '<div class="row2"><div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth2">눌러서 선택</button>'+
       '<input type="hidden" name="birth2" value=""><input type="hidden" name="leap2" value=""></div>'+
       '<label class="f"><span>달력</span><select name="calendar2" data-cal="birth2"><option value="solar">양력</option><option value="lunar">음력</option></select></label></div>'+
@@ -379,7 +385,7 @@ function openTool(tab){
       '<option value="female"'+(sex2==='female'?' selected':'')+'>여자</option></select></label>'+
       '<label class="f"><span>태어난 도시</span><input name="city2" value="서울"></label></div>'+
       '<button class="go" type="submit">궁합 보기</button>'+
-      '<p class="fine">상대의 생년월일도 이 컴퓨터 메모리에서만 계산하고 저장하지 않아.</p></form><div id="toolOut"></div>';
+      '<p class="fine">상대의 생년월일은 계산에만 쓰고 저장하지 않아.</p></form><div id="toolOut"></div>';
   }else{
     const d0=new Date(),d1=new Date(Date.now()+30*864e5);
     const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
@@ -400,7 +406,7 @@ document.addEventListener('submit',async e=>{
   if(id!=='fMatch'&&id!=='fPick') return;
   e.preventDefault();
   if(!S.person){                      // 저장 링크로 연 결과엔 생년월일이 없다 (저장하지 않으니까)
-    $('toolOut').innerHTML='<div class="err">저장 링크로 연 결과라 내 생년월일이 없어. 처음 화면에서 입력하면 궁합·길일을 볼 수 있어.</div>';
+    $('toolOut').innerHTML='<div class="err">저장 링크로 연 결과라 내 생년월일이 없어. 처음 화면에서 입력하거나 \'내 사주 바로 보기\'로 열면 궁합·길일을 볼 수 있어.</div>';
     return;
   }
   const form=e.target,btn=form.querySelector('.go'),q={...S.person};
@@ -760,17 +766,78 @@ document.addEventListener('change',async e=>{
 document.querySelectorAll('[data-dp]').forEach(b=>dpRefresh(b.form,b.dataset.dp));
 
 // ---------------- 저장·공유
-// 링크: 서버에 계산 결과(사실표)만 저장하고 /r/<id> 로 다시 연다. 이 브라우저의 '최근 저장' 목록에는 id 와 이름표만 둔다.
-const RECENT_KEY='saju.recent';
-function recentList(){try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');}catch(_){return [];}}
-function recentSave(item){
-  try{const l=recentList().filter(x=>x.id!==item.id);l.unshift(item);localStorage.setItem(RECENT_KEY,JSON.stringify(l.slice(0,8)));}catch(_){}
+// 링크: 서버에 계산 결과(사실표)만 저장하고 /r/<id> 로 다시 연다.
+
+// ---------------- 내 사주 바로 보기 (이 기기에 기억)
+// '이 기기에 기억하기'를 켠 사람만 입력값을 이 브라우저(localStorage)에 둔다. 서버에는 저장하지 않는다.
+// 같은 와이파이(같은 IP)를 쓰는 다른 사람에게 보이지 않도록 IP 가 아니라 기기별로 둔다.
+const PEOPLE_KEY='saju.people',PEOPLE_MAX=6;
+const P_FIELDS=['birth','leap','calendar','birth_time','unknown_time','sex','city','zi'];
+try{localStorage.removeItem('saju.recent');}catch(_){}      // 예전 '최근 저장한 결과' 목록은 없앴다
+function people(){
+  try{const l=JSON.parse(localStorage.getItem(PEOPLE_KEY)||'[]');return Array.isArray(l)?l.filter(x=>x&&x.q&&x.q.birth):[];}
+  catch(_){return [];}
 }
-function renderRecent(){
-  const l=recentList();
-  $('recent').innerHTML=l.length?'<div class="card"><h4 style="margin:0 0 .5rem">최근 저장한 결과</h4><div class="recent">'+
-    l.map(x=>'<a href="/r/'+encodeURIComponent(x.id)+'">'+esc(x.label)+'<small>'+esc(x.date)+'</small></a>').join('')+'</div></div>':'';
+function peopleSet(l){try{localStorage.setItem(PEOPLE_KEY,JSON.stringify(l.slice(0,PEOPLE_MAX)));return true;}catch(_){return false;}}
+function personKey(q){return [q.birth,q.leap||'',q.calendar,q.unknown_time?'':q.birth_time,q.sex,q.city].join('|');}
+function peopleSave(nick,q){
+  const p={};P_FIELDS.forEach(k=>{if(q[k]!=null&&q[k]!=='') p[k]=q[k];});
+  const key=personKey(p),l=people().filter(x=>personKey(x.q)!==key&&x.nick!==nick);
+  l.unshift({nick,q:p});
+  return peopleSet(l);
 }
+function personLine(q){
+  const p=q.birth.split('-').map(Number);
+  return (q.calendar==='lunar'?'음력 ':'')+p[0]+'. '+(q.leap==='1'?'윤':'')+p[1]+'. '+p[2]+'. · '+
+    (q.unknown_time?'시간 모름':(q.birth_time||'12:00'))+' · '+(q.sex==='female'?'여':'남')+' · '+(q.city||'서울');
+}
+function renderPeople(){
+  const l=people();
+  $('people').innerHTML=l.length?'<div class="card"><h4 class="ppl-h">내 사주 바로 보기</h4><div class="ppl">'+
+    l.map((x,i)=>'<div class="ppl-row"><button type="button" class="ppl-go" data-pi="'+i+'"><b>'+esc(x.nick)+'</b>'+
+      '<small>'+esc(personLine(x.q))+'</small></button>'+
+      '<button type="button" class="ppl-del" data-pdel="'+i+'" aria-label="'+esc(x.nick)+' 지우기">지우기</button></div>').join('')+
+    '</div><p class="fine">이 기기(브라우저)에만 저장돼 있어. 여럿이 쓰는 컴퓨터라면 다 보고 지워 줘.</p></div>':'';
+}
+// 저장한 값으로 입력칸을 채운다. n: 나는 '', 궁합 상대는 '2'
+function fillForm(form,q,n){
+  const set=(name,v)=>{const el=form.querySelector('[name="'+name+'"]');if(el&&v!=null) el.value=v;};
+  const tname=n?'birth2_time':'birth_time';
+  set('birth'+n,q.birth);set('leap'+n,q.leap||'');set('calendar'+n,q.calendar||'solar');
+  set(tname,q.birth_time||'12:00');set('sex'+n,q.sex||'male');set('city'+n,q.city||'서울');
+  if(!n) set('zi',q.zi||'next');
+  const u=form.querySelector('[name="unknown_time'+n+'"]'),t=form.querySelector('[name="'+tname+'"]');
+  if(u){u.checked=!!q.unknown_time;if(t) t.disabled=u.checked;}
+  const b=form.querySelector('[name="birth'+n+'"]');if(b) delete b.dataset.ym;
+  dpRefresh(form,'birth'+n);
+}
+function toggleNick(){
+  const f=$('fMain'),on=f.querySelector('[name="remember"]').checked,nk=f.querySelector('[name="nick"]');
+  nk.hidden=!on;
+  if(on&&!nk.value&&!people().length) nk.value='나';
+}
+$('fMain').querySelector('[name="remember"]').addEventListener('change',toggleNick);
+$('people').addEventListener('click',e=>{
+  const go=e.target.closest('[data-pi]'),del=e.target.closest('[data-pdel]');
+  if(go){
+    const l=people(),i=+go.dataset.pi,x=l[i];if(!x) return;
+    l.splice(i,1);l.unshift(x);peopleSet(l);          // 방금 연 사람을 맨 위로
+    const f=$('fMain');fillForm(f,x.q,'');
+    f.querySelector('[name="remember"]').checked=false;toggleNick();
+    f.requestSubmit?f.requestSubmit():f.querySelector('.go').click();
+    return;
+  }
+  if(del){
+    if(del.dataset.sure!=='1'){del.dataset.sure='1';del.textContent='정말 지울까?';del.classList.add('sure');return;}
+    const l=people();l.splice(+del.dataset.pdel,1);peopleSet(l);renderPeople();
+  }
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-p2]');
+  if(!b) return;
+  const x=people()[+b.dataset.p2];
+  if(x&&$('fMatch')) fillForm($('fMatch'),x.q,'2');
+});
 function openSheet(){$('sheet').classList.add('on');$('shScrim').classList.add('on');$('shLinkOut').innerHTML='';$('shCardOut').innerHTML='';}
 function closeSheet(){$('sheet').classList.remove('on');$('shScrim').classList.remove('on');}
 $('btnShare').addEventListener('click',openSheet);
@@ -782,7 +849,6 @@ $('shLink').addEventListener('click',async()=>{
     const j=S.shareId?{id:S.shareId,path:'/r/'+S.shareId}:await postJSON('/api/v2/share',{token:S.token});
     S.shareId=j.id;
     const url=location.origin+j.path,f=S.facts;
-    recentSave({id:j.id,label:'일주 '+f.natal.day_pillar+' · 만 '+f.meta.age+'세 '+f.meta.sex,date:f.meta.target});
     $('shLinkOut').innerHTML='<div class="linkbox"><input readonly value="'+esc(url)+'"><button class="ghost" type="button" id="shCopy">복사</button></div>'+
       '<p class="fine">이 주소로 언제든 다시 열 수 있어. 오늘 운세 부분은 저장한 날('+esc(f.meta.target)+') 기준이야.</p>';
     $('shCopy').onclick=async()=>{try{await navigator.clipboard.writeText(url);$('shCopy').textContent='복사됨';}catch(_){$('shLinkOut').querySelector('input').select();}};
@@ -817,7 +883,7 @@ $('shCard').addEventListener('click',()=>{
 });
 // 저장 링크로 들어오면 그 결과를 연다
 (async function openShared(){
-  renderRecent();
+  renderPeople();
   const m=location.pathname.match(/^\/r\/([A-Za-z0-9_-]{8,16})$/);
   if(!m) return;
   try{

@@ -235,10 +235,21 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .linkbox{display:flex;gap:6px}.linkbox input{flex:1;font-size:.85rem}.linkbox button{width:auto;padding:0 14px}
 .card-preview{width:100%;border-radius:14px;box-shadow:0 6px 20px rgba(80,30,60,.12)}
 .go.dl{display:grid;place-items:center;text-decoration:none;margin-top:8px}
-.recent{display:grid;gap:6px}
-.recent a{display:flex;justify-content:space-between;gap:8px;text-decoration:none;color:var(--ink);background:var(--soft);
-  border-radius:12px;padding:.55rem .8rem;font-weight:700;font-size:.9rem}
-.recent small{color:var(--muted);font-weight:500}
+/* 이 기기에 기억 · 내 사주 바로 보기 */
+.remember{display:grid;gap:8px}
+.remember .check{padding-top:0}
+.ppl-h{margin:0 0 .5rem}
+.ppl{display:grid;gap:6px;margin-bottom:8px}
+.ppl-row{display:flex;gap:6px;align-items:stretch}
+.ppl-go{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:0;cursor:pointer;
+  color:var(--ink);background:var(--soft);border-radius:12px;padding:.6rem .85rem;font:inherit}
+.ppl-go b{font-size:.98rem}
+.ppl-go small{color:var(--muted);font-size:.8rem}
+.ppl-del{border:1px solid var(--line);background:#fff;border-radius:12px;padding:0 .7rem;font:inherit;font-size:.8rem;
+  color:var(--muted);cursor:pointer;white-space:nowrap}
+.ppl-del.sure{color:#fff;background:#c2410c;border-color:#c2410c}
+.ppl-pick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.82rem;color:var(--muted)}
+.ppl-pick .chip{cursor:pointer;font:inherit;font-size:.82rem}
 
 /* 탭 머리 그림 */
 .hero-art{width:96px;height:68px;display:block;margin:0 auto 4px;fill:none;stroke:var(--accent);stroke-width:3;
