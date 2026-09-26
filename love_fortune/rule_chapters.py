@@ -386,7 +386,9 @@ def life(f: dict, ch: str) -> dict:
         sky = f"태양은 {a['sun']}, 달은 {j(a['moon'], '야')}."
         if a.get("asc"):
             sky += f" 상승궁(첫인상)은 {j(a['asc'], '야')}."
+        bd = n.get("boundary") or {}
         return chapter("원국 완전 풀이", n["character"], [
+            callout(" ".join([i["text"] for i in bd.get("items", [])] + ([bd["note"]] if bd.get("note") else []))),
             text("타고난 그릇", strength_line(n)),
             text("여덟 글자와 나의 관계(십신)", ten_gods_plain(n)),
             text("자미두수 명반", ziwei_plain(zw)) if zw else None,

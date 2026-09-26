@@ -382,7 +382,7 @@ def test_year_pillar_helper_still_accepts_datetime():
 
 
 def test_zi_mode_next_and_split():
-    # 1995-02-28 서울 23:50 은 진태양시 23:25. lunar-python 정자시(1)·야자시(2) 결과와 같다
+    # 1995-02-28 서울 23:50 은 진태양시 23:05 (균시차 수정 후). lunar-python 정자시(1)·야자시(2) 결과와 같다
     from love_fortune.manseryuk import zi_mode
     with zi_mode("next"):
         fp = four_pillars(date(1995, 2, 28), 23, 50, "서울")

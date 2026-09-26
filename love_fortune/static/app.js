@@ -69,9 +69,13 @@ function openTab(tab){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const chips=['일주 '+f.natal.day_pillar,'만 '+f.meta.age+'세',f.meta.sex,'오늘 '+f.meta.target];
   if(!f.meta.hour_known) chips.push('시간 모름: 시주 제외');
+  const bd=(f.natal.boundary||{}).items||[];
   let h='<div class="tab-hero">'+heroArt(tab)+'<div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
     '<p class="hero-sub">'+esc(o.sub)+'</p><div class="meta-chips">'+
-    chips.map((c,i)=>'<span class="chip'+(i===0?' a':'')+'">'+esc(c)+'</span>').join('')+'</div></div>';
+    chips.map((c,i)=>'<span class="chip'+(i===0?' a':'')+'">'+esc(c)+'</span>').join('')+
+    (bd.length?'<button type="button" class="chip warn" id="bdChip">경계 출생: 기둥이 바뀔 수 있어</button>':'')+'</div></div>'+
+    (bd.length?'<div class="card bd-card" id="bdCard" hidden>'+bd.map(i=>'<p>'+esc(i.text)+'</p>').join('')+
+      '<p class="fine">'+esc(f.natal.boundary.note||'')+'</p></div>':'');
   o.chapters.forEach((c,i)=>{
     h+='<section class="chapter" id="ch-'+c.id+'">'+
       '<div class="ch-label">CHAPTER · '+pad(i+1)+'</div>'+
@@ -568,6 +572,8 @@ document.addEventListener('submit',async e=>{
   finally{btn.disabled=false;}
 });
 
+
+document.addEventListener('click',e=>{if(e.target.id==='bdChip'){const c=$('bdCard');if(c) c.hidden=!c.hidden;}});
 
 // ---------------- 용어 눌러서 뜻 보기 (용어 풀이집 /api/glossary)
 const TERM_SKIP=new Set(['사주','태양','금성','수성','화성','목성','토성','음력','기질','궁합','타로','주역','오미쿠지','생명수','달','양']);

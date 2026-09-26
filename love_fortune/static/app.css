@@ -342,4 +342,8 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 #termTip.on{display:block;animation:rise .15s var(--ease)}
 #termTip b{display:block;color:#ffd6e0;margin-bottom:2px}
 
+/* 경계 출생 */
+.chip.warn{background:#fff4e5;border-color:#f3c98b;color:#b86a00;font-weight:800;cursor:pointer}
+.bd-card p{margin:.2rem 0;font-size:.9rem}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

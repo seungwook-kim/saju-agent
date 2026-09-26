@@ -24,8 +24,8 @@ def test_lunar_anchors():
 def test_true_solar_busan():
     dt, corr, lon, ok = true_solar_time(1995, 2, 28, 12, 0, "부산")
     assert ok and abs(lon - 129.08) < 0.01
-    assert (dt.hour, dt.minute) == (11, 43)  # 12:00 - 16.5분
-    assert -20 < corr < -10
+    assert (dt.hour, dt.minute) == (11, 23)  # 경도 -23.7분 + 균시차 -12.6분 (PyEphem 대조). 예전 11:43 은 균시차 오류값
+    assert -40 < corr < -32
 
 
 def test_lichun_2026():
@@ -43,7 +43,7 @@ def test_four_pillars_exact():
 
 
 def test_ziwei_hand_verified():
-    # iztro 대조값 (1995-02-28 부산 12:00 = 진태양시 11:43, 오시)
+    # iztro 대조값 (1995-02-28 부산 12:00 = 진태양시 11:23, 오시)
     z = ziwei_chart(BIRTH, 12, 0, "male", "부산")
     assert z["lunar"] == (1995, 1, 29, False)
     assert z["mingong"] == "신" and z["shengong"] == "신"

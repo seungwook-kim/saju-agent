@@ -195,9 +195,14 @@ def asc_mc(y: int, m: int, d: int, ut: float,
 
 
 def equation_of_time(dt: date) -> float:
-    """균시차(분). NOAA 근사식."""
+    """균시차(분). NOAA 근사식 (연중 분수 γ 는 1월 1일부터 센다).
+
+    예전엔 다른 근사식의 기준일(doy - 81)을 이 계수에 섞어 써서 최대 29분이나 틀렸다
+    (1990-05-05 은 +3.3분이어야 하는데 -14.3분). PyEphem 으로 1950·1990·2026년 매일을 대조해
+    최대 0.77분 안으로 맞는 것을 확인했다 (tests/test_boundary.py).
+    """
     doy = dt.timetuple().tm_yday
-    g = math.radians(360.0 / 365.0 * (doy - 81))
+    g = 2.0 * math.pi / 365.0 * (doy - 1)
     return 229.18 * (0.000075 + 0.001868 * math.cos(g)
                      - 0.032077 * math.sin(g) - 0.014615 * math.cos(2 * g)
                      - 0.040849 * math.sin(2 * g))

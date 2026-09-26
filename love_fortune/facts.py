@@ -187,6 +187,8 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
         },
     }
     base["natal"]["day_pillar"] = STEMS_KR[natal["ilgan_stem"]] + BRANCHES_KR[natal["day_branch"]]
+    from .boundary import check as _boundary
+    base["natal"]["boundary"] = _boundary(birth, hour, minute, city)
     from .natal_extra import ilju_card
     base["natal"]["ilju"] = ilju_card(natal, ma["god"], bool(ma["jindohwa"]))
     from .astro import natal_chart
