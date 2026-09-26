@@ -81,6 +81,10 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
         if b is not None:
             e = BRANCH_ELEMENT[b]
             dist_counts[e] = dist_counts.get(e, 0) + 1
+    from .johu import analyze as johu_analyze, name as johu_name
+    P = natal["pillars"]
+    jh = johu_analyze(P["day"][0], P["month"][1], [P[k][0] for k in ("year", "month", "day", "hour")
+                                                   if P[k][0] is not None], ya["strong"])
     ast = ma["astro"]
 
     def mrows(domain: str) -> list[dict]:
@@ -113,6 +117,8 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
             "ten_gods": ma["dist"][1] if len(ma["dist"]) > 1 else "",
             "strength": ya["strong_label"], "geguk": ya["geguk"], "geguk_mean": ya["geguk_mean"],
             "yongsin": ya["yongsin"],
+            "johu": {"main": [johu_name(s) for s in jh["main"]], "order": [johu_name(s) for s in jh["order"]],
+                     "agree_with_eokbu": jh["agree"], "text": jh["text"]},
             "sinsal": [f"{BASE_PLAIN[x['base']]} 기준으로 {AT_PLAIN[x['at']]}에 {x['name']}({x['talk']})"
                        for x in extra["sinsal"] if x["name"] not in ("지살", "장성살")],
             "guiin": [f"{g['name']}({g['talk']}), {'·'.join(AT_PLAIN[a] for a in g['at'])}에 있어" for g in extra["guiin"]],

@@ -359,7 +359,8 @@ def work_nature(f: dict, dom: str) -> dict:
         blocks.append(text("잘 맞는 분야", D["fit_jobs"]))
         blocks.append(text("도움이 되는 사람(귀인)", *guiin, *n["guiin"]))
     blocks.append(text("태어날 때 하늘의 별", *born_with(D["extra"])))
-    blocks.append(callout(f"균형을 잡아 주는 기운(용신)은 {n['yongsin']}이야. 이 기운이 들어오는 때와 자리를 살리면 "
+    blocks.append(callout(f"균형을 잡아 주는 기운(용신)은 {n['yongsin']}이야. 계절로 보면(조후) "
+                          f"{j(n['johu']['main'][0], '도')} 반가운 기운이야. 이런 기운이 들어오는 때와 자리를 살리면 "
                           f"{j(DOMAIN_WORD[dom], '이')} 한결 편해지기 쉬워."))
     title = "타고난 일의 결" if dom == "career" else "타고난 돈의 결"
     return chapter(title, n["character"], blocks, "투자·이직 같은 큰 결정은 전문가와 함께 따져 봐." if dom == "money" else "")
@@ -390,6 +391,7 @@ def life(f: dict, ch: str) -> dict:
         return chapter("원국 완전 풀이", n["character"], [
             callout(" ".join([i["text"] for i in bd.get("items", [])] + ([bd["note"]] if bd.get("note") else []))),
             text("타고난 그릇", strength_line(n)),
+            text("계절로 본 용신(조후)", *n["johu"]["text"]),
             text("여덟 글자와 나의 관계(십신)", ten_gods_plain(n)),
             text("자미두수 명반", ziwei_plain(zw)) if zw else None,
             text("태어날 때 하늘", sky),

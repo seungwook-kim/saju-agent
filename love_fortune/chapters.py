@@ -15,7 +15,7 @@ import re
 
 from . import ai, content_store, rule_chapters
 
-PROMPT_VERSION = "ch-4"
+PROMPT_VERSION = "ch-5"
 
 SYSTEM = """너는 정통 사주명리·자미두수·서양 점성술을 함께 보는 다정한 상담가다.
 아래 규칙을 반드시 지킨다.
@@ -135,7 +135,7 @@ TABS = {
              "ask": "일주(태어난 날의 간지)를 일간의 비유와 일지의 띠 동물, 십이운성, 배우자 자리의 십성, 일주에 붙은 신살로 풀어 줘. 색 이름(modern)은 요즘 표현이라고 밝힌다."},
             {"id": "wonguk", "emoji": "📜", "title": "원국 완전 풀이",
              "widgets": ["wonguk", "mingpan", "wheel"], "pick": ["natal"],
-             "ask": "원국 전체를 풀어 줘: 일간, 오행 분포, 신강약·격국·용신, 신살·귀인, 자미 명궁·사화, 점성 태양·달·상승궁."},
+             "ask": "원국 전체를 풀어 줘: 일간, 오행 분포, 신강약·격국·용신(억부와 계절로 본 조후를 함께, 둘이 다르면 다르다고), 신살·귀인, 자미 명궁·사화, 점성 태양·달·상승궁."},
             {"id": "love_nature", "emoji": "💞", "title": "타고난 연애의 결",
              "widgets": ["animals"],
              "pick": ["natal.character", "love.spouse_star", "love.spouse_seat", "love.day_stage", "love.dohwa",
@@ -146,7 +146,7 @@ TABS = {
              "ask": "앞으로 12개월과 3년의 연애 흐름을 풀어 줘: 밀고 나갈 때, 다듬을 때와 그 이유. 사실표의 달·해만 쓴다."},
             {"id": "career_nature", "emoji": "🧭", "title": "타고난 일의 결",
              "widgets": [],
-             "pick": ["natal.character", "natal.strength", "natal.geguk", "natal.geguk_mean", "natal.yongsin",
+             "pick": ["natal.character", "natal.strength", "natal.geguk", "natal.geguk_mean", "natal.yongsin", "natal.johu",
                       "career.guanlu", "career.guan", "career.palaces", "career.fit_jobs", "career.extra",
                       "natal.classic_sinsal", "natal.guiin", "natal.astro"],
              "ask": "타고난 일의 결을 풀어 줘: 일하는 기질, 관성·관록궁, 잘 맞는 분야, 조직에서의 자리, 도움이 되는 사람(귀인)의 결. 예언이 아니라 결을 설명한다."},
@@ -155,7 +155,8 @@ TABS = {
              "ask": "앞으로 12개월과 3년의 일 흐름을 풀어 줘: 밀고 나갈 때, 다질 때와 그 이유. 사실표의 달·해만 쓴다."},
             {"id": "money_nature", "emoji": "🪙", "title": "타고난 돈의 결",
              "widgets": [],
-             "pick": ["natal.character", "natal.strength", "natal.elements", "natal.yongsin", "money.caibo", "money.cai",
+             "pick": ["natal.character", "natal.strength", "natal.elements", "natal.yongsin", "natal.johu",
+                      "money.caibo", "money.cai",
                       "money.palaces", "money.extra", "natal.guiin", "natal.astro"],
              "ask": "타고난 돈의 결을 풀어 줘: 재성·식상·비겁, 재백궁, 돈이 모이는 구조와 새기 쉬운 구조, 버는 방식의 결. 투자 조언은 하지 않는다."},
             {"id": "money_flow", "emoji": "💹", "title": "돈의 흐름: 12개월과 3년",
