@@ -62,9 +62,8 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
   padding:10px 0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px)}
 .topbar .logo{text-align:center}
 .back{border:0;background:none;color:var(--muted);cursor:pointer;min-height:40px;text-align:left;white-space:nowrap}
-.tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 10px;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{flex:none;border:1px solid var(--line);background:#fff;border-radius:999px;padding:.45rem 1rem;
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:4px 0 10px}
+.tab{min-width:0;border:1px solid var(--line);background:#fff;border-radius:999px;padding:.4rem .2rem;white-space:nowrap;
   cursor:pointer;font-weight:700;font-size:.92rem;color:var(--muted);min-height:40px}
 .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
