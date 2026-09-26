@@ -266,33 +266,49 @@ def shensha(birth: date, hour: int = 12, minute: int = 0,
         natal["pillars"][k] for k in ("year", "month", "day", "hour"))
     branches = [yb, _mb, db, hb]
     out: dict[str, str] = {}
+
+    def where(*targets: int) -> list[str]:
+        """원국에서 그 글자가 앉은 자리 (시간 모르면 시지는 없다)."""
+        return [n for n, b in zip(("년지", "월지", "일지", "시지"), branches)
+                if b is not None and b in targets]
+
     yg, yg2 = TIANYI[ds]
-    at = [n for n, b in zip(("년지", "월지", "일지", "시지"), branches)
-          if b in (yg, yg2)]
+    at = where(yg, yg2)
     out["천을귀인"] = (f"{BRANCHES_KR[yg]}·{BRANCHES_KR[yg2]}, "
                        + (f"{', '.join(at)}에 있어 도움·귀인이 따르기 쉬운 구조" if at
                           else "원국에 없어 운에서 들어올 때 도움받는 흐름"))
     trio = _trio_of(db)
     ym = YIMA_AT[trio]
+    # 글자가 원국에 있을 때만 '있다'고 말한다. 없으면 '원국에 없어 운에서 들어올 때'로 분명히 적는다
+    # (예전엔 화개·장성·공망·고진과숙이 없을 때도 있는 것처럼 읽히는 문장이었다)
+    at = where(ym)
     out["역마"] = (f"{BRANCHES_KR[ym]}, " +
-                   ("사주에 있어 이동·변동이 많은 흐름" if ym in branches
+                   (f"{', '.join(at)}에 있어 이동·변동이 많은 흐름" if at
                     else "원국에 없어 운에서 들어올 때 이동수가 있는 흐름"))
     hg = HUAGAI_AT[trio]
+    at = where(hg)
     out["화개"] = (f"{BRANCHES_KR[hg]}, " +
-                   ("사주에 있어 예술·학문·고독한 멋이 있는 흐름" if hg in branches
-                    else "내면에 고요한 멋이 있는 흐름"))
+                   (f"{', '.join(at)}에 있어 예술·학문·혼자 파고드는 멋이 있는 흐름" if at
+                    else "원국에 없어 운에서 들어올 때 혼자 정리하고 파고드는 흐름"))
     idx60 = next(n for n in range(60) if n % 10 == ds and n % 12 == db)
     kw1, kw2 = KONGWANG[idx60 // 10]
-    out["공망"] = f"{BRANCHES_KR[kw1]}·{BRANCHES_KR[kw2]}, 비워둘수록 채워지는 자리"
+    at = where(kw1, kw2)
+    out["공망"] = (f"{BRANCHES_KR[kw1]}·{BRANCHES_KR[kw2]}, " +
+                   (f"{', '.join(at)}에 있어 그 자리 일은 비워둘수록 채워지는 흐름" if at
+                    else "원국에 없어 운에서 들어올 때 약속·결과가 비기 쉬운 흐름"))
     jx = JIANGXING_AT[trio]
+    at = where(jx)
     out["장성"] = (f"{BRANCHES_KR[jx]}, " +
-                   ("사주에 있어 이끄는 힘이 있는 흐름" if jx in branches
-                    else "리더십은 운에서 발휘되는 흐름"))
+                   (f"{', '.join(at)}에 있어 이끄는 힘이 있는 흐름" if at
+                    else "원국에 없어 리더십은 운에서 발휘되는 흐름"))
     out["괴강"] = ("일주가 괴강(경진·경술·임진·무술)으로 결단력이 강한 흐름"
                    if (ds, db) in KUIGANG else "괴강 아님, 부드럽게 밀어붙이는 흐름")
     for grp, (gc, gx) in GUCHEN_AT.items():
         if yb in grp:
-            out["고진과숙"] = (f"고진 {BRANCHES_KR[gc]}·과숙 {BRANCHES_KR[gx]}, "
-                               "혼자만의 시간이 필요한 흐름")
+            gat, xat = where(gc), where(gx)
+            has = ([f"고진은 {', '.join(gat)}"] if gat else []) + ([f"과숙은 {', '.join(xat)}"] if xat else [])
+            out["고진과숙"] = (f"고진 {BRANCHES_KR[gc]}·과숙 {BRANCHES_KR[gx]}, " +
+                               (f"{' · '.join(has)}에 있어 혼자만의 시간이 필요한 흐름" if has
+                                else "원국에 없어 운에서 들어올 때 혼자 있는 시간이 늘기 쉬운 흐름"))
             break
     return out

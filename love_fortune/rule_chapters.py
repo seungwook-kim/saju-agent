@@ -112,7 +112,7 @@ def sinsal_cards(lines: list[str]) -> dict | None:
     for x in lines:
         name, _, body = x.partition(":")
         body = body.strip()
-        if "아님" in body.split(",")[0]:
+        if "아님" in body.split(",")[0] or "원국에 없어" in body:
             continue
         body = re.sub(r"^[가-힣](·[가-힣])*,\s*", "", body)          # 앞의 지지 글자 목록
         body = re.sub(r"^[가-힣]+ [가-힣](·[가-힣]+ [가-힣])*,\s*", "", body)   # '고진 신·과숙 진,' 같은 목록
