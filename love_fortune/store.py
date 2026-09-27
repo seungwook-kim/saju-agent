@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 INIT_SQL = ROOT / "db" / "init.sql"
-DB_PATH = Path(os.environ.get("LOVE_FORTUNE_DB", ROOT / "data" / "fortune.db"))
+DB_PATH = Path(os.environ.get("SAJU_DB", ROOT / "data" / "fortune.db"))
 _LOCK = threading.Lock()
 
 

@@ -104,7 +104,7 @@ def test_supabase_down(monkeypatch, capsys):
 def test_dotenv_load(tmp_path, monkeypatch):
     f = tmp_path / ".env"
     f.write_text("# 주석\nLF_T_A=1\nLF_T_B=\"따옴표\"\nLF_T_EMPTY=\nLF_T_KEEP=새값\n", encoding="utf-8")
-    monkeypatch.setenv("LOVE_FORTUNE_DOTENV", "1")
+    monkeypatch.setenv("SAJU_DOTENV", "1")
     monkeypatch.setenv("LF_T_KEEP", "원래값")
     for k in ("LF_T_A", "LF_T_B", "LF_T_EMPTY"):
         monkeypatch.delenv(k, raising=False)

@@ -3,7 +3,7 @@
 - 이미 있는 환경변수는 덮어쓰지 않는다 (Render 등 서버 설정이 우선).
 - KEY=VALUE 한 줄에 하나. # 로 시작하는 줄과 빈 줄은 건너뛴다. 값 양끝의 따옴표는 뗀다.
 - 값이 빈 줄(KEY=)은 건너뛴다 (기본값을 그대로 쓴다).
-- LOVE_FORTUNE_DOTENV=0 이면 읽지 않는다 (시험용).
+- SAJU_DOTENV=0 이면 읽지 않는다 (시험용).
 .env 는 저장소에 올리지 않는다 (.gitignore). 적는 법은 .env.example 에 있다.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 def load(path: Path = ENV_FILE) -> int:
-    if os.environ.get("LOVE_FORTUNE_DOTENV", "1") == "0" or not path.is_file():
+    if os.environ.get("SAJU_DOTENV", "1") == "0" or not path.is_file():
         return 0
     n = 0
     for line in path.read_text(encoding="utf-8-sig").splitlines():

@@ -36,26 +36,26 @@
     chapters.PROMPT_VERSION 을 올려 저장된 풀이를 새로 만들게 한다.
   - OpenRouter 모델은 qwen/qwen3.7-flash (2026-09-27 사용자 결정, 가장 싼 적합 모델). 부를 때 생각(reasoning) 끄기,
     provider.sort=price, 챕터는 response_format json_object. 사용자 허락 없이 유료 AI 를 시험으로 부르지 않는다.
-  - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(LOVE_FORTUNE_AI_BACKEND=openrouter)로
+  - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(SAJU_AI_BACKEND=openrouter)로
     부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
-    공개 서버에서 SSRF 통로가 된다. LOVE_FORTUNE_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
+    공개 서버에서 SSRF 통로가 된다. SAJU_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
   - 저장소: SUPABASE_URL·SUPABASE_SECRET_KEY 가 있으면 Supabase(REST), 없으면 SQLite (content_store.py).
     표는 db/supabase.sql. 서버 전용 키는 환경변수(.env·Render)에만 두고 화면·저장소·로그에 절대 넣지 않는다.
     .env 는 git 에 올리지 않는다. 적는 법은 .env.example. 시험은 .env 를 읽지 않는다(conftest).
   - 상담 채팅은 이 컴퓨터에서 직접 접속할 때만 열린다 (2026-09-27 사용자 결정, AI 요금).
-    web.py _chat_on: LOVE_FORTUNE_CHAT=auto(기본) 루프백만, 1 어디서나, 0 막음. 막히면 화면의 채팅 버튼도 숨긴다.
+    web.py _chat_on: SAJU_CHAT=auto(기본) 루프백만, 1 어디서나, 0 막음. 막히면 화면의 채팅 버튼도 숨긴다.
   - AI 를 운세 밖 용도로 못 쓰게: 챕터 AI 요청에는 사용자가 친 글자가 들어가지 않는다(서버가 계산한 사실표·정해진 요청문만).
     채팅은 질문 300자 상한. 뻔한 운세 밖 요청(코딩·번역·숙제·규칙 무시 등)은 web.offtopic 이 AI 없이 정해 둔 답으로
     돌려보내고(토큰 0), 애매한 건 시스템 지시문의 운세 밖 요청 사양·규칙 변경 요청 무시에 맡긴다. 답 길이 상한(챕터 2,000·채팅 500 토큰).
-  - 상담은 한 사람당 하루 5번 (LOVE_FORTUNE_CHAT_PER_DAY, 2026-09-27 사용자 결정). 열쇠 네 개로 센다:
+  - 상담은 한 사람당 하루 5번 (SAJU_CHAT_PER_DAY, 2026-09-27 사용자 결정). 열쇠 네 개로 센다:
     IP(IPv6 는 /64), 브라우저 쿠키(cid, HttpOnly), 결과 토큰, 사주 해시. 하나라도 다 쓰면 막는다. 모두 합쳐 하루 300번 상한.
     결과 토큰 없이는 상담 못 함. 다른 사이트 Origin 의 POST 는 403. 기기 지문(fingerprint)은 같은 기종끼리 겹쳐 남의 횟수를
     막을 수 있고 개인정보 부담이 있어 쓰지 않는다 (사용자 요청 "막을 수 있는 건 다 막아"에서도 뺀 이유).
     정해 둔 답은 세지 않고, 루프백은 세지 않는다. 프록시 뒤 IP 는 X-Forwarded-For 맨 왼쪽(꾸밀 수 있음)이 아니라
-    오른쪽에서 LOVE_FORTUNE_PROXY_HOPS 번째나 LOVE_FORTUNE_IP_HEADER 로 본다. 배포 뒤 /api/whoami 로 확인.
+    오른쪽에서 SAJU_PROXY_HOPS 번째나 SAJU_IP_HEADER 로 본다. 배포 뒤 /api/whoami 로 확인.
   - 공개 서버 남용 방지: POST 는 IP 하나당 1분 90번, 상담 채팅은 12번 (web.py _rate_ok, 넘으면 429).
-    유료 AI 는 ai.py 에서 시간당 총량(LOVE_FORTUNE_AI_PER_HOUR, OpenRouter 기본 300)으로 한 번 더 막는다.
+    유료 AI 는 ai.py 에서 시간당 총량(SAJU_AI_PER_HOUR, OpenRouter 기본 300)으로 한 번 더 막는다.
   - 외부 데이터는 라이선스가 명시된 것만 쓰고 THIRD_PARTY_NOTICES.md 에 적는다. 포털 사전을 긁은 자료는 쓰지 않는다
     (2026-09-27: 네이버 사전 출처 훈음을 libhangul 사전(BSD)으로 바꿈).
   - 내장 데이터(음력표·표준시 이력)는 tools/gen_calendar_data.py 로만 다시 만든다.

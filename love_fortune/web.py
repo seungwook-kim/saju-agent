@@ -38,7 +38,7 @@ CONTEXT_MAX = 300           # 동시에 들고 있는 최대 개수
 MAX_BODY = 64_000           # 요청 본문 상한(바이트)
 
 # 요청 횟수 제한 (공개 서버에서 한 사람이 계산·AI 를 마구 두드리지 못하게). 1분 동안 IP 하나당 횟수.
-# LOVE_FORTUNE_RATE=0 이면 끈다 (시험용). 프록시 뒤(Render 등)에서는 LOVE_FORTUNE_TRUST_PROXY=1 로
+# SAJU_RATE=0 이면 끈다 (시험용). 프록시 뒤(Render 등)에서는 SAJU_TRUST_PROXY=1 로
 # X-Forwarded-For 첫 주소를 쓴다. 이 값은 속일 수 있으니, 돈이 드는 AI 는 ai.py 의 시간당 총량으로 한 번 더 막는다.
 RATE_WINDOW = 60
 RATE_POST = 90              # 모든 POST
@@ -49,14 +49,14 @@ _HITS_LOCK = threading.Lock()
 
 def _chat_on(ip: str) -> bool:
     """상담 채팅을 열지. 공개 서버에서는 잠시 막아 둔다 (2026-09-27 사용자 결정, AI 요금).
-    LOVE_FORTUNE_CHAT=1 이면 어디서나, 0 이면 어디서도 안 연다.
+    SAJU_CHAT=1 이면 어디서나, 0 이면 어디서도 안 연다.
     기본(auto)은 이 컴퓨터에서 직접 접속했을 때만 연다: 요청 주소가 루프백이고 프록시 뒤가 아닐 때."""
-    mode = os.environ.get("LOVE_FORTUNE_CHAT", "auto").strip().lower()
+    mode = os.environ.get("SAJU_CHAT", "auto").strip().lower()
     if mode in ("1", "on", "true"):
         return True
     if mode in ("0", "off", "false"):
         return False
-    if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")):
+    if _truthy(os.environ.get("SAJU_TRUST_PROXY", "")):
         return False
     return ip in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
@@ -65,14 +65,14 @@ def _chat_on(ip: str) -> bool:
 # 로그인이 없어서 "한 사람"을 IP 와 결과 토큰 두 가지로 센다. 둘 중 하나라도 다 쓰면 막는다.
 # IP 를 바꾸고(데이터·VPN) 사주도 새로 펼치면 뚫리지만, 그래도 AI 요금은 ai.py 시간당 총량에서 한 번 더 막힌다.
 # 정해 둔 답(잡담·운세 밖 요청)은 세지 않는다. 이 컴퓨터(루프백)에서는 세지 않는다.
-CHAT_PER_DAY = int(os.environ.get("LOVE_FORTUNE_CHAT_PER_DAY", "5"))
+CHAT_PER_DAY = int(os.environ.get("SAJU_CHAT_PER_DAY", "5"))
 _CHAT_USED: dict[str, list[float]] = {}
 _CHAT_LOCK = threading.Lock()
 LOOPBACK = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
 
 # 모두 합쳐 하루 상담 상한. 누가 IP·브라우저를 바꿔 가며 뚫어도 하루 요금이 이 이상 안 나간다.
-CHAT_GLOBAL_PER_DAY = int(os.environ.get("LOVE_FORTUNE_CHAT_GLOBAL_PER_DAY", "300"))
+CHAT_GLOBAL_PER_DAY = int(os.environ.get("SAJU_CHAT_GLOBAL_PER_DAY", "300"))
 _SALT = secrets.token_hex(16)        # 열쇠를 해시할 때 섞는 값 (서버를 켤 때마다 새로, 메모리에만)
 
 
@@ -118,7 +118,7 @@ def _chat_take(keys: list[str], local: bool = False) -> int | None:
 
 
 def _rate_ok(ip: str, path: str) -> bool:
-    if not _truthy(os.environ.get("LOVE_FORTUNE_RATE", "1")):
+    if not _truthy(os.environ.get("SAJU_RATE", "1")):
         return True
     now = time.time()
     keys = [(ip, "post", RATE_POST)] + ([(ip, "chat", RATE_CHAT)] if path == "/api/chat" else [])
@@ -711,14 +711,14 @@ CHAPTER_WAIT = 300         # AI 챕터 풀이를 기다리는 최대 시간(초)
 
 
 def _prefetch_on() -> bool:
-    """입력하자마자 모든 탭의 AI 풀이를 미리 만들지. LOVE_FORTUNE_PREFETCH=0 이면 연 탭만 만든다."""
-    return os.environ.get("LOVE_FORTUNE_PREFETCH", "1") != "0"
+    """입력하자마자 모든 탭의 AI 풀이를 미리 만들지. SAJU_PREFETCH=0 이면 연 탭만 만든다."""
+    return os.environ.get("SAJU_PREFETCH", "1") != "0"
 
 
 def _ai_on() -> bool:
-    """챕터 풀이에 AI 를 쓸지. LOVE_FORTUNE_AI=0 이면 계산 문장만 쓴다 (시험·오프라인)."""
+    """챕터 풀이에 AI 를 쓸지. SAJU_AI=0 이면 계산 문장만 쓴다 (시험·오프라인)."""
     from . import ai
-    return os.environ.get("LOVE_FORTUNE_AI", "1") != "0" and ai.available()
+    return os.environ.get("SAJU_AI", "1") != "0" and ai.available()
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # 개인정보가 로그에 남지 않도록
@@ -865,10 +865,10 @@ class Handler(BaseHTTPRequestHandler):
         from urllib.parse import urlsplit
         got = urlsplit(origin).netloc.lower()
         ok = {(self.headers.get("Host") or "").strip().lower()}
-        if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")):      # 프록시가 Host 를 바꿔 전달하는 경우
+        if _truthy(os.environ.get("SAJU_TRUST_PROXY", "")):      # 프록시가 Host 를 바꿔 전달하는 경우
             ok.add((self.headers.get("X-Forwarded-Host") or "").split(",")[0].strip().lower())
         # 따로 허용할 주소 (쉼표로 여럿, 예: saju.example.com,saju-agent.onrender.com)
-        ok |= {x.strip().lower() for x in os.environ.get("LOVE_FORTUNE_ORIGINS", "").split(",") if x.strip()}
+        ok |= {x.strip().lower() for x in os.environ.get("SAJU_ORIGINS", "").split(",") if x.strip()}
         return got in ok
 
     def _cid(self) -> str:
@@ -882,22 +882,22 @@ class Handler(BaseHTTPRequestHandler):
         cid = c["cid"].value if "cid" in c and re.fullmatch(r"[A-Za-z0-9_-]{16,40}", c["cid"].value) else ""
         if not cid:
             cid = secrets.token_urlsafe(16)
-            secure = "; Secure" if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")) else ""
+            secure = "; Secure" if _truthy(os.environ.get("SAJU_TRUST_PROXY", "")) else ""
             self._cookie = f"cid={cid}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Strict{secure}"
         return cid
 
     def _client_ip(self) -> str:
-        """방문자 IP. 프록시 뒤(LOVE_FORTUNE_TRUST_PROXY=1)에서는
-        1) LOVE_FORTUNE_IP_HEADER 로 정한 헤더(예: True-Client-IP, CF-Connecting-IP)가 있으면 그 값,
-        2) 없으면 X-Forwarded-For 의 오른쪽에서 LOVE_FORTUNE_PROXY_HOPS(기본 1) 번째 값.
+        """방문자 IP. 프록시 뒤(SAJU_TRUST_PROXY=1)에서는
+        1) SAJU_IP_HEADER 로 정한 헤더(예: True-Client-IP, CF-Connecting-IP)가 있으면 그 값,
+        2) 없으면 X-Forwarded-For 의 오른쪽에서 SAJU_PROXY_HOPS(기본 1) 번째 값.
         맨 왼쪽 값은 방문자가 마음대로 넣을 수 있어서 쓰지 않는다 (횟수 제한 우회 방지).
         배포 뒤 /api/whoami 로 서버가 보는 내 IP 가 실제 IP 와 같은지 확인한다."""
-        if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")):
-            hdr = os.environ.get("LOVE_FORTUNE_IP_HEADER", "").strip()
+        if _truthy(os.environ.get("SAJU_TRUST_PROXY", "")):
+            hdr = os.environ.get("SAJU_IP_HEADER", "").strip()
             if hdr and (self.headers.get(hdr) or "").strip():
                 return self.headers.get(hdr).strip()
             parts = [p.strip() for p in (self.headers.get("X-Forwarded-For") or "").split(",") if p.strip()]
-            hops = max(1, int(os.environ.get("LOVE_FORTUNE_PROXY_HOPS", "1") or 1))
+            hops = max(1, int(os.environ.get("SAJU_PROXY_HOPS", "1") or 1))
             if parts:
                 return parts[-hops] if len(parts) >= hops else parts[0]
         return self.client_address[0]
@@ -1082,7 +1082,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"reply": canned, "mode": "rule", "model": "정해 둔 답"})
             return
         ip = self._client_ip()
-        local = ip in LOOPBACK and not _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", ""))
+        local = ip in LOOPBACK and not _truthy(os.environ.get("SAJU_TRUST_PROXY", ""))
         keys = ["ip:" + ip_key(ip), "cid:" + self._cid(), "t:" + token]
         f = ctx.get("facts") or {}
         if f.get("natal"):                  # 같은 사주를 다시 펼쳐 와도 같은 열쇠 (해시만, 원래 값은 안 둔다)
@@ -1098,8 +1098,8 @@ class Handler(BaseHTTPRequestHandler):
         model = str(q.get("model", "") or "gpt-4o-mini")
         backend = str(q.get("backend", "") or "").strip().lower()
         # 요청이 준 주소로 서버가 대신 요청을 보내는 기능이라, 공개 서버에서는 아무 주소나
-        # 찌르는 통로(SSRF)가 된다. 화면은 쓰지 않으니 LOVE_FORTUNE_CUSTOM_LLM=1 일 때만 연다.
-        custom_ok = os.environ.get("LOVE_FORTUNE_CUSTOM_LLM", "0") == "1"
+        # 찌르는 통로(SSRF)가 된다. 화면은 쓰지 않으니 SAJU_CUSTOM_LLM=1 일 때만 연다.
+        custom_ok = os.environ.get("SAJU_CUSTOM_LLM", "0") == "1"
         if backend == "openai" and not custom_ok:
             backend = ""
         if backend not in ("cli", "openai", "local"):

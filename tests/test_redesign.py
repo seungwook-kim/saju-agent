@@ -97,7 +97,7 @@ def test_ai_chapter_is_cached(sheet, monkeypatch):
 @pytest.fixture()
 def server(monkeypatch):
     from love_fortune import web
-    monkeypatch.setenv("LOVE_FORTUNE_AI", "0")
+    monkeypatch.setenv("SAJU_AI", "0")
     srv = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}"
@@ -291,8 +291,8 @@ def test_chart_data_for_pictures(sheet):
 def test_openrouter_backend(monkeypatch):
     import importlib
     from love_fortune import ai
-    monkeypatch.setenv("LOVE_FORTUNE_AI_BACKEND", "openrouter")
-    monkeypatch.setenv("LOVE_FORTUNE_OPENROUTER_MODEL", "some-provider/some-model")
+    monkeypatch.setenv("SAJU_AI_BACKEND", "openrouter")
+    monkeypatch.setenv("SAJU_OPENROUTER_MODEL", "some-provider/some-model")
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     mod = importlib.reload(ai)
     try:
@@ -316,7 +316,7 @@ def test_openrouter_backend(monkeypatch):
         assert seen["auth"] == "Bearer test-key" and seen["body"]["model"] == "some-provider/some-model"
         assert seen["body"]["messages"][0] == {"role": "system", "content": "시스템"}
     finally:
-        monkeypatch.delenv("LOVE_FORTUNE_AI_BACKEND")
+        monkeypatch.delenv("SAJU_AI_BACKEND")
         importlib.reload(ai)
 
 

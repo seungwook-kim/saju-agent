@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SQL = ROOT / "db" / "content.sql"
-DB = Path(os.environ.get("LOVE_FORTUNE_CONTENT_DB", ROOT / "data" / "content.db"))
+DB = Path(os.environ.get("SAJU_CONTENT_DB", ROOT / "data" / "content.db"))
 _LOCK = threading.Lock()
 _READY = False
 

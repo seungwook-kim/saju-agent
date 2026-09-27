@@ -1,11 +1,11 @@
 """ai.py, AI 모델 호출 (상담 채팅·챕터 풀이 공용).
 
-두 가지 방식 중 하나를 쓴다 (환경변수 LOVE_FORTUNE_AI_BACKEND):
+두 가지 방식 중 하나를 쓴다 (환경변수 SAJU_AI_BACKEND):
 - cli (기본): 이 PC 에 로그인된 구독 AI 를 로컬 CLI 명령으로 부른다.
   도구는 전부 끄고(--tools ""), 대화는 저장하지 않는다(--no-session-persistence).
   시스템 프롬프트는 임시 파일로, 본문은 표준입력으로 넘긴다 (명령줄 길이 제한 회피).
 - openrouter: OpenRouter API(https://openrouter.ai/api/v1/chat/completions)로 부른다.
-  OPENROUTER_API_KEY 와 LOVE_FORTUNE_OPENROUTER_MODEL(예: 제공사/모델 이름)을 넣어야 켜진다.
+  OPENROUTER_API_KEY 와 SAJU_OPENROUTER_MODEL(예: 제공사/모델 이름)을 넣어야 켜진다.
   서비스로 공개할 때 쓰는 방식이다.
 어느 쪽이든 보내는 것은 개인정보를 뺀 계산 결과와 요청뿐이고, 동시에 도는 호출 수를 제한한다.
 """
@@ -20,22 +20,22 @@ import tempfile
 import threading
 import time
 
-BACKEND = os.environ.get("LOVE_FORTUNE_AI_BACKEND", "cli").strip().lower()
-AI_CLI = os.environ.get("LOVE_FORTUNE_AI_CLI", "claude")          # 실행할 명령 이름 (cli)
-OPENROUTER_URL = os.environ.get("LOVE_FORTUNE_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
-OPENROUTER_MODEL = os.environ.get("LOVE_FORTUNE_OPENROUTER_MODEL", "").strip()
+BACKEND = os.environ.get("SAJU_AI_BACKEND", "cli").strip().lower()
+AI_CLI = os.environ.get("SAJU_AI_CLI", "claude")          # 실행할 명령 이름 (cli)
+OPENROUTER_URL = os.environ.get("SAJU_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
+OPENROUTER_MODEL = os.environ.get("SAJU_OPENROUTER_MODEL", "").strip()
 # 챕터 풀이 저장 키에도 들어가서, 모델을 바꾸면 풀이를 새로 만든다
 AI_MODEL = (OPENROUTER_MODEL if BACKEND == "openrouter"
-            else os.environ.get("LOVE_FORTUNE_AI_MODEL", "claude-sonnet-5"))
+            else os.environ.get("SAJU_AI_MODEL", "claude-sonnet-5"))
 LABEL = "AI 모델" if BACKEND == "openrouter" else "구독 AI 모델"      # 화면에 보이는 이름
 AI_TIMEOUT = 180
-PARALLEL = max(1, int(os.environ.get("LOVE_FORTUNE_AI_PARALLEL", "3")))
+PARALLEL = max(1, int(os.environ.get("SAJU_AI_PARALLEL", "3")))
 _SLOTS = threading.BoundedSemaphore(PARALLEL)
 
 
 # 한 시간에 실제로 부르는 AI 횟수 상한 (공개 서버에서 요금 폭탄을 막는다). 0 이면 제한 없음.
 # OpenRouter(유료)는 기본 300번, 로컬 구독 CLI 는 기본 제한 없음. 넘으면 부르는 쪽이 계산 풀이로 대신한다.
-PER_HOUR = int(os.environ.get("LOVE_FORTUNE_AI_PER_HOUR", "300" if BACKEND == "openrouter" else "0"))
+PER_HOUR = int(os.environ.get("SAJU_AI_PER_HOUR", "300" if BACKEND == "openrouter" else "0"))
 _CALLS: list[float] = []
 _CALLS_LOCK = threading.Lock()
 
@@ -60,19 +60,19 @@ def available() -> bool:
 
 # 한 번에 받는 답의 길이 상한 (토큰). 챕터 풀이는 평균 950, 가장 긴 것 1,700 정도라 2,000 이면 넉넉하다.
 # 상한이 없으면 모델이 길게 쓰는 만큼 요금이 나간다.
-MAX_TOKENS = int(os.environ.get("LOVE_FORTUNE_AI_MAX_TOKENS", "2000"))
+MAX_TOKENS = int(os.environ.get("SAJU_AI_MAX_TOKENS", "2000"))
 
 
 # 요금 설정 (2026-09-27, 추천 모델 qwen/qwen3.7-flash 기준)
 # - 생각(reasoning) 끄기: 생각하는 모델은 생각한 글도 출력 요금으로 나가고, 답 길이 상한을 생각으로 다 써 버려
-#   빈 답이 올 수 있다. LOVE_FORTUNE_OPENROUTER_REASONING=on 이면 켠다.
-# - 같은 모델이면 가장 싼 제공사로 (provider.sort=price). LOVE_FORTUNE_OPENROUTER_SORT 를 비우면 OpenRouter 기본 배분.
+#   빈 답이 올 수 있다. SAJU_OPENROUTER_REASONING=on 이면 켠다.
+# - 같은 모델이면 가장 싼 제공사로 (provider.sort=price). SAJU_OPENROUTER_SORT 를 비우면 OpenRouter 기본 배분.
 # - 챕터 풀이는 JSON 모드(response_format)로 받아 깨진 JSON 때문에 다시 부르는 일을 줄인다.
 def _openrouter_extra(json_mode: bool) -> dict:
     extra: dict = {}
-    if os.environ.get("LOVE_FORTUNE_OPENROUTER_REASONING", "off").strip().lower() not in ("on", "1", "true"):
+    if os.environ.get("SAJU_OPENROUTER_REASONING", "off").strip().lower() not in ("on", "1", "true"):
         extra["reasoning"] = {"enabled": False}
-    sort = os.environ.get("LOVE_FORTUNE_OPENROUTER_SORT", "price").strip()
+    sort = os.environ.get("SAJU_OPENROUTER_SORT", "price").strip()
     if sort:
         extra["provider"] = {"sort": sort}
     if json_mode:
@@ -93,7 +93,7 @@ def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MA
                        **_openrouter_extra(json_mode)}).encode("utf-8")
     req = urllib.request.Request(OPENROUTER_URL, data=body, method="POST", headers={
         "Authorization": f"Bearer {key}", "Content-Type": "application/json",
-        "X-Title": os.environ.get("LOVE_FORTUNE_APP_NAME", "love-fortune")})
+        "X-Title": os.environ.get("SAJU_APP_NAME", "saju-agent")})
     with _SLOTS:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:

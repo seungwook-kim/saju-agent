@@ -182,23 +182,23 @@ Supabase 무료 프로젝트는 7일 동안 요청이 없으면 일시정지되�
     단정 표현이 든 문장을 화면에 내보내기 전에 뺀다.
   - 미리 만들기 (`prefetch.py`): 입력하자마자 모든 탭의 AI 풀이를 총운부터 대기열에 넣고,
     화면이 연 탭의 챕터를 맨 앞으로 당긴다. 새 사람 한 명당 AI 호출이 최대 33번 생긴다 (챕터 수만큼).
-    끄려면 `LOVE_FORTUNE_PREFETCH=0` (연 탭만 만든다).
+    끄려면 `SAJU_PREFETCH=0` (연 탭만 만든다).
 - 맨 아래 **AI 상담**: 리포트를 아는 상담 에이전트와 대화 (구독 AI 모델, 실패 시 로컬 규칙 에이전트)
   - 도구는 전부 끄고, 대화는 저장하지 않으며, 생년월일을 뺀 요약만 보낸다.
-  - 모델·명령: 환경변수 `LOVE_FORTUNE_AI_MODEL`(기본 claude-sonnet-5), `LOVE_FORTUNE_AI_CLI`
-  - 동시에 도는 AI 호출 수: `LOVE_FORTUNE_AI_PARALLEL`(기본 3, 미리 만들기는 한 자리를 상담용으로 남긴다).
-    `LOVE_FORTUNE_AI=0` 이면 AI 없이 기본 풀이만.
+  - 모델·명령: 환경변수 `SAJU_AI_MODEL`(기본 claude-sonnet-5), `SAJU_AI_CLI`
+  - 동시에 도는 AI 호출 수: `SAJU_AI_PARALLEL`(기본 3, 미리 만들기는 한 자리를 상담용으로 남긴다).
+    `SAJU_AI=0` 이면 AI 없이 기본 풀이만.
   - 채팅 API(`/api/chat`)에 `backend=openai`·`endpoint`·`api_key` 를 주면 OpenAI 호환 LLM(예: Ollama `http://localhost:11434/v1`)도 부를 수 있다.
-    요청이 준 주소로 서버가 요청을 보내는 기능이라 공개 서버에서는 위험해서(SSRF), `LOVE_FORTUNE_CUSTOM_LLM=1` 일 때만 켜진다.
+    요청이 준 주소로 서버가 요청을 보내는 기능이라 공개 서버에서는 위험해서(SSRF), `SAJU_CUSTOM_LLM=1` 일 때만 켜진다.
 
 ### AI 연결 방식 바꾸기 (공개 서비스용 OpenRouter)
 
 기본은 이 PC 에 로그인된 구독 AI 를 CLI 로 부른다. 서비스로 공개할 때는 OpenRouter API 로 바꾼다.
 
 ```bash
-LOVE_FORTUNE_AI_BACKEND=openrouter
+SAJU_AI_BACKEND=openrouter
 OPENROUTER_API_KEY=...                     # OpenRouter 에서 발급한 키
-LOVE_FORTUNE_OPENROUTER_MODEL=제공사/모델   # OpenRouter 모델 이름 (필수, 기본값 없음)
+SAJU_OPENROUTER_MODEL=제공사/모델   # OpenRouter 모델 이름 (필수, 기본값 없음)
 ```
 
 - 키나 모델 이름이 없으면 AI 를 끈 것으로 보고 기본 풀이만 보여 준다.

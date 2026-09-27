@@ -56,7 +56,7 @@ AI는 계산된 사실표만 받고, 사실표에 없는 숫자나 단정하는 
 ### 4. 보안과 개인정보
 - 서버는 생년월일을 저장하지 않고, 로그에도 입력값을 남기지 않습니다.
 - 공유 링크는 계산 결과(사실표)만 저장합니다.
-- 채팅의 "사용자 지정 LLM 주소" 기능은 요청에 담긴 주소로 서버가 대신 요청을 보내는 구조라 공개 서버에서 SSRF 통로가 됩니다. 그래서 기본으로 꺼 두고, `LOVE_FORTUNE_CUSTOM_LLM=1`일 때만 엽니다.
+- 채팅의 "사용자 지정 LLM 주소" 기능은 요청에 담긴 주소로 서버가 대신 요청을 보내는 구조라 공개 서버에서 SSRF 통로가 됩니다. 그래서 기본으로 꺼 두고, `SAJU_CUSTOM_LLM=1`일 때만 엽니다.
 
 ## 구조
 
@@ -101,15 +101,15 @@ AI 풀이는 선택입니다. AI 없이도 모든 챕터가 계산 풀이로 채
 
 ```bash
 # OpenRouter로 AI 풀이 켜기
-export LOVE_FORTUNE_AI_BACKEND=openrouter
-export LOVE_FORTUNE_OPENROUTER_MODEL=<모델 이름>
+export SAJU_AI_BACKEND=openrouter
+export SAJU_OPENROUTER_MODEL=<모델 이름>
 export OPENROUTER_API_KEY=<키>
 ```
 
 ## 배포
 
 - `Dockerfile`: 패키지 설치 없이 `python -m love_fortune form`으로 뜨고, `PORT`·`HOST` 환경변수를 따릅니다. `/healthz`로 상태를 확인합니다.
-- `render.yaml`: [Render](https://render.com)에서 저장소를 연결하면 이 설정으로 무료 웹 서비스를 만듭니다. 방문자마다 AI 풀이를 미리 만들지 않도록 `LOVE_FORTUNE_PREFETCH=0`이 기본입니다.
+- `render.yaml`: [Render](https://render.com)에서 저장소를 연결하면 이 설정으로 무료 웹 서비스를 만듭니다. 방문자마다 AI 풀이를 미리 만들지 않도록 `SAJU_PREFETCH=0`이 기본입니다.
 
 ## 개발 방식
 

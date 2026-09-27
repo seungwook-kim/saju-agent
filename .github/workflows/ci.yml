@@ -12,7 +12,7 @@ jobs:
       matrix:
         python: ["3.11", "3.12", "3.13"]
     env:
-      LOVE_FORTUNE_AI: "0"          # 시험은 AI 없이 계산 풀이만
+      SAJU_AI: "0"          # 시험은 AI 없이 계산 풀이만
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4

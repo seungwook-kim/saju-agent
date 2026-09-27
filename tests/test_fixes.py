@@ -410,12 +410,12 @@ def test_zi_mode_next_and_split():
 
 
 def test_custom_llm_endpoint_is_off_by_default(server, monkeypatch):
-    """요청이 준 주소로 서버가 요청을 보내지 않는다 (공개 서버 SSRF 방지). 켜려면 LOVE_FORTUNE_CUSTOM_LLM=1."""
+    """요청이 준 주소로 서버가 요청을 보내지 않는다 (공개 서버 SSRF 방지). 켜려면 SAJU_CUSTOM_LLM=1."""
     from love_fortune import web
     called = []
     monkeypatch.setattr(web, "llm_chat", lambda *a, **k: called.append(a) or "x")
     monkeypatch.setattr(web, "cli_available", lambda: False)      # 실제 AI 명령은 부르지 않는다
-    monkeypatch.delenv("LOVE_FORTUNE_CUSTOM_LLM", raising=False)
+    monkeypatch.delenv("SAJU_CUSTOM_LLM", raising=False)
     _, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
     code, j = _post(server, "/api/chat", {"token": rep["token"], "message": "올해 연애운 어때", "backend": "openai",
                                           "endpoint": "http://169.254.169.254/latest", "api_key": "k"})
@@ -467,7 +467,7 @@ def test_ask_panel_mobile_fit():
 def test_rate_limit_chat(server, monkeypatch):
     # 공개 서버 남용 방지: 한 IP 가 1분에 상담 채팅을 12번 넘게 보내면 429
     from love_fortune import web
-    monkeypatch.setenv("LOVE_FORTUNE_RATE", "1")
+    monkeypatch.setenv("SAJU_RATE", "1")
     monkeypatch.setattr(web, "_HITS", {})
     codes = [_post(server, "/api/chat", {"token": "x", "message": "안녕", "backend": "local"})[0] for _ in range(web.RATE_CHAT + 1)]
     assert 429 not in codes[:-1] and codes[-1] == 429
@@ -514,25 +514,25 @@ def test_home_says_for_fun_only():
 def test_chat_only_on_local(monkeypatch):
     # 상담 채팅은 이 컴퓨터에서만. 공개 서버(프록시 뒤)나 다른 기기에서는 막고 화면 버튼도 숨긴다
     from love_fortune import web
-    monkeypatch.delenv("LOVE_FORTUNE_CHAT", raising=False)
-    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
+    monkeypatch.delenv("SAJU_CHAT", raising=False)
+    monkeypatch.delenv("SAJU_TRUST_PROXY", raising=False)
     assert web._chat_on("127.0.0.1") and web._chat_on("::1")
     assert not web._chat_on("192.168.0.5")
-    monkeypatch.setenv("LOVE_FORTUNE_TRUST_PROXY", "1")
+    monkeypatch.setenv("SAJU_TRUST_PROXY", "1")
     assert not web._chat_on("127.0.0.1")
-    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "1")
+    monkeypatch.setenv("SAJU_CHAT", "1")
     assert web._chat_on("203.0.113.9")
-    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "0")
+    monkeypatch.setenv("SAJU_CHAT", "0")
     assert not web._chat_on("127.0.0.1")
     js = (web.STATIC_DIR / "app.js").read_text(encoding="utf-8")
     assert "chatOn:!!j.chat" in js and "$('askFab').hidden=!S.chatOn" in js
 
 
 def test_chat_blocked_when_off(server, monkeypatch):
-    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "0")
+    monkeypatch.setenv("SAJU_CHAT", "0")
     code, j = _post(server, "/api/chat", {"token": "x", "message": "안녕", "backend": "local"})
     assert code == 403 and "쉬는 중" in j["error"]
-    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "auto")
+    monkeypatch.setenv("SAJU_CHAT", "auto")
     code, j = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
     assert code == 200 and j["chat"] is True          # 시험 서버는 127.0.0.1 이라 열린다
 
@@ -612,7 +612,7 @@ def test_chat_quota_per_day(monkeypatch):
     from love_fortune import web
     monkeypatch.setattr(web, "_CHAT_USED", {})
     monkeypatch.setattr(web, "CHAT_PER_DAY", 5)
-    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
+    monkeypatch.delenv("SAJU_TRUST_PROXY", raising=False)
     T = web._chat_take
     left = [T(["ip:1.1.1.1", "cid:A", "t:tA", "s:S1"]) for _ in range(5)]
     assert left == [4, 3, 2, 1, 0]
@@ -637,15 +637,15 @@ def test_client_ip_not_spoofable_by_left_xff(monkeypatch):
             self.headers = headers
 
     ip = web.Handler._client_ip
-    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
+    monkeypatch.delenv("SAJU_TRUST_PROXY", raising=False)
     assert ip(H({"X-Forwarded-For": "1.1.1.1"})) == "10.0.0.2"          # 프록시를 안 믿으면 헤더 무시
-    monkeypatch.setenv("LOVE_FORTUNE_TRUST_PROXY", "1")
-    monkeypatch.delenv("LOVE_FORTUNE_IP_HEADER", raising=False)
-    monkeypatch.delenv("LOVE_FORTUNE_PROXY_HOPS", raising=False)
+    monkeypatch.setenv("SAJU_TRUST_PROXY", "1")
+    monkeypatch.delenv("SAJU_IP_HEADER", raising=False)
+    monkeypatch.delenv("SAJU_PROXY_HOPS", raising=False)
     assert ip(H({"X-Forwarded-For": "6.6.6.6, 203.0.113.5"})) == "203.0.113.5"   # 방문자가 넣은 왼쪽 값은 무시
-    monkeypatch.setenv("LOVE_FORTUNE_PROXY_HOPS", "2")
+    monkeypatch.setenv("SAJU_PROXY_HOPS", "2")
     assert ip(H({"X-Forwarded-For": "6.6.6.6, 203.0.113.5, 172.16.0.1"})) == "203.0.113.5"
-    monkeypatch.setenv("LOVE_FORTUNE_IP_HEADER", "True-Client-IP")
+    monkeypatch.setenv("SAJU_IP_HEADER", "True-Client-IP")
     assert ip(H({"True-Client-IP": "198.51.100.3", "X-Forwarded-For": "6.6.6.6"})) == "198.51.100.3"
 
 
@@ -675,7 +675,7 @@ def test_ipv6_grouped_and_origin_and_token_required(server):
 
 def test_chat_sets_browser_cookie(server, monkeypatch):
     import json as _json
-    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "1")
+    monkeypatch.setenv("SAJU_CHAT", "1")
     code, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
     req = urllib.request.Request(server + "/api/chat", headers={"Content-Type": "application/json"},
                                  data=_json.dumps({"token": rep["token"], "message": "올해 연애운 어때", "backend": "local"}).encode())
@@ -692,15 +692,15 @@ def test_same_origin_rules(monkeypatch):
             self.headers = headers
 
     so = web.Handler._same_origin
-    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
-    monkeypatch.delenv("LOVE_FORTUNE_ORIGINS", raising=False)
+    monkeypatch.delenv("SAJU_TRUST_PROXY", raising=False)
+    monkeypatch.delenv("SAJU_ORIGINS", raising=False)
     assert so(H({"Host": "a.com"}))                                        # Origin 없음 (도구·옛 브라우저)
     assert so(H({"Host": "a.com", "Origin": "https://a.com"}))
     assert not so(H({"Host": "a.com", "Origin": "https://evil.com"}))
     assert not so(H({"Host": "a.com", "Origin": "null"}))
-    monkeypatch.setenv("LOVE_FORTUNE_TRUST_PROXY", "1")
+    monkeypatch.setenv("SAJU_TRUST_PROXY", "1")
     assert so(H({"Host": "10.0.0.5:8765", "X-Forwarded-Host": "a.onrender.com", "Origin": "https://a.onrender.com"}))
-    monkeypatch.setenv("LOVE_FORTUNE_ORIGINS", "saju.example.com, b.com")
+    monkeypatch.setenv("SAJU_ORIGINS", "saju.example.com, b.com")
     assert so(H({"Host": "x", "Origin": "https://saju.example.com"}))
 
 
@@ -725,7 +725,7 @@ def test_openrouter_request_is_cheap(monkeypatch):
     monkeypatch.setattr(ai, "OPENROUTER_MODEL", "qwen/qwen3.7-flash")
     monkeypatch.setattr(ai, "PER_HOUR", 0)
     monkeypatch.setenv("OPENROUTER_API_KEY", "k")
-    for k in ("LOVE_FORTUNE_OPENROUTER_REASONING", "LOVE_FORTUNE_OPENROUTER_SORT"):
+    for k in ("SAJU_OPENROUTER_REASONING", "SAJU_OPENROUTER_SORT"):
         monkeypatch.delenv(k, raising=False)
     assert ai.run_json("s", "p") == {"headline": "a"}
     assert sent["reasoning"] == {"enabled": False} and sent["provider"] == {"sort": "price"}
@@ -734,8 +734,8 @@ def test_openrouter_request_is_cheap(monkeypatch):
     sent.clear()
     ai.run("s", "p")
     assert "response_format" not in sent                     # 상담(글)은 JSON 모드를 안 쓴다
-    monkeypatch.setenv("LOVE_FORTUNE_OPENROUTER_REASONING", "on")
-    monkeypatch.setenv("LOVE_FORTUNE_OPENROUTER_SORT", "")
+    monkeypatch.setenv("SAJU_OPENROUTER_REASONING", "on")
+    monkeypatch.setenv("SAJU_OPENROUTER_SORT", "")
     sent.clear()
     ai.run("s", "p")
     assert "reasoning" not in sent and "provider" not in sent
