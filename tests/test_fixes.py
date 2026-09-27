@@ -593,3 +593,13 @@ def test_offtopic_answered_without_ai(server, monkeypatch):
     monkeypatch.setattr(web, "cli_available", lambda: True)
     code, j = _post(server, "/api/chat", {"token": "x", "message": "파이썬 코드 짜줘"})
     assert code == 200 and j["reply"] == web.OFFTOPIC_REPLY and j["mode"] == "rule" and not called
+
+
+def test_smalltalk_answered_without_ai():
+    from love_fortune import web
+    for q in ("나랑 놀자", "심심해", "뭐해?", "ㅋㅋㅋㅋ", "너 누구야", "사랑해", "ㅠㅠ"):
+        assert web.smalltalk(q) == web.SMALLTALK_REPLY and not web.offtopic(q), q
+    assert web.smalltalk("안녕") == web.GREET_REPLY and web.smalltalk("고마워") == web.THANKS_REPLY
+    for q in ("심심한데 연애운 어때", "나랑 궁합 봐줘", "올해 뭐하면 좋아", "정관이 뭐야", "이직해도 될까", "this ship"):
+        assert web.smalltalk(q) is None, q
+    assert "운세" in web.SMALLTALK_REPLY

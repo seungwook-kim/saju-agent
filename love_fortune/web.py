@@ -142,6 +142,37 @@ def offtopic(message: str) -> bool:
     return any(w in m for w in OFFTOPIC_WORDS)
 
 
+# 잡담("나랑 놀자", "심심해")도 AI 없이 받는다. 운세 단어가 섞여 있으면("심심한데 연애운 어때") 잡담으로 안 본다.
+SMALLTALK_WORDS = (
+    "놀자", "놀아줘", "심심", "뭐해", "뭐하니", "뭐하냐", "대화하자", "수다떨", "친구하자", "친구해",
+    "사랑해", "좋아해", "보고싶", "배고파", "졸려", "잘자", "굿나잇",
+    "ㅋㅋ", "ㅎㅎ", "누구야", "너는누구", "넌누구", "이름이뭐",
+)
+GREET_WORDS = ("안녕", "하이", "헬로", "hello", "반가워", "방가")
+THANKS_WORDS = ("고마워", "고맙", "감사", "땡큐", "thank")
+FORTUNE_WORDS = (
+    "운", "사주", "팔자", "궁합", "연애", "직장", "금전", "재물", "돈", "결혼", "이직", "취업", "올해", "내년",
+    "이번달", "대운", "별자리", "자미", "점성", "타로", "용신", "십신", "궁", "살",
+)
+SMALLTALK_REPLY = "나랑 놀려면 운세 얘기로 놀자 ㅎㅎ 오늘 연애운, 이번 달 흐름, 올해 조심할 달 같은 거 물어봐 줘."
+GREET_REPLY = "안녕! 지금 본 사주 결과로 같이 이야기해 줄게. 연애·직장·금전·올해 흐름, 모르는 용어 같은 거 편하게 물어봐."
+THANKS_REPLY = "도움이 됐다니 다행이다! 더 궁금한 거 있으면 또 물어봐."
+
+
+def smalltalk(message: str) -> str | None:
+    """운세 단어 없는 짧은 잡담이면 정해 둔 답, 아니면 None."""
+    m = message.replace(" ", "").lower()
+    if len(m) > 20 or any(w in m for w in FORTUNE_WORDS):
+        return None
+    if any(w in m for w in THANKS_WORDS):
+        return THANKS_REPLY
+    if any(w in m for w in GREET_WORDS):
+        return GREET_REPLY
+    if any(w in m for w in SMALLTALK_WORDS) or m.strip("ㅋㅎㅠㅜ~!?.") == "":
+        return SMALLTALK_REPLY
+    return None
+
+
 def _clean_history(raw) -> list[dict]:
     """브라우저가 보낸 대화 기록을 역할·길이만 남기고 정리한다 (최근 10개)."""
     out = []
@@ -938,8 +969,9 @@ class Handler(BaseHTTPRequestHandler):
         message = str(q.get("message", "")).strip()[:CHAT_MAX_CHARS]
         if not message:
             raise ValueError("질문을 입력해 줘")
-        if offtopic(message):
-            self._json({"reply": OFFTOPIC_REPLY, "mode": "rule", "model": "정해 둔 답"})
+        canned = OFFTOPIC_REPLY if offtopic(message) else smalltalk(message)
+        if canned:
+            self._json({"reply": canned, "mode": "rule", "model": "정해 둔 답"})
             return
         history = _clean_history(q.get("history"))
         endpoint = str(q.get("endpoint", "") or "").strip()
