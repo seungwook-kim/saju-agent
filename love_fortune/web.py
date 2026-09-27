@@ -682,6 +682,14 @@ class Handler(BaseHTTPRequestHandler):
         }
         route = routes.get(self.path)
         if route is None:
+            # 본문을 읽지 않고 404 를 보내면 클라이언트가 아직 보내는 중인 연결이 끊겨(윈도에서 잦음)
+            # 404 대신 연결 오류가 난다. 상한 안의 본문은 읽어 버리고 답한다.
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                if 0 < n <= MAX_BODY:
+                    self.rfile.read(n)
+            except (ValueError, OSError):
+                pass
             self.send_error(404)
             return
         try:
