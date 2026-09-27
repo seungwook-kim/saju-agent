@@ -419,4 +419,8 @@ table.cons tr.cold td{background:#fff4f2}
 .sok{margin:0;padding-left:1.1rem}.sok li{margin:6px 0}.sok b{display:block}
 .pill.p-good{background:#e3f6ea;color:#2a8a55}.pill.p-warn{background:#fff1dc;color:#9a5b00}.pill.p-mid{background:#f1eef0;color:var(--muted)}
 .linkbtn{border:0;background:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:.82rem}
-
+/* 내 사주 바로 보기 잠금 */
+.pin-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pin-row input{flex:1 1 120px;min-width:0}
+.pin-row .go{flex:0 0 auto;min-height:46px;padding:0 18px;width:auto}
+.ppl-act{margin-top:6px}

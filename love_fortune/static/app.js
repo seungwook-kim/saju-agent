@@ -1092,11 +1092,44 @@ document.querySelectorAll('[data-dp]').forEach(b=>dpRefresh(b.form,b.dataset.dp)
 const PEOPLE_KEY='saju.people',PEOPLE_MAX=6;
 const P_FIELDS=['birth','leap','calendar','birth_time','unknown_time','sex','city','zi'];
 try{localStorage.removeItem('saju.recent');}catch(_){}      // 예전 '최근 저장한 결과' 목록은 없앴다
+// ---- 잠금 (PIN): 저장한 사람 목록을 PIN 으로 암호화한다 (PBKDF2 20만 번 + AES-GCM).
+// 같은 기기를 쓰는 사람이 PIN 없이 목록을 보지 못하게 하는 용도. 브라우저 암호화는 https·localhost 에서만 된다.
+const LOCK_KEY='saju.people.lock';
+const canLock=!!(window.crypto&&crypto.subtle);
+S.pin=null;S.pcache=null;
+let sealSeq=0;
+function lockBlob(){try{return JSON.parse(localStorage.getItem(LOCK_KEY)||'null');}catch(_){return null;}}
+function isLocked(){return !!lockBlob();}
+const b64=u=>btoa(String.fromCharCode(...new Uint8Array(u)));
+const ub64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function pinKey(pin,salt){
+  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function sealPeople(list,pin){
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},await pinKey(pin,salt),new TextEncoder().encode(JSON.stringify(list)));
+  return {v:1,salt:b64(salt),iv:b64(iv),ct:b64(ct)};
+}
+async function openPeople(blob,pin){
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(blob.iv)},await pinKey(pin,ub64(blob.salt)),ub64(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+function saveSealed(list){
+  const my=++sealSeq;
+  return sealPeople(list,S.pin).then(b=>{if(my===sealSeq){try{localStorage.setItem(LOCK_KEY,JSON.stringify(b));}catch(_){}}});
+}
+const PIN_OK=/^\d{4,8}$/;
 function people(){
+  if(isLocked()) return (S.pcache||[]).filter(x=>x&&x.q&&x.q.birth);     // 잠겨 있으면 PIN 으로 연 뒤에만 보인다
   try{const l=JSON.parse(localStorage.getItem(PEOPLE_KEY)||'[]');return Array.isArray(l)?l.filter(x=>x&&x.q&&x.q.birth):[];}
   catch(_){return [];}
 }
-function peopleSet(l){try{localStorage.setItem(PEOPLE_KEY,JSON.stringify(l.slice(0,PEOPLE_MAX)));return true;}catch(_){return false;}}
+function peopleSet(l){
+  l=l.slice(0,PEOPLE_MAX);
+  if(isLocked()){if(!S.pin) return false;S.pcache=l;saveSealed(l);return true;}
+  try{localStorage.setItem(PEOPLE_KEY,JSON.stringify(l));return true;}catch(_){return false;}
+}
 function personKey(q){return [q.birth,q.leap||'',q.calendar,q.unknown_time?'':q.birth_time,q.sex,q.city].join('|');}
 function peopleSave(nick,q){
   const p={};P_FIELDS.forEach(k=>{if(q[k]!=null&&q[k]!=='') p[k]=q[k];});
@@ -1104,18 +1137,46 @@ function peopleSave(nick,q){
   l.unshift({nick,q:p});
   return peopleSet(l);
 }
-function personLine(q){
-  const p=q.birth.split('-').map(Number);
-  return (q.calendar==='lunar'?'음력 ':'')+p[0]+'. '+(q.leap==='1'?'윤':'')+p[1]+'. '+p[2]+'. · '+
-    (q.unknown_time?'시간 모름':(q.birth_time||'12:00'))+' · '+(q.sex==='female'?'여':'남')+' · '+(q.city||'서울');
-}
 function renderPeople(){
+  const box=$('people');
+  if(isLocked()&&!S.pcache){                        // 잠겨 있고 아직 안 연 상태: PIN 칸만 보인다
+    box.innerHTML='<div class="card"><h4 class="ppl-h">내 사주 바로 보기 🔒</h4>'+
+      (canLock?'<div class="pin-row"><input type="password" id="pinIn" inputmode="numeric" maxlength="8" placeholder="PIN" aria-label="PIN" autocomplete="off">'+
+        '<button type="button" class="go" id="pinOpen">열기</button></div><div id="pinMsg" class="fine"></div>':
+        '<p class="fine">잠긴 목록은 https 주소나 이 컴퓨터(localhost)에서 열었을 때만 풀 수 있어.</p>')+
+      '<p class="fine" style="margin-top:6px"><button type="button" class="linkbtn" id="pinForgot">PIN을 잊었어 (저장한 사람 모두 지우기)</button></p></div>';
+    return;
+  }
   const l=people();
-  $('people').innerHTML=l.length?'<div class="card"><h4 class="ppl-h">내 사주 바로 보기</h4><div class="ppl">'+
+  if(!l.length&&!isLocked()){box.innerHTML='';return;}
+  const act=isLocked()?'<button type="button" class="linkbtn" id="lockClose">다시 잠그기</button> · <button type="button" class="linkbtn" id="lockOff">잠금 풀기</button>':
+    canLock?'<button type="button" class="linkbtn" id="lockStart">🔒 PIN 잠금 걸기</button>':
+    '<span>잠금은 https 주소나 이 컴퓨터(localhost)에서 열었을 때만 걸 수 있어.</span>';
+  box.innerHTML='<div class="card"><h4 class="ppl-h">내 사주 바로 보기'+(isLocked()?' 🔓':'')+'</h4><div class="ppl">'+
     l.map((x,i)=>'<div class="ppl-row"><button type="button" class="ppl-go" data-pi="'+i+'"><b>'+esc(x.nick)+'</b>'+
-      '<small>'+esc(personLine(x.q))+'</small></button>'+
+      '<small>눌러서 바로 보기</small></button>'+
       '<button type="button" class="ppl-del" data-pdel="'+i+'" aria-label="'+esc(x.nick)+' 지우기">지우기</button></div>').join('')+
-    '</div><p class="fine">이 기기(브라우저)에만 저장돼 있어. 여럿이 쓰는 컴퓨터라면 다 보고 지워 줘.</p></div>':'';
+    '</div><p class="fine">생년월일은 화면에 보이지 않게 숨겨 뒀어. 이 기기(브라우저)에만 저장돼 있고, '+
+    (isLocked()?'PIN으로 잠겨 있어.':'잠금을 걸면 같은 기기를 쓰는 사람도 PIN 없이는 못 봐.')+'</p>'+
+    '<p class="fine ppl-act">'+act+'</p><div id="lockForm"></div></div>';
+}
+async function pinUnlock(){
+  const pin=($('pinIn')||{}).value||'',msg=$('pinMsg');
+  if(!PIN_OK.test(pin)){msg.textContent='숫자 4~8자리로 넣어 줘.';return;}
+  msg.textContent='여는 중...';
+  try{S.pcache=await openPeople(lockBlob(),pin);S.pin=pin;renderPeople();}
+  catch(_){msg.textContent='PIN이 달라.';}
+}
+async function pinLock(){
+  const a=$('pinNew').value,b=$('pinNew2').value,msg=$('lockMsg');
+  if(!PIN_OK.test(a)){msg.textContent='숫자 4~8자리로 정해 줘 (6자리 이상을 권해).';return;}
+  if(a!==b){msg.textContent='두 PIN이 달라.';return;}
+  const l=people();
+  try{
+    const blob=await sealPeople(l,a);
+    localStorage.setItem(LOCK_KEY,JSON.stringify(blob));localStorage.removeItem(PEOPLE_KEY);
+    S.pin=a;S.pcache=l;renderPeople();
+  }catch(_){msg.textContent='잠금을 걸지 못했어.';}
 }
 // 저장한 값으로 입력칸을 채운다. n: 나는 '', 궁합 상대는 '2'
 function fillForm(form,q,n){
@@ -1130,12 +1191,37 @@ function fillForm(form,q,n){
   dpRefresh(form,'birth'+n);
 }
 function toggleNick(){
-  const f=$('fMain'),on=f.querySelector('[name="remember"]').checked,nk=f.querySelector('[name="nick"]');
+  const f=$('fMain'),rm=f.querySelector('[name="remember"]');
+  if(rm.checked&&isLocked()&&!S.pcache){
+    rm.checked=false;$('homeErr').innerHTML='<div class="err">잠긴 목록에 추가하려면 위에서 PIN으로 먼저 열어 줘.</div>';
+  }
+  const on=rm.checked,nk=f.querySelector('[name="nick"]');
   nk.hidden=!on;
   if(on&&!nk.value&&!people().length) nk.value='나';
 }
 $('fMain').querySelector('[name="remember"]').addEventListener('change',toggleNick);
+$('people').addEventListener('keydown',e=>{if(e.target.id==='pinIn'&&e.key==='Enter'){e.preventDefault();pinUnlock();}});
 $('people').addEventListener('click',e=>{
+  const id=e.target.id;
+  if(id==='pinOpen') return void pinUnlock();
+  if(id==='lockStart'){
+    $('lockForm').innerHTML='<div class="pin-row"><input type="password" id="pinNew" inputmode="numeric" maxlength="8" placeholder="새 PIN (숫자 4~8자리)" autocomplete="new-password">'+
+      '<input type="password" id="pinNew2" inputmode="numeric" maxlength="8" placeholder="한 번 더" autocomplete="new-password">'+
+      '<button type="button" class="go" id="lockDo">걸기</button></div><div id="lockMsg" class="fine">PIN은 서버로 보내지 않고, 잊으면 저장한 사람을 되살릴 수 없어.</div>';
+    return;
+  }
+  if(id==='lockDo') return void pinLock();
+  if(id==='lockClose'){S.pin=null;S.pcache=null;renderPeople();return;}
+  if(id==='lockOff'){
+    try{localStorage.setItem(PEOPLE_KEY,JSON.stringify(S.pcache||[]));localStorage.removeItem(LOCK_KEY);}catch(_){}
+    S.pin=null;S.pcache=null;renderPeople();return;
+  }
+  if(id==='pinForgot'){
+    const b=e.target;
+    if(b.dataset.sure!=='1'){b.dataset.sure='1';b.textContent='정말 모두 지울까? (되살릴 수 없어)';return;}
+    try{localStorage.removeItem(LOCK_KEY);}catch(_){}
+    S.pin=null;S.pcache=null;renderPeople();return;
+  }
   const go=e.target.closest('[data-pi]'),del=e.target.closest('[data-pdel]');
   if(go){
     const l=people(),i=+go.dataset.pi,x=l[i];if(!x) return;
