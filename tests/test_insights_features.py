@@ -7,7 +7,7 @@ import pytest
 from love_fortune import facts, insights, rectify, sok
 from love_fortune.astro import SIGNS, natal_chart
 
-HAN = re.compile(r"[一-鿿]")
+HAN = re.compile(r"[\u4e00-\u9fff]")
 B, T = date(1990, 5, 5), date(2026, 9, 27)
 
 
@@ -106,3 +106,11 @@ def test_static_has_new_features():
     for needle in ("class=\"evid\"", "data-ics", "/api/v2/rectify", "saju.adult", "function consensus", "pastBySystem"):
         assert needle in js, needle
     assert 'id="shGold"' in html
+
+
+def test_consensus_near_calendar_limit():
+    # 10년 앞을 보다가 음력표 끝(2049)을 넘어도 오류 없이, 넘는 해는 자미두수 없이 본다
+    f = facts.build(B, 14, 30, "female", "서울", date(2045, 3, 1))
+    rows = f["insights"]["consensus"]
+    assert rows[-1]["year"] == 2054
+    assert rows[0]["domains"]["love"]["ziwei"] is not None and rows[-1]["domains"]["love"]["ziwei"] is None

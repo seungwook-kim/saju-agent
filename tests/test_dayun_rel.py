@@ -5,7 +5,7 @@ from datetime import date
 from love_fortune import dayun_rel as D
 from love_fortune.manseryuk import BRANCHES_KR, STEMS_KR, dayun, four_pillars
 
-HAN = re.compile(r"[一-鿿]")
+HAN = re.compile(r"[\u4e00-\u9fff]")
 S = STEMS_KR.index
 B = BRANCHES_KR.index
 

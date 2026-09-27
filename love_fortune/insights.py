@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from .astro import SIGNS
+from .lunar import MAX_YEAR
 from .signals import month_signals, year_signals
 from .transit import sky_on
 
@@ -79,7 +80,9 @@ def consensus(birth: date, hour: int | None, minute: int, sex: str, city: str,
     sig = {r["year"]: r for r in year_signals(natal, sex, target.year, years)}
     for y in range(target.year, target.year + years):
         s = sig[y]
-        zw = ziwei_chart(birth, hour, minute, sex, city, date(y, 7, 1)) if hour is not None else None
+        # 음력표가 닿는 해(MAX_YEAR)까지만 자미두수를 본다. 그 뒤 해는 사주·점성술만 (예전엔 2040년 이후 기준일이면 오류)
+        zw = (ziwei_chart(birth, hour, minute, sex, city, date(y, 7, 1))
+              if hour is not None and y <= MAX_YEAR else None)
         ln_pal, hua_pal = None, {}
         if zw:
             ln_pal = next(p["name"] for p in zw["palaces"] if p["liunian"])

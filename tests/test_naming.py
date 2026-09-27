@@ -3,7 +3,7 @@ import pytest
 
 from love_fortune import naming as N
 
-# 인터넷 한국작명연구원 '혼동하기 쉬운 변획수 산정법' 33자 + 한국작명교육협회 예시(河 9, 四 4, 九 9)
+# 인터넷 한국작명연구원 '혼동하기 쉬운 변획수 산정법' 33자 + 한국작명교육협회 예시(물 하 9, 넉 사 4, 아홉 구 9)
 PUBLISHED_STROKES = {
     0x4E16: 5, 0x81E3: 6, 0x5370: 6, 0x6210: 7, 0x5EF7: 7, 0x4E9E: 8, 0x6B66: 8, 0x6CF0: 9, 0x81F4: 9, 0x98DB: 9,
     0x80B2: 10, 0x54F2: 10, 0x5049: 11, 0x80E4: 11, 0x80FD: 12, 0x537F: 12, 0x6DF5: 12, 0x8DEF: 13, 0x88D5: 13,
@@ -47,7 +47,7 @@ def test_suri_table_is_complete_and_reasoned():
 
 
 def test_full_analysis_with_hanja_and_saju():
-    # 김(金 8) 지(智 12) 현(賢 15)
+    # 김(쇠 금 8) 지(슬기 지 12) 현(어질 현 15)
     d = N.analyze("김", "지현", [0x91D1, 0x667A, 0x8CE2], {"목": 0, "화": 2, "토": 2, "금": 3, "수": 1})
     assert d["suri"]["strokes"] == [8, 12, 15]
     assert d["suri"]["ge"]["jeong"]["num"] == 35
