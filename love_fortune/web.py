@@ -678,7 +678,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/chat": self._chat,
             "/api/v2/report": self._v2_report, "/api/v2/chapter": self._v2_chapter,
             "/api/v2/share": self._v2_share, "/api/v2/shared": self._v2_shared,
-            "/api/name": self._name,
+            "/api/name": self._name, "/api/v2/rectify": self._rectify,
         }
         route = routes.get(self.path)
         if route is None:
@@ -713,6 +713,12 @@ class Handler(BaseHTTPRequestHandler):
         token = _remember(md, summary, date.today().isoformat())
         data = api_match_data(r)
         data["dates"] = together_days(a, b, date.today(), 30)
+        from .astro import natal_chart
+        from .manseryuk import four_pillars
+        from . import sok
+        data["sok"] = sok.pair(natal_chart(a[0], a[1], a[2], a[4]), natal_chart(b[0], b[1], b[2], b[4]),
+                               four_pillars(a[0], a[1], a[2], a[4])["day_branch"],
+                               four_pillars(b[0], b[1], b[2], b[4])["day_branch"])   # 화면은 성인 확인 때만 보여 줌
         self._json({"token": token, "data": data})
 
     def _api_pick(self, q: dict):
@@ -745,6 +751,15 @@ class Handler(BaseHTTPRequestHandler):
             prefetch.submit_all(f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
                     "rules": chapters.rule_all(f), "ai": ai_on})
+
+    def _rectify(self, q: dict):
+        """태어난 시간 추정: 인생 사건으로 12시진 후보에 점수를 매긴다 (재미·참고용)."""
+        from . import rectify
+        birth, _hh, _mm, sex, city = self._person(q)
+        events = q.get("events") or []
+        if not isinstance(events, list):
+            raise ValueError("사건 형식 오류")
+        self._json(rectify.rectify(birth, sex, city, events))
 
     def _name_hanja(self):
         """이름 한 글자의 인명용 한자 목록 (훈음·원획). ?r=민&s=1 (s=1 이면 성)."""

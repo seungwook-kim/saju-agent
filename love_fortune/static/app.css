@@ -61,7 +61,7 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
   padding:10px 0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px)}
 .topbar .logo{text-align:center}
 .back{border:0;background:none;color:var(--muted);cursor:pointer;min-height:40px;text-align:left;white-space:nowrap}
-.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:4px 0 10px}
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:4px 0 10px}
 .tab{min-width:0;border:1px solid var(--line);background:#fff;border-radius:999px;padding:.4rem .2rem;white-space:nowrap;
   cursor:pointer;font-weight:700;font-size:.92rem;color:var(--muted);min-height:40px}
 .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -373,3 +373,37 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .sys li.common{color:var(--muted)}
 .sys .cm{display:inline-block;font-size:.7rem;font-weight:700;color:var(--accent);background:var(--soft);
   border-radius:6px;padding:0 5px;margin-right:5px;vertical-align:1px}
+
+/* 근거 보기 */
+.evid{margin-top:10px;background:#fff;border-radius:14px;padding:8px 12px;font-size:.86rem}
+.evid summary{cursor:pointer;color:var(--accent);font-weight:700;list-style:none}
+.evid summary::-webkit-details-marker{display:none}
+.evid summary::before{content:"🔎 "}
+.evid .ev{margin-top:8px}.evid .ev b{font-size:.82rem;color:var(--muted)}
+.evid ul{margin:4px 0 0;padding-left:1.1rem}.evid li{margin:2px 0}
+/* 표 */
+.tbl{overflow-x:auto}
+table.xt{border-collapse:collapse;width:100%;font-size:.86rem}
+table.xt th,table.xt td{padding:6px 5px;border-bottom:1px solid var(--line);text-align:center}
+table.xt th{color:var(--muted);font-weight:600;font-size:.78rem}
+table.xt .l{text-align:left}
+/* 합의도 */
+table.cons tr[data-cons]{cursor:pointer}
+table.cons tr.hot td{background:var(--soft)}
+table.cons tr.cold td{background:#fff4f2}
+.cs{font-weight:800}.cs.up{color:#2a8a55}.cs.dn{color:#c2413b}.cs.mid,.cs.na{color:var(--faint)}
+.agree-line{background:#fff;border-radius:12px;padding:8px 12px;font-size:.86rem;margin-bottom:8px}
+/* 캘린더 내보내기 */
+.ics-btn{margin-top:8px;font-weight:700}
+/* 되짚기 체계별 */
+.sys-tally{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
+.sys-tally .t i{transition:none}
+/* 시간 찾기 */
+.ev-row{display:grid;grid-template-columns:1fr 1.6fr 44px;gap:6px;margin-bottom:6px}
+.ev-row .ghost{min-height:46px;width:44px}
+.use-time{margin-top:8px;min-height:38px;font-size:.85rem}
+/* 속궁합 */
+.sok{margin:0;padding-left:1.1rem}.sok li{margin:6px 0}.sok b{display:block}
+.pill.p-good{background:#e3f6ea;color:#2a8a55}.pill.p-warn{background:#fff1dc;color:#9a5b00}.pill.p-mid{background:#f1eef0;color:var(--muted)}
+.linkbtn{border:0;background:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:.82rem}
+@media (max-width:420px){.tab{font-size:.72rem;padding:.4rem 0;letter-spacing:-.04em}}

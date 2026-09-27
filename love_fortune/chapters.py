@@ -142,7 +142,7 @@ TABS = {
                       "love.hongyeom", "love.ziwei_spouse", "love.venus", "love.moon", "love.meet_paths", "love.animals"],
              "ask": "타고난 연애의 결을 풀어 줘: 연애 기질, 배우자성·배우자궁, 도화·홍염, 끌리는 상대와 잘 맞는 상대의 결(부처궁·금성·달), 인연이 들어오는 자리, 띠 궁합(사실표 분류 그대로). 예언이 아니라 결을 설명한다."},
             {"id": "love_flow", "emoji": "📊", "title": "연애 흐름: 12개월과 3년",
-             "widgets": ["calendar:love", "years:love"], "pick": ["love.months", "love.years", "love.best", "love.this_year"],
+             "widgets": ["calendar:love", "years:love", "consensus:love"], "pick": ["love.months", "love.years", "love.best", "love.this_year"],
              "ask": "앞으로 12개월과 3년의 연애 흐름을 풀어 줘: 밀고 나갈 때, 다듬을 때와 그 이유. 사실표의 달·해만 쓴다."},
             {"id": "career_nature", "emoji": "🧭", "title": "타고난 일의 결",
              "widgets": [],
@@ -151,7 +151,7 @@ TABS = {
                       "natal.classic_sinsal", "natal.guiin", "natal.astro"],
              "ask": "타고난 일의 결을 풀어 줘: 일하는 기질, 관성·관록궁, 잘 맞는 분야, 조직에서의 자리, 도움이 되는 사람(귀인)의 결. 예언이 아니라 결을 설명한다."},
             {"id": "career_flow", "emoji": "📈", "title": "일의 흐름: 12개월과 3년",
-             "widgets": ["calendar:career", "years:career"], "pick": ["career.months", "career.years", "career.best", "natal.dayun"],
+             "widgets": ["calendar:career", "years:career", "consensus:career"], "pick": ["career.months", "career.years", "career.best", "natal.dayun"],
              "ask": "앞으로 12개월과 3년의 일 흐름을 풀어 줘: 밀고 나갈 때, 다질 때와 그 이유. 사실표의 달·해만 쓴다."},
             {"id": "money_nature", "emoji": "🪙", "title": "타고난 돈의 결",
              "widgets": [],
@@ -160,7 +160,7 @@ TABS = {
                       "money.palaces", "money.extra", "natal.guiin", "natal.astro"],
              "ask": "타고난 돈의 결을 풀어 줘: 재성·식상·비겁, 재백궁, 돈이 모이는 구조와 새기 쉬운 구조, 버는 방식의 결. 투자 조언은 하지 않는다."},
             {"id": "money_flow", "emoji": "💹", "title": "돈의 흐름: 12개월과 3년",
-             "widgets": ["calendar:money", "years:money"], "pick": ["money.months", "money.years", "money.best"],
+             "widgets": ["calendar:money", "years:money", "consensus:money"], "pick": ["money.months", "money.years", "money.best"],
              "ask": "앞으로 12개월과 3년의 돈 흐름을 풀어 줘: 들어오기 좋은 때, 지출을 조심할 때와 이유. 사실표의 달·해만 쓴다. 투자 조언은 하지 않는다."},
             {"id": "decades", "emoji": "🕰️", "title": "연대별 나의 모습",
              "widgets": ["decades"], "pick": ["life.phases", "life.decades", "life.current"],
@@ -363,7 +363,8 @@ def outline() -> dict:
     """화면이 쓰는 탭·챕터 목록 (내용 없이)."""
     return {t: {"title": v["title"], "hand": v["hand"], "theme": v["theme"], "sub": v["sub"],
                 "chapters": [{"id": c["id"], "emoji": c["emoji"],
-                              "title": c["title"], "widgets": c["widgets"]} for c in v["chapters"]]}
+                              "title": c["title"], "widgets": c["widgets"], "pick": c["pick"]}
+                             for c in v["chapters"]]}
             for t, v in TABS.items()}
 
 

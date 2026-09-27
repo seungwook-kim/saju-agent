@@ -25,7 +25,11 @@ def temp_content_db(tmp_path, monkeypatch):
 
 
 def test_facts_have_no_personal_data(sheet):
+    import re
     blob = json.dumps(sheet, ensure_ascii=False)
+    # 절기로 정한 달의 시작·끝 날짜(from·to)는 누구에게나 같은 달력 날짜라 뺀다.
+    # 예시 생일(5월 5일)이 절기 날짜(2027-05-05)와 우연히 겹쳐 생일로 오인되지 않게
+    blob = re.sub(r'"(from|to)": "\d{4}-\d{2}-\d{2}"', '', blob)
     for bad in ("1990", "05-05", "서울", "14:30"):
         assert bad not in blob
     assert sheet["meta"]["age"] == 36 and sheet["meta"]["age_kr"] == 37 and sheet["meta"]["sex"] == "여성"

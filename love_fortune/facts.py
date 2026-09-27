@@ -98,10 +98,17 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
                                                    if P[k][0] is not None], ya["strong"])
     ast = ma["astro"]
 
+    from .insights import jie_bounds
+
     def mrows(domain: str) -> list[dict]:
-        return [{"ym": f"{r['year']}-{r['month']:02d}", "label": f"{r['month']}월",
-                 "ganzhi": r["ganzhi"], "god": r["god"], "score": r["scores"][domain],
-                 "tag": r["labels"][domain], "why": r["why"][domain]} for r in months]
+        out = []
+        for r in months:
+            b = jie_bounds(r["year"], r["month"])      # 사주의 달은 절기로 바뀐다 (캘린더 내보내기용 날짜)
+            out.append({"ym": f"{r['year']}-{r['month']:02d}", "label": f"{r['month']}월",
+                        "ganzhi": r["ganzhi"], "god": r["god"], "score": r["scores"][domain],
+                        "tag": r["labels"][domain], "why": r["why"][domain],
+                        "from": b[0].isoformat() if b else "", "to": b[1].isoformat() if b else ""})
+        return out
 
     def yrows(domain: str) -> list[dict]:
         return [{"year": r["year"], "ganzhi": r["ganzhi"], "score": r["scores"][domain],
@@ -218,6 +225,13 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
     from .dayun_rel import build as _dayun_rel
     base["life"]["dayun_rel"] = _dayun_rel(natal["pillars"], _du)
     base["past"] = look_back(birth, natal, sex, _du, zw, _nc["saturn"]["lon"], _nc["jupiter"]["lon"], target)
+    from . import insights, sok
+    _asc = _chart["asc"] if hour is not None else None
+    _cons = insights.consensus(birth, hour, minute, sex, city, natal, _asc["sign"] if _asc else None, target)
+    base["insights"] = {"consensus": _cons,
+                        "golden": insights.golden(natal, sex, target, _asc["lon"] if _asc else None,
+                                                  _nc["venus"]["lon"], _cons)}
+    base["sok"] = sok.natal(_chart, natal["day_branch"], hour is not None)   # 성인 확인을 켠 화면에서만 보임
     base["newyear"] = newyear.build(birth, hour, minute, sex, city, target, natal, _du,
                                     _chart["asc"]["sign"] if hour is not None else None,
                                     {k: v["lon"] for k, v in _nc.items()})

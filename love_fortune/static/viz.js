@@ -137,7 +137,7 @@ function wrapText(ctx,text,x,y,maxW,lh,maxLines){
   return y;
 }
 function shareCard(info){
-  // info: {title, hand, score|null, head, lines[], chips[]}
+  // info: {title, hand, score|null, big?, head, lines[], chips[]}  big: 점수 대신 크게 쓸 글자 (예: 2028.03)
   const W=1080,H=1350,c=document.createElement('canvas');c.width=W;c.height=H;
   const x=c.getContext('2d'),col=themeColors(),font='"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
   const g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,col.bg);g.addColorStop(1,col.bg2);
@@ -147,6 +147,9 @@ function shareCard(info){
   x.fillStyle='#2b2230';x.font='900 72px '+font;x.fillText(info.title,W/2,250);
   x.fillStyle=col.accent;x.font='italic 700 54px "Segoe Script","Brush Script MT",cursive';x.fillText(info.hand,W/2,320);
   let y=380;
+  if(info.big){
+    x.fillStyle=col.accent;x.font='900 150px '+font;x.fillText(info.big,W/2,y+170);y+=260;
+  }
   if(info.score!=null){
     const cx=W/2,cy=y+150,r=130;
     x.lineWidth=34;x.strokeStyle=col.bg2;x.beginPath();x.arc(cx,cy,r,0,Math.PI*2);x.stroke();

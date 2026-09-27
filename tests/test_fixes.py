@@ -427,3 +427,17 @@ def test_port_env_for_deploy(monkeypatch):
     monkeypatch.setenv("HOST", "0.0.0.0")
     a = parse_args(["form"])
     assert a.port == 10000 and a.host == "0.0.0.0"
+
+
+def test_rectify_api(server):
+    code, j = _post(server, "/api/v2/rectify", {"birth": "1990-05-05", "sex": "female", "city": "서울",
+                                                "events": [{"year": "2012", "kind": "love"}, {"year": "2018", "kind": "job"}]})
+    assert code == 200 and len(j["candidates"]) == 12 and j["events"] == 2
+    code, j = _post(server, "/api/v2/rectify", {"birth": "1990-05-05", "sex": "female", "events": "x"})
+    assert code == 400
+
+
+def test_match_api_has_sok(server):
+    code, j = _post(server, "/api/match", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울",
+                                           "birth2": "1992-03-03", "birth2_time": "09:00", "sex2": "male", "city2": "부산"})
+    assert code == 200 and len(j["data"]["sok"]["rows"]) == 2
