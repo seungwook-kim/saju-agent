@@ -24,8 +24,8 @@ def load(path: Path = ENV_FILE) -> int:
             continue
         key, val = line.split("=", 1)
         key, val = key.strip(), val.strip()
-        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
-            val = val[1:-1]
+        # 값 양끝 따옴표는 뗀다. 한쪽만 붙은 따옴표(예: https://a.com")도 실수로 보고 뗀다
+        val = val.strip("\"'").strip()
         if key and val and key not in os.environ:      # 빈 값은 안 쓴다는 뜻이라 건너뛴다
             os.environ[key] = val
             n += 1

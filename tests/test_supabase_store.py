@@ -135,16 +135,17 @@ def test_supabase_down(monkeypatch, capsys):
 
 def test_dotenv_load(tmp_path, monkeypatch):
     f = tmp_path / ".env"
-    f.write_text("# 주석\nLF_T_A=1\nLF_T_B=\"따옴표\"\nLF_T_EMPTY=\nLF_T_KEEP=새값\n", encoding="utf-8")
+    f.write_text("# 주석\nLF_T_A=1\nLF_T_B=\"따옴표\"\nLF_T_EMPTY=\nLF_T_KEEP=새값\nLF_T_C=https://a.com\"\n", encoding="utf-8")
     monkeypatch.setenv("SAJU_DOTENV", "1")
     monkeypatch.setenv("LF_T_KEEP", "원래값")
-    for k in ("LF_T_A", "LF_T_B", "LF_T_EMPTY"):
+    for k in ("LF_T_A", "LF_T_B", "LF_T_EMPTY", "LF_T_C"):
         monkeypatch.delenv(k, raising=False)
-    assert dotenv.load(f) == 2
+    assert dotenv.load(f) == 3
     import os
     assert os.environ["LF_T_A"] == "1" and os.environ["LF_T_B"] == "따옴표"
     assert "LF_T_EMPTY" not in os.environ and os.environ["LF_T_KEEP"] == "원래값"   # 서버 설정이 우선
-    for k in ("LF_T_A", "LF_T_B"):
+    assert os.environ["LF_T_C"] == "https://a.com"                                  # 한쪽만 붙은 따옴표도 뗀다
+    for k in ("LF_T_A", "LF_T_B", "LF_T_C"):
         monkeypatch.delenv(k)
 
 
