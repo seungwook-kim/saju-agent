@@ -58,8 +58,38 @@ function showResult(){
   loadGloss().then(()=>{if(S.tab&&S.outline[S.tab]) openTab(S.tab);});
   $('home').classList.remove('on');$('result').classList.add('on');
   $('tabs').innerHTML=TAB_ORDER.map(t=>'<button class="tab" type="button" data-tab="'+t+'">'+TAB_NAME[t]+'</button>').join('');
+  tabEdges();
   openTab('today');
 }
+// 탭 줄은 가로로 넘긴다. 예전엔 숨은 가로 스크롤이라 PC에서 뒤쪽 탭에 닿을 수 없었다.
+// 그래서 스크롤바를 보이게 두고, 좌우 화살표·마우스 휠·끌기로도 넘기고, 고른 탭은 가운데로 옮긴다.
+function tabEdges(){
+  const t=$('tabs');if(!t) return;
+  $('tabL').classList.toggle('on',t.scrollLeft>4);
+  $('tabR').classList.toggle('on',t.scrollLeft+t.clientWidth<t.scrollWidth-4);
+}
+function centerTab(){
+  const t=$('tabs'),b=t&&t.querySelector('.tab.on');if(!b) return;
+  t.scrollTo({left:b.offsetLeft-t.clientWidth/2+b.offsetWidth/2,behavior:'smooth'});
+  setTimeout(tabEdges,450);            // 부드러운 스크롤이 끝난 뒤 화살표를 다시 맞춘다
+}
+$('tabs').addEventListener('scroll',tabEdges,{passive:true});
+$('tabs').addEventListener('scrollend',tabEdges);
+window.addEventListener('resize',tabEdges);
+$('tabL').addEventListener('click',()=>$('tabs').scrollBy({left:-$('tabs').clientWidth*0.7,behavior:'smooth'}));
+$('tabR').addEventListener('click',()=>$('tabs').scrollBy({left:$('tabs').clientWidth*0.7,behavior:'smooth'}));
+$('tabs').addEventListener('wheel',e=>{            // 세로 휠을 가로 이동으로
+  const t=$('tabs');
+  if(t.scrollWidth<=t.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY)) return;
+  t.scrollLeft+=e.deltaY;e.preventDefault();
+},{passive:false});
+(function dragScroll(){                               // 마우스로 끌어서 넘기기 (조금 움직이면 클릭은 막는다)
+  const t=$('tabs');let x0=0,s0=0,down=false,moved=false;
+  t.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse') return;down=true;moved=false;x0=e.clientX;s0=t.scrollLeft;});
+  window.addEventListener('pointermove',e=>{if(!down) return;const dx=e.clientX-x0;if(Math.abs(dx)>5){moved=true;t.scrollLeft=s0-dx;}});
+  window.addEventListener('pointerup',()=>{down=false;});
+  t.addEventListener('click',e=>{if(moved){e.stopPropagation();e.preventDefault();moved=false;}},true);
+})();
 $('tabs').addEventListener('click',e=>{
   const b=e.target.closest('[data-tab]');if(b) openTab(b.dataset.tab);
 });
@@ -70,6 +100,7 @@ function openTab(tab){
   const o=S.outline[tab],f=S.facts;
   document.body.dataset.theme=o.theme;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  centerTab();
   const chips=['일주 '+f.natal.day_pillar,'만 '+f.meta.age+'세',f.meta.sex,'오늘 '+f.meta.target];
   if(!f.meta.hour_known) chips.push('시간 모름: 시주 제외');
   const bd=(f.natal.boundary||{}).items||[];
@@ -383,6 +414,7 @@ function openTool(tab){
   const o=TOOLS[tab];
   document.body.dataset.theme=o.theme;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  centerTab();
   let h=toolHero(o,tab);
   if(tab==='past'){
     $('page').innerHTML=h+pastView(S.facts.past);
