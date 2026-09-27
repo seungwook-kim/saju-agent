@@ -15,7 +15,7 @@ import re
 
 from . import ai, content_store, rule_chapters
 
-PROMPT_VERSION = "ch-8"   # ch-8: 나쁜 신호도 분명하게, 사실표에 없는 용어 금지 (2026-09-28)
+PROMPT_VERSION = "ch-9"   # ch-8: 나쁜 신호도 분명하게, 사실표에 없는 용어 금지 (2026-09-28)
 
 SYSTEM = """너는 정통 사주명리·자미두수·서양 점성술을 함께 보는 다정한 상담가다.
 아래 규칙을 반드시 지킨다.
@@ -36,13 +36,15 @@ SYSTEM = """너는 정통 사주명리·자미두수·서양 점성술을 함께
 10. 출력은 JSON 객체 하나만 쓴다. 설명이나 코드 울타리를 붙이지 않는다.
 11. 사실표에 없는 별 이름(자미두수 주성·사화), 궁 이름, 신살, 십신, 별자리, 행성은 쓰지 않는다. 절대 지어내지 않는다.
     사실표에 없는 걸 물어보는 챕터면 "계산에 그 정보는 없어"라고 말한다.
-12. 여러 가지를 나열할 때는 text 블록 한 문단에 늘어놓지 말고 steps 나 checklist 블록으로 나눠 읽기 쉽게 쓴다.
+12. 내용은 줄이지 말고 한눈에 들어오게 쓴다. 여러 가지를 나열할 때는 한 문단에 늘어놓지 말고, text 블록 body 안에서
+    줄을 바꿔 '1. 짧은 제목: 설명' 모양으로 쓰거나 steps·checklist 블록으로 나눈다. 긴 문장은 두 문장으로 끊는다.
+    text 블록의 첫 문장은 그 블록의 요점으로 쓴다 (화면에서 굵게 보인다).
 
 JSON 형식:
 {"headline": "챕터 결론 한 줄 (40자 안쪽)",
  "lead": "도입 두세 문장",
  "blocks": [
-   {"type": "text", "title": "소제목", "body": "문단 (3~6문장)"},
+   {"type": "text", "title": "소제목", "body": "문단 (3~6문장). 여러 가지를 말하면 줄을 바꿔 '1. 짧은 제목: 설명' 줄로"},
    {"type": "quote", "body": "마음에 남을 한 줄"},
    {"type": "checklist", "title": "제목", "items": ["항목", "..."]},
    {"type": "steps", "title": "제목", "items": [{"title": "단계 이름", "body": "설명"}]},
@@ -305,9 +307,12 @@ _LIST_NO = re.compile(r"^\s*(\d{1,2})[.)]\s+")
 
 
 def ground_reply(reply: str, context: str) -> str:
-    """상담 답 거름망: 상담 요약(context)에 없는 숫자·용어가 든 문장, 미래를 못 박는 문장을 뺀다.
-    줄 단위로 거르고 '1. 2. 3.' 번호 줄은 번호를 빼고 검사한 뒤, 남은 줄끼리 번호를 다시 매긴다."""
-    allowed = set(_NUM.findall(context))
+    """상담 답 거름망: 상담 요약(context)에 없는 숫자·용어가 든 문장, 미래를 못 박는 문장을 뺀다."""
+    return _ground_lines(reply, set(_NUM.findall(context)), context)
+
+
+def _ground_lines(reply: str, allowed: set[str], context: str | None) -> str:
+    """줄 단위로 거른다. '1. 2. 3.' 번호 줄은 번호를 빼고 검사한 뒤, 남은 줄끼리 번호를 다시 매긴다."""
     out, n = [], 0
     for line in (reply or "").splitlines():
         m = _LIST_NO.match(line)
@@ -351,7 +356,7 @@ def ground(body: dict, facts_part: dict) -> dict:
     for b in body.get("blocks", []):
         b = dict(b)
         if b["type"] in ("text", "quote", "callout"):
-            b["body"] = _ground_text(b.get("body", ""), allowed, text)
+            b["body"] = _ground_lines(b.get("body", ""), allowed, text)
             if not b["body"]:
                 continue
         elif b["type"] == "checklist":

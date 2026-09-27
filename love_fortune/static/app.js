@@ -173,19 +173,42 @@ function fillChapter(tab,ch,b,pending){
   el.dataset.src=b.source;
   if(swap){el.style.animation='none';void el.offsetWidth;el.style.animation='rise .5s var(--ease)';}
 }
+// 챕터 글을 한눈에 들어오게 (내용은 그대로 두고 모양만): '1. 제목: 설명' 줄은 번호 목록(제목 굵게),
+// 세 문장 이상인 문단은 첫 문장을 요점으로 굵게 떼고 나머지는 두 문장씩 끊어 문단을 나눈다.
+function sents(s){return String(s||'').replace(/([.!?])\s+/g,'$1\u0001').split('\u0001').map(x=>x.trim()).filter(Boolean);}
+function prose(s,L,key){
+  const lines=String(s||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  let h='',list='';
+  const flush=()=>{if(list){h+='<ol class="blk-ol">'+list+'</ol>';list='';}};
+  lines.forEach(line=>{
+    const n=line.match(/^\d{1,2}[.)]\s+(.*)$/);
+    if(n){
+      const m=n[1].match(/^(.{1,16}?)\s*[:：]\s+(.+)$/);
+      list+='<li>'+(m?'<b>'+esc(m[1])+'</b>'+L(m[2]):L(n[1]))+'</li>';
+      return;
+    }
+    flush();
+    const ss=sents(line);
+    let i=0;
+    if(key&&ss.length>=3){h+='<p class="key">'+L(ss[0])+'</p>';i=1;}
+    for(;i<ss.length;i+=2) h+='<p>'+L(ss.slice(i,i+2).join(' '))+'</p>';
+  });
+  flush();
+  return h;
+}
 function block(x,used){
   used=used||new Set();
   const L=s=>linkTerms(esc(s),used);
   const t=x.title?'<h4>'+esc(x.title)+'</h4>':'';
   switch(x.type){
-    case 'text': return '<div class="blk">'+t+'<p>'+L(x.body)+'</p></div>';
+    case 'text': return '<div class="blk prose">'+t+prose(x.body,L,true)+'</div>';
     case 'quote': return '<div class="blk quote"><p>'+esc(x.body)+'</p></div>';
-    case 'callout': return '<div class="blk callout">'+L(x.body)+'</div>';
+    case 'callout': return '<div class="blk callout prose">'+prose(x.body,L)+'</div>';
     case 'checklist': return '<div class="blk checklist">'+t+'<ul>'+x.items.map(i=>'<li>'+L(i)+'</li>').join('')+'</ul></div>';
     case 'steps': return '<div class="blk">'+t+'<div class="steps">'+x.items.map((i,n)=>
-      '<div class="step"><div class="n">STEP '+(n+1)+'</div><b>'+esc(i.title)+'</b><p>'+L(i.body)+'</p></div>').join('')+'</div></div>';
+      '<div class="step prose"><div class="n">STEP '+(n+1)+'</div><b>'+esc(i.title)+'</b>'+prose(i.body,L)+'</div>').join('')+'</div></div>';
     case 'cards': return '<div class="blk">'+t+'<div class="cards">'+x.items.map(i=>
-      '<div class="c"><b>'+esc(i.title)+'</b><p>'+L(i.body)+'</p></div>').join('')+'</div></div>';
+      '<div class="c prose"><b>'+esc(i.title)+'</b>'+prose(i.body,L)+'</div>').join('')+'</div></div>';
   }
   return '';
 }

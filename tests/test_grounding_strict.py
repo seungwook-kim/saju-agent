@@ -49,7 +49,7 @@ def test_chapter_ground_drops_invented_terms():
 def test_prompts_say_bad_signs_plainly():
     assert "좋은 것만 골라 말하지 않는다" in chapters.SYSTEM and "분명하고 강하게" in chapters.SYSTEM
     assert "좋은 것만 골라 말하지 않는다" in web.SYSTEM_PROMPT and "절대 쓰지 않는다" in web.SYSTEM_PROMPT
-    assert chapters.PROMPT_VERSION == "ch-8"
+    assert chapters.PROMPT_VERSION == "ch-9"
 
 
 def test_chat_falls_back_to_calculation_when_all_invented(monkeypatch):
