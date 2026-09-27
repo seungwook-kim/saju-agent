@@ -173,10 +173,18 @@ function fillChapter(tab,ch,b,pending){
   el.dataset.src=b.source;
   if(swap){el.style.animation='none';void el.offsetWidth;el.style.animation='rise .5s var(--ease)';}
 }
-// 챕터 글을 한눈에 들어오게 (내용은 그대로 두고 모양만): '1. 제목: 설명' 줄은 번호 목록(제목 굵게),
-// 세 문장 이상인 문단은 첫 문장을 요점으로 굵게 떼고 나머지는 두 문장씩 끊어 문단을 나눈다.
+// 챕터 글 읽기 편하게 (글자는 하나도 안 바꾸고 모양만, 2026-09-28 사용자: 줄바꿈 없이 쭉 이어져 읽기 힘들다)
+// - 한 문장에 한 줄, 줄 사이 간격
+// - 괄호 속 풀이 '(사랑, 즐거움, 돈 감각)' 은 작고 옅게 해서 본문이 먼저 읽히게
+// - '라벨: 내용' 문장은 라벨을 굵게 한 줄 띄우고 내용은 다음 줄
+// - '1. 제목: 설명' 줄은 번호 목록 (제목 굵게)
 function sents(s){return String(s||'').replace(/([.!?])\s+/g,'$1\u0001').split('\u0001').map(x=>x.trim()).filter(Boolean);}
-function prose(s,L,key){
+function soft(h){return h.replace(/\(([^()<>]{1,60})\)/g,'<span class="gl">($1)</span>');}
+function sentHtml(x,L){
+  const m=x.match(/^([^.!?:：]{2,18}?)\s*[:：]\s+(.+)$/);
+  return m?'<p class="lbl"><b>'+esc(m[1])+'</b><br>'+soft(L(m[2]))+'</p>':'<p>'+soft(L(x))+'</p>';
+}
+function prose(s,L){
   const lines=String(s||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
   let h='',list='';
   const flush=()=>{if(list){h+='<ol class="blk-ol">'+list+'</ol>';list='';}};
@@ -184,14 +192,11 @@ function prose(s,L,key){
     const n=line.match(/^\d{1,2}[.)]\s+(.*)$/);
     if(n){
       const m=n[1].match(/^(.{1,16}?)\s*[:：]\s+(.+)$/);
-      list+='<li>'+(m?'<b>'+esc(m[1])+'</b>'+L(m[2]):L(n[1]))+'</li>';
+      list+='<li>'+(m?'<b>'+esc(m[1])+'</b>'+soft(L(m[2])):soft(L(n[1])))+'</li>';
       return;
     }
     flush();
-    const ss=sents(line);
-    let i=0;
-    if(key&&ss.length>=3){h+='<p class="key">'+L(ss[0])+'</p>';i=1;}
-    for(;i<ss.length;i+=2) h+='<p>'+L(ss.slice(i,i+2).join(' '))+'</p>';
+    sents(line).forEach(x=>{h+=sentHtml(x,L);});
   });
   flush();
   return h;
@@ -201,7 +206,7 @@ function block(x,used){
   const L=s=>linkTerms(esc(s),used);
   const t=x.title?'<h4>'+esc(x.title)+'</h4>':'';
   switch(x.type){
-    case 'text': return '<div class="blk prose">'+t+prose(x.body,L,true)+'</div>';
+    case 'text': return '<div class="blk prose">'+t+prose(x.body,L)+'</div>';
     case 'quote': return '<div class="blk quote"><p>'+esc(x.body)+'</p></div>';
     case 'callout': return '<div class="blk callout prose">'+prose(x.body,L)+'</div>';
     case 'checklist': return '<div class="blk checklist">'+t+'<ul>'+x.items.map(i=>'<li>'+L(i)+'</li>').join('')+'</ul></div>';

@@ -30,17 +30,20 @@ def test_fmt_msg_renders_list_and_escapes():
 
 @pytest.mark.skipif(not shutil.which("node"), reason="node 없음")
 def test_chapter_prose_readable_without_cutting():
-    # 챕터 글: 내용은 그대로, 첫 문장 요점 굵게, 두 문장씩 문단, 번호 줄은 목록
+    # 챕터 글: 한 문장 한 줄, 괄호 풀이는 옅게, '라벨: 내용' 은 라벨 줄 따로, 번호 줄은 목록. 글자는 하나도 안 줄인다
     js = (web.STATIC_DIR / "app.js").read_text(encoding="utf-8")
     esc = re.search(r"const esc=.*?;\n", js, re.S).group(0)
-    fns = re.search(r"function sents\(s\).*?\nfunction prose\(s,L,key\)\{.*?\n\}", js, re.S).group(0)
-    src = esc + fns + "\nconst L=s=>esc(s);console.log(JSON.stringify(prose(process.argv[1],L,true)));"
-    body = "올해는 조심할 해야. 화기(막힘 신호)가 붙었어. 돈 쓸 일이 많아. 대신 일은 풀려.\n1. 좋은 점: 관록궁이 밝아.\n2. 조심할 점: 큰 지출은 미뤄."
+    fns = re.search(r"function sents\(s\).*?\nfunction prose\(s,L\)\{.*?\n\}", js, re.S).group(0)
+    src = esc + fns + "\nconst L=s=>esc(s);console.log(JSON.stringify(prose(process.argv[1],L)));"
+    body = ("모든 운에 함께 걸리는 것: 오늘은 기운이 세. 금성(사랑, 즐거움)이 목성과 만나. 대신 돈은 조심해.\n"
+            "1. 좋은 점: 관록궁이 밝아.\n2. 조심할 점: 큰 지출은 미뤄.")
     out = json.loads(subprocess.run(["node", "-e", src, body], capture_output=True, text=True, encoding="utf-8").stdout)
-    assert out.startswith('<p class="key">올해는 조심할 해야.</p><p>화기(막힘 신호)가 붙었어. 돈 쓸 일이 많아.</p>')
+    assert out.startswith('<p class="lbl"><b>모든 운에 함께 걸리는 것</b><br>오늘은 기운이 세.</p>')
+    assert '<p>금성<span class="gl">(사랑, 즐거움)</span>이 목성과 만나.</p><p>대신 돈은 조심해.</p>' in out
     assert '<ol class="blk-ol"><li><b>좋은 점</b>관록궁이 밝아.</li>' in out
-    for piece in ("대신 일은 풀려.", "큰 지출은 미뤄."):
-        assert piece in out                                         # 줄이지 않는다
+    plain = re.sub(r"<[^>]+>", "", out)
+    for piece in ("오늘은 기운이 세.", "금성(사랑, 즐거움)이 목성과 만나.", "대신 돈은 조심해.", "큰 지출은 미뤄."):
+        assert piece in plain                                       # 글자는 줄이지 않는다
 
 
 def test_ground_keeps_numbered_lines_in_chapter_text():
