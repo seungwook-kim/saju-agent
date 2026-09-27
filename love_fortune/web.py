@@ -121,6 +121,27 @@ CHAT_MAX_CHARS = 300          # 질문 한 번의 길이 상한 (화면 입력�
 CHAT_MAX_TOKENS = 500         # 상담 답 길이 상한 (서너 문장이면 충분하다)
 
 
+# 운세와 관계없는 게 뻔한 요청은 AI 를 부르기 전에 정해 둔 문구로 답한다 (토큰 0).
+# 애매한 건 여기서 막지 않고 AI 지시문(9·10번 규칙)에 맡긴다. 사주 질문을 잘못 막지 않게 좁게 잡는다.
+OFFTOPIC_WORDS = (
+    # 코딩·개발
+    "코드짜", "코드작성", "코딩해", "프로그래밍", "파이썬", "python", "javascript", "자바스크립트", "sql", "html",
+    "함수만들", "알고리즘", "디버깅", "에러고쳐", "버그고쳐",
+    # 글쓰기·숙제·번역
+    "번역해", "영어로바꿔", "영작", "숙제", "과제해", "레포트써", "리포트써줘", "자소서", "자기소개서", "이력서",
+    "논문", "에세이", "소설써", "시써줘", "가사써", "요약해줘", "블로그글",
+    # 규칙·역할 바꾸기
+    "ignoreprevious", "ignoreall", "systemprompt", "시스템프롬프트", "프롬프트알려", "지시문알려", "규칙무시",
+    "이전지시", "탈옥", "jailbreak", "너는이제", "역할극", "dan모드",
+)
+OFFTOPIC_REPLY = "그건 여기서 도와주기 어려워. 나는 사주·자미두수·별자리로 본 운세만 이야기해. 연애·직장·금전·올해 흐름 같은 걸 물어봐 줘."
+
+
+def offtopic(message: str) -> bool:
+    m = message.replace(" ", "").lower()
+    return any(w in m for w in OFFTOPIC_WORDS)
+
+
 def _clean_history(raw) -> list[dict]:
     """브라우저가 보낸 대화 기록을 역할·길이만 남기고 정리한다 (최근 10개)."""
     out = []
@@ -917,6 +938,9 @@ class Handler(BaseHTTPRequestHandler):
         message = str(q.get("message", "")).strip()[:CHAT_MAX_CHARS]
         if not message:
             raise ValueError("질문을 입력해 줘")
+        if offtopic(message):
+            self._json({"reply": OFFTOPIC_REPLY, "mode": "rule", "model": "정해 둔 답"})
+            return
         history = _clean_history(q.get("history"))
         endpoint = str(q.get("endpoint", "") or "").strip()
         api_key = str(q.get("api_key", "") or "")

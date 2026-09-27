@@ -169,11 +169,17 @@ def test_josa_skips_quotes():
 
 
 def test_prefetch_orders_dedupes_and_waits(sheet, monkeypatch):
+    import threading
     import time
     from love_fortune import prefetch
     calls = []
+    # 일꾼들이 wait() 로 순서를 당기기 전에 줄을 다 먹어 버리면 순서 검사가 가끔 틀린다(느린 PC).
+    # 처음 잡은 일에서 잠깐 멈춰 있게 하고, wait() 가 순서를 당긴 뒤에 풀어 준다.
+    go = threading.Event()
+    threading.Timer(0.3, go.set).start()
 
     def fake_generate(tab, ch, f, use_ai=True):
+        go.wait(5)
         calls.append((tab, ch))
         time.sleep(0.01)
         return {"headline": ch, "lead": "", "blocks": [], "closing": "", "source": "ai"}
