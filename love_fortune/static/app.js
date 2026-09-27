@@ -415,6 +415,7 @@ document.addEventListener('submit',async e=>{
   try{
     const j=await postJSON('/api/chat',{token:S.token,message:msg,history:S.chat.slice(-10)});
     box.querySelector('[data-tmp]').outerHTML='<div class="msg bot">'+esc(j.reply)+'<small>'+esc(j.model||'')+'</small></div>';
+    if(typeof j.left==='number'&&j.left>=0) $('chatLeft').textContent='오늘 남은 질문 '+j.left+'번. ';
     S.chat.push({role:'user',content:msg},{role:'assistant',content:j.reply});
   }catch(err){
     box.querySelector('[data-tmp]').outerHTML='<div class="msg bot">'+esc(err.message)+'</div>';

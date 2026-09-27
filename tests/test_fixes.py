@@ -416,7 +416,8 @@ def test_custom_llm_endpoint_is_off_by_default(server, monkeypatch):
     monkeypatch.setattr(web, "llm_chat", lambda *a, **k: called.append(a) or "x")
     monkeypatch.setattr(web, "cli_available", lambda: False)      # 실제 AI 명령은 부르지 않는다
     monkeypatch.delenv("LOVE_FORTUNE_CUSTOM_LLM", raising=False)
-    code, j = _post(server, "/api/chat", {"message": "안녕", "backend": "openai",
+    _, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
+    code, j = _post(server, "/api/chat", {"token": rep["token"], "message": "올해 연애운 어때", "backend": "openai",
                                           "endpoint": "http://169.254.169.254/latest", "api_key": "k"})
     assert code == 200 and not called and j["mode"] != "llm"
 
@@ -591,7 +592,8 @@ def test_offtopic_answered_without_ai(server, monkeypatch):
     called = []
     monkeypatch.setattr(web, "cli_chat", lambda *a: called.append(1) or "AI")
     monkeypatch.setattr(web, "cli_available", lambda: True)
-    code, j = _post(server, "/api/chat", {"token": "x", "message": "파이썬 코드 짜줘"})
+    _, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
+    code, j = _post(server, "/api/chat", {"token": rep["token"], "message": "파이썬 코드 짜줘"})
     assert code == 200 and j["reply"] == web.OFFTOPIC_REPLY and j["mode"] == "rule" and not called
 
 
@@ -603,3 +605,100 @@ def test_smalltalk_answered_without_ai():
     for q in ("심심한데 연애운 어때", "나랑 궁합 봐줘", "올해 뭐하면 좋아", "정관이 뭐야", "이직해도 될까", "this ship"):
         assert web.smalltalk(q) is None, q
     assert "운세" in web.SMALLTALK_REPLY
+
+
+def test_chat_quota_per_day(monkeypatch):
+    # 하루 5번. IP 를 바꿔도 같은 결과 토큰이면 막히고, 새 결과를 펼쳐도 같은 IP 면 막힌다
+    from love_fortune import web
+    monkeypatch.setattr(web, "_CHAT_USED", {})
+    monkeypatch.setattr(web, "CHAT_PER_DAY", 5)
+    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
+    T = web._chat_take
+    left = [T(["ip:1.1.1.1", "cid:A", "t:tA", "s:S1"]) for _ in range(5)]
+    assert left == [4, 3, 2, 1, 0]
+    assert T(["ip:1.1.1.1", "cid:A", "t:tA", "s:S1"]) is None
+    assert T(["ip:1.1.1.1", "cid:B", "t:tB", "s:S2"]) is None    # 시크릿 모드·다른 브라우저: 같은 IP 라 막힘
+    assert T(["ip:2.2.2.2", "cid:A", "t:tC", "s:S3"]) is None    # 데이터 껐다 켜서 IP 바뀜: 같은 브라우저라 막힘
+    assert T(["ip:3.3.3.3", "cid:C", "t:tD", "s:S1"]) is None    # IP·브라우저 다 바꿔도 같은 사주면 막힘
+    assert T(["ip:4.4.4.4", "cid:D", "t:tE", "s:S4"]) == 4       # 다 바꾸면 새로 센다 (완벽히 못 막는 부분)
+    assert T(["ip:1.1.1.1"], local=True) == -1                   # 이 컴퓨터는 세지 않는다
+    monkeypatch.setattr(web, "_CHAT_USED", {})
+    monkeypatch.setattr(web, "CHAT_GLOBAL_PER_DAY", 3)
+    assert [T([f"ip:{i}"]) for i in range(4)] == [4, 4, 4, None]  # 전체 상한: 누가 뚫어도 하루 이 이상은 안 나감
+
+
+def test_client_ip_not_spoofable_by_left_xff(monkeypatch):
+    from love_fortune import web
+
+    class H:
+        client_address = ("10.0.0.2", 1234)
+
+        def __init__(self, headers):
+            self.headers = headers
+
+    ip = web.Handler._client_ip
+    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
+    assert ip(H({"X-Forwarded-For": "1.1.1.1"})) == "10.0.0.2"          # 프록시를 안 믿으면 헤더 무시
+    monkeypatch.setenv("LOVE_FORTUNE_TRUST_PROXY", "1")
+    monkeypatch.delenv("LOVE_FORTUNE_IP_HEADER", raising=False)
+    monkeypatch.delenv("LOVE_FORTUNE_PROXY_HOPS", raising=False)
+    assert ip(H({"X-Forwarded-For": "6.6.6.6, 203.0.113.5"})) == "203.0.113.5"   # 방문자가 넣은 왼쪽 값은 무시
+    monkeypatch.setenv("LOVE_FORTUNE_PROXY_HOPS", "2")
+    assert ip(H({"X-Forwarded-For": "6.6.6.6, 203.0.113.5, 172.16.0.1"})) == "203.0.113.5"
+    monkeypatch.setenv("LOVE_FORTUNE_IP_HEADER", "True-Client-IP")
+    assert ip(H({"True-Client-IP": "198.51.100.3", "X-Forwarded-For": "6.6.6.6"})) == "198.51.100.3"
+
+
+def test_whoami(server):
+    import json as _json
+    with urllib.request.urlopen(server + "/api/whoami", timeout=10) as r:
+        assert _json.loads(r.read())["ip"] == "127.0.0.1"
+
+
+def test_ipv6_grouped_and_origin_and_token_required(server):
+    import json as _json
+    from love_fortune import web
+    assert web.ip_key("2001:db8:1:2:aaaa::1") == web.ip_key("2001:db8:1:2:bbbb::9") == "2001:db8:1:2::/64"
+    assert web.ip_key("::ffff:10.1.2.3") == "10.1.2.3" and web.ip_key("10.1.2.3") == "10.1.2.3"
+    # 다른 사이트에서 온 POST 는 거절
+    req = urllib.request.Request(server + "/api/chat", data=_json.dumps({"token": "x", "message": "a"}).encode(),
+                                 headers={"Content-Type": "application/json", "Origin": "https://evil.example"})
+    try:
+        urllib.request.urlopen(req, timeout=10)
+        raise AssertionError("받으면 안 됨")
+    except urllib.error.HTTPError as e:
+        assert e.code == 403
+    # 결과 토큰 없이는 상담 못 함
+    code, j = _post(server, "/api/chat", {"token": "없는토큰", "message": "올해 연애운 어때"})
+    assert code == 400 and "다시 펼쳐" in j["error"]
+
+
+def test_chat_sets_browser_cookie(server, monkeypatch):
+    import json as _json
+    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "1")
+    code, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
+    req = urllib.request.Request(server + "/api/chat", headers={"Content-Type": "application/json"},
+                                 data=_json.dumps({"token": rep["token"], "message": "올해 연애운 어때", "backend": "local"}).encode())
+    with urllib.request.urlopen(req, timeout=30) as r:
+        ck = r.headers.get("Set-Cookie") or ""
+    assert ck.startswith("cid=") and "HttpOnly" in ck and "SameSite=Strict" in ck
+
+
+def test_same_origin_rules(monkeypatch):
+    from love_fortune import web
+
+    class H:
+        def __init__(self, headers):
+            self.headers = headers
+
+    so = web.Handler._same_origin
+    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
+    monkeypatch.delenv("LOVE_FORTUNE_ORIGINS", raising=False)
+    assert so(H({"Host": "a.com"}))                                        # Origin 없음 (도구·옛 브라우저)
+    assert so(H({"Host": "a.com", "Origin": "https://a.com"}))
+    assert not so(H({"Host": "a.com", "Origin": "https://evil.com"}))
+    assert not so(H({"Host": "a.com", "Origin": "null"}))
+    monkeypatch.setenv("LOVE_FORTUNE_TRUST_PROXY", "1")
+    assert so(H({"Host": "10.0.0.5:8765", "X-Forwarded-Host": "a.onrender.com", "Origin": "https://a.onrender.com"}))
+    monkeypatch.setenv("LOVE_FORTUNE_ORIGINS", "saju.example.com, b.com")
+    assert so(H({"Host": "x", "Origin": "https://saju.example.com"}))

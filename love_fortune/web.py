@@ -61,6 +61,62 @@ def _chat_on(ip: str) -> bool:
     return ip in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
 
+# 상담 횟수: 한 사람이 24시간에 CHAT_PER_DAY 번 (2026-09-27 사용자 결정 5번).
+# 로그인이 없어서 "한 사람"을 IP 와 결과 토큰 두 가지로 센다. 둘 중 하나라도 다 쓰면 막는다.
+# IP 를 바꾸고(데이터·VPN) 사주도 새로 펼치면 뚫리지만, 그래도 AI 요금은 ai.py 시간당 총량에서 한 번 더 막힌다.
+# 정해 둔 답(잡담·운세 밖 요청)은 세지 않는다. 이 컴퓨터(루프백)에서는 세지 않는다.
+CHAT_PER_DAY = int(os.environ.get("LOVE_FORTUNE_CHAT_PER_DAY", "5"))
+_CHAT_USED: dict[str, list[float]] = {}
+_CHAT_LOCK = threading.Lock()
+LOOPBACK = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
+# 모두 합쳐 하루 상담 상한. 누가 IP·브라우저를 바꿔 가며 뚫어도 하루 요금이 이 이상 안 나간다.
+CHAT_GLOBAL_PER_DAY = int(os.environ.get("LOVE_FORTUNE_CHAT_GLOBAL_PER_DAY", "300"))
+_SALT = secrets.token_hex(16)        # 열쇠를 해시할 때 섞는 값 (서버를 켤 때마다 새로, 메모리에만)
+
+
+def _h(*parts: str) -> str:
+    import hashlib
+    return hashlib.sha256((_SALT + "|" + "|".join(parts)).encode("utf-8")).hexdigest()[:24]
+
+
+def ip_key(ip: str) -> str:
+    """IPv6 는 한 집·한 폰이 /64 대역 안에서 주소를 계속 바꿀 수 있어 /64 로 묶는다."""
+    import ipaddress
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if a.version == 6:
+        if a.ipv4_mapped:
+            return str(a.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{a}/64", strict=False))
+    return str(a)
+
+
+def _chat_take(keys: list[str], local: bool = False) -> int | None:
+    """한 번 쓴다. 열쇠(IP·브라우저 표시·결과·사주) 중 하나라도 하루 횟수를 다 썼으면 None.
+    남은 횟수를 돌려준다. 이 컴퓨터(local)는 제한 없음(-1)."""
+    if local:
+        return -1
+    now, day = time.time(), 24 * 3600
+    keys = [k for k in keys if k] + ["*all*"]
+    with _CHAT_LOCK:
+        if len(_CHAT_USED) > 20000:
+            for k in [k for k, v in _CHAT_USED.items() if not v or now - v[-1] > day]:
+                del _CHAT_USED[k]
+        used = {k: [t for t in _CHAT_USED.get(k, []) if now - t < day] for k in keys}
+        if len(used["*all*"]) >= CHAT_GLOBAL_PER_DAY:
+            return None
+        n = max(len(v) for k, v in used.items() if k != "*all*")
+        if n >= CHAT_PER_DAY:
+            return None
+        for k, v in used.items():
+            _CHAT_USED[k] = v + [now]
+    return CHAT_PER_DAY - n - 1
+
+
 def _rate_ok(ip: str, path: str) -> bool:
     if not _truthy(os.environ.get("LOVE_FORTUNE_RATE", "1")):
         return True
@@ -671,6 +727,8 @@ class Handler(BaseHTTPRequestHandler):
     def _send(self, body: bytes, ctype: str, disp: str = "", code: int = 200, cache: str = ""):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        if getattr(self, "_cookie", None):
+            self.send_header("Set-Cookie", self._cookie)
         if cache:
             self.send_header("Cache-Control", cache)
         if disp:
@@ -705,6 +763,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/healthz":
             from . import content_store      # 저장소 종류만 보인다 (주소·키는 안 보인다)
             self._send(json.dumps({"ok": True, "store": content_store.backend()}).encode(), "application/json")
+        elif path == "/api/whoami":       # 배포 뒤 프록시 설정 확인용: 서버가 보는 내 IP (내 것만 보인다)
+            self._send(json.dumps({"ip": self._client_ip()}).encode(), "application/json")
         elif self.path.split("?")[0] == "/api/lunar-year":
             self._lunar_year()
         elif path == "/api/name/hanja":
@@ -796,11 +856,50 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, OSError):
             pass
 
+    def _same_origin(self) -> bool:
+        """브라우저가 붙이는 Origin 이 있으면 우리 주소(Host)와 같아야 한다. 다른 사이트가 방문자 브라우저로
+        우리 API 를 부르지 못하게 한다. Origin 이 없는 요청(주소창·앱 밖 도구)은 다른 제한들이 막는다."""
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin or origin == "null":
+            return not origin
+        from urllib.parse import urlsplit
+        got = urlsplit(origin).netloc.lower()
+        ok = {(self.headers.get("Host") or "").strip().lower()}
+        if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")):      # 프록시가 Host 를 바꿔 전달하는 경우
+            ok.add((self.headers.get("X-Forwarded-Host") or "").split(",")[0].strip().lower())
+        # 따로 허용할 주소 (쉼표로 여럿, 예: saju.example.com,saju-agent.onrender.com)
+        ok |= {x.strip().lower() for x in os.environ.get("LOVE_FORTUNE_ORIGINS", "").split(",") if x.strip()}
+        return got in ok
+
+    def _cid(self) -> str:
+        """이 브라우저 표시(쿠키). 없으면 새로 만들어 응답에 붙인다. 개인정보가 아닌 무작위 값이다."""
+        import http.cookies
+        c = http.cookies.SimpleCookie()
+        try:
+            c.load(self.headers.get("Cookie") or "")
+        except http.cookies.CookieError:
+            pass
+        cid = c["cid"].value if "cid" in c and re.fullmatch(r"[A-Za-z0-9_-]{16,40}", c["cid"].value) else ""
+        if not cid:
+            cid = secrets.token_urlsafe(16)
+            secure = "; Secure" if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")) else ""
+            self._cookie = f"cid={cid}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Strict{secure}"
+        return cid
+
     def _client_ip(self) -> str:
+        """방문자 IP. 프록시 뒤(LOVE_FORTUNE_TRUST_PROXY=1)에서는
+        1) LOVE_FORTUNE_IP_HEADER 로 정한 헤더(예: True-Client-IP, CF-Connecting-IP)가 있으면 그 값,
+        2) 없으면 X-Forwarded-For 의 오른쪽에서 LOVE_FORTUNE_PROXY_HOPS(기본 1) 번째 값.
+        맨 왼쪽 값은 방문자가 마음대로 넣을 수 있어서 쓰지 않는다 (횟수 제한 우회 방지).
+        배포 뒤 /api/whoami 로 서버가 보는 내 IP 가 실제 IP 와 같은지 확인한다."""
         if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")):
-            xff = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
-            if xff:
-                return xff
+            hdr = os.environ.get("LOVE_FORTUNE_IP_HEADER", "").strip()
+            if hdr and (self.headers.get(hdr) or "").strip():
+                return self.headers.get(hdr).strip()
+            parts = [p.strip() for p in (self.headers.get("X-Forwarded-For") or "").split(",") if p.strip()]
+            hops = max(1, int(os.environ.get("LOVE_FORTUNE_PROXY_HOPS", "1") or 1))
+            if parts:
+                return parts[-hops] if len(parts) >= hops else parts[0]
         return self.client_address[0]
 
     def do_POST(self):
@@ -815,6 +914,11 @@ class Handler(BaseHTTPRequestHandler):
         if route is None:
             self._drain()
             self.send_error(404)
+            return
+        self._cookie = None
+        if not self._same_origin():
+            self._drain()
+            self._fail(403, "다른 사이트에서 온 요청은 받지 않아.")
             return
         if not _rate_ok(self._client_ip(), self.path):
             self._drain()
@@ -964,7 +1068,11 @@ class Handler(BaseHTTPRequestHandler):
         if not _chat_on(self._client_ip()):
             self._fail(403, "상담 채팅은 지금 잠시 쉬는 중이야.")
             return
-        ctx = _context(str(q.get("token", ""))) or {}
+        token = str(q.get("token", ""))
+        ctx = _context(token)
+        if not ctx:                         # 사주를 펼친 결과가 있어야 상담한다 (AI 를 빈손으로 못 부르게)
+            self._fail(400, "만료된 결과야. 처음 화면에서 다시 펼쳐 줘.")
+            return
         summary = ctx.get("summary", "리포트 컨텍스트 없음. 일반적인 운세 상담으로 답할 것.")
         message = str(q.get("message", "")).strip()[:CHAT_MAX_CHARS]
         if not message:
@@ -972,6 +1080,17 @@ class Handler(BaseHTTPRequestHandler):
         canned = OFFTOPIC_REPLY if offtopic(message) else smalltalk(message)
         if canned:
             self._json({"reply": canned, "mode": "rule", "model": "정해 둔 답"})
+            return
+        ip = self._client_ip()
+        local = ip in LOOPBACK and not _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", ""))
+        keys = ["ip:" + ip_key(ip), "cid:" + self._cid(), "t:" + token]
+        f = ctx.get("facts") or {}
+        if f.get("natal"):                  # 같은 사주를 다시 펼쳐 와도 같은 열쇠 (해시만, 원래 값은 안 둔다)
+            keys.append("s:" + _h(json.dumps(f["natal"], ensure_ascii=False, sort_keys=True, default=str),
+                                  str((f.get("meta") or {}).get("sex", ""))))
+        left = _chat_take(keys, local)
+        if left is None:
+            self._fail(429, f"상담은 하루 {CHAT_PER_DAY}번까지야. 내일 다시 물어봐 줘.")
             return
         history = _clean_history(q.get("history"))
         endpoint = str(q.get("endpoint", "") or "").strip()
@@ -1000,7 +1119,7 @@ class Handler(BaseHTTPRequestHandler):
             reply = (f"{e}\n\n대신 계산 결과로 바로 답할게: "
                      + local_agent_reply(message, summary))
             mode, used = "local-fallback", "로컬 규칙 에이전트"
-        self._json({"reply": reply, "mode": mode, "model": used})
+        self._json({"reply": reply, "mode": mode, "model": used, "left": left})
 
     def _json(self, obj: dict):
         self._send(json.dumps(obj, ensure_ascii=False).encode("utf-8"),
