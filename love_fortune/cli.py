@@ -2,21 +2,20 @@
 from __future__ import annotations
 
 import argparse
+import os
 from datetime import date, datetime, timedelta
 
 from .manseryuk import four_pillars, day_pillar, ganzhi_str, normalize_sex, time_notes
 from .lunar import parse_birth_date
 from .josa import j
-from .rules import love_score, headline, branch_relation
+from .rules import branch_relation
 from .advise import build_advice
 from .synthesis import detailed_reading
 from .narrate import (_rel_text as _rel_talk, ziwei_puli, astro_puli,
-                      match_puli, narrate_palace, narrate_slice_row,
-                      STAR_TALK, HUA_TALK, AUX_TALK, GUO_NAME, GOD_SHORT,
-                      ming_seat_text)
+                      narrate_palace, narrate_slice_row,
+                      STAR_TALK, GOD_SHORT)
 from .lifetime import MAIN14
 from .domains import CAREER_STAR, MONEY_STAR
-from .narrate import _eun as _eun_word
 from .glossary import TERMS
 
 DISCLAIMER = ("[정통 계산] 사주·자미두수·점성술의 전통 공식 그대로 계산한 상세 해석입니다. "
@@ -53,8 +52,9 @@ def parse_args(argv=None):
                    help="평생 운세 타임라인(연대별·연도별) 추가")
     sub = p.add_subparsers(dest="cmd")
     f = sub.add_parser("form", help="홈페이지식 로컬 웹 + 채팅 에이전트 열기 (localhost, 저장 없음)")
-    f.add_argument("--port", type=int, default=8765)
-    f.add_argument("--host", default="127.0.0.1",
+    # 배포 환경(Render·Fly 등)은 PORT·HOST 환경변수로 준다
+    f.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
+    f.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"),
                    help="서버를 열 주소 (기본 127.0.0.1 = 이 컴퓨터만. 다른 기기에서 보려면 0.0.0.0)")
     mm = sub.add_parser("match", help="두 사람 궁합 보기 (로컬 계산, 저장 없음)")
     mm.add_argument("--birth", required=True, help="내 생년월일 YYYY-MM-DD")

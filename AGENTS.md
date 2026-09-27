@@ -34,6 +34,8 @@
     chapters.PROMPT_VERSION 을 올려 저장된 풀이를 새로 만들게 한다.
   - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(LOVE_FORTUNE_AI_BACKEND=openrouter)로
     부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
+  - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
+    공개 서버에서 SSRF 통로가 된다. LOVE_FORTUNE_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
   - 내장 데이터(음력표·표준시 이력)는 tools/gen_calendar_data.py 로만 다시 만든다.
     이 도구는 개발할 때만 외부 패키지를 쓰고, 앱 실행에는 쓰지 않는다.
 

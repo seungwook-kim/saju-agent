@@ -1,0 +1,16 @@
+# Render 블루프린트: 저장소를 연결하면 이 설정대로 무료 웹 서비스를 만든다
+services:
+  - type: web
+    name: saju-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: LOVE_FORTUNE_PREFETCH       # 방문자마다 AI 풀이를 미리 만들지 않는다 (비용)
+        value: "0"
+      - key: LOVE_FORTUNE_AI_BACKEND     # AI 풀이를 쓰려면 openrouter + 아래 두 값
+        value: openrouter
+      - key: LOVE_FORTUNE_OPENROUTER_MODEL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false

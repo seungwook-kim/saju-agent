@@ -59,7 +59,6 @@ def test_no_network_imports():
     import love_fortune.synthesis as synth
     import love_fortune.lunar as lunar
     import love_fortune.astronomy as astronomy
-    import sys
     mods = [cli, advise, mans, rules, ziwei, astro, domains, synth,
             lunar, astronomy]
     for m in mods:

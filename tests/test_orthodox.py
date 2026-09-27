@@ -1,10 +1,10 @@
 """tests for orthodox upgrade, 음력·절기·자미·실측점성·대운 검증."""
-from datetime import date, datetime
+from datetime import date
 
 from love_fortune.lunar import solar_to_lunar, true_solar_time
-from love_fortune.astronomy import sun_position, day_number, solar_term_moment
+from love_fortune.astronomy import solar_term_moment
 from love_fortune.ziwei import ziwei_chart
-from love_fortune.astro import natal_chart, astro_chart
+from love_fortune.astro import natal_chart
 from love_fortune.manseryuk import four_pillars, dayun, shensha
 from love_fortune.synthesis import detailed_reading
 from love_fortune.cli import build_report

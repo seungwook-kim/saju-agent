@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.pytest_cache
+__pycache__
+data
+tests
+tools
+docs
+watchdog.py
+watchdog.log
+*.md
+!README.md
+!THIRD_PARTY_NOTICES.md

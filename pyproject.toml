@@ -1,9 +1,16 @@
 [project]
 name = "love-fortune"
 version = "0.2.0"
-description = "Local daily love-fortune agent (Korean saju + Ziwei + astrology, offline, fun only)"
-requires-python = ">=3.10"
+description = "Saju, Ziwei and astrology calculation engine with a grounded LLM chapter writer (stdlib only)"
+requires-python = ">=3.11"
 dependencies = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+extend-exclude = ["love_fortune/solar_terms_data.py", "love_fortune/calendar_data.py"]
+
+[tool.ruff.lint]
+select = ["F", "E9"]

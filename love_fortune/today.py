@@ -20,7 +20,7 @@ from . import almanac, store
 from .josa import j
 from .manseryuk import (BRANCHES_KR, STEMS_KR, TIANYI, KONGWANG, YIMA_AT, _trio_of,
                         day_pillar)
-from .match import BRANCH_BONQI, DOHWA_MAP, STAGE_NAMES, TWELVE_STAGES
+from .match import DOHWA_MAP, STAGE_NAMES, TWELVE_STAGES
 from .narrate import GOD_SHORT, PALACE_TALK
 from .rules import ten_god
 

@@ -407,3 +407,23 @@ def test_zi_mode_next_and_split():
     assert any("야자시" in x for x in time_notes(fp))
     fp = four_pillars(date(1995, 2, 28), 23, 50, "서울")   # 기본값은 다시 정자시
     assert fp["strings"]["day"] == "신묘"
+
+
+def test_custom_llm_endpoint_is_off_by_default(server, monkeypatch):
+    """요청이 준 주소로 서버가 요청을 보내지 않는다 (공개 서버 SSRF 방지). 켜려면 LOVE_FORTUNE_CUSTOM_LLM=1."""
+    from love_fortune import web
+    called = []
+    monkeypatch.setattr(web, "llm_chat", lambda *a, **k: called.append(a) or "x")
+    monkeypatch.setattr(web, "cli_available", lambda: False)      # 실제 AI 명령은 부르지 않는다
+    monkeypatch.delenv("LOVE_FORTUNE_CUSTOM_LLM", raising=False)
+    code, j = _post(server, "/api/chat", {"message": "안녕", "backend": "openai",
+                                          "endpoint": "http://169.254.169.254/latest", "api_key": "k"})
+    assert code == 200 and not called and j["mode"] != "llm"
+
+
+def test_port_env_for_deploy(monkeypatch):
+    from love_fortune.cli import parse_args
+    monkeypatch.setenv("PORT", "10000")
+    monkeypatch.setenv("HOST", "0.0.0.0")
+    a = parse_args(["form"])
+    assert a.port == 10000 and a.host == "0.0.0.0"

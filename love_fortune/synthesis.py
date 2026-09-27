@@ -19,7 +19,7 @@ from .match import (SPOUSE_GOD, TWELVE_STAGES, STAGE_NAMES, STAGE_LOVE,
                     DOHWA_CHARM, HONGYEOM, JINDOHWA_DAY, SPOUSE_STAR,
                     VENUS_DETAIL, MOON_NEED, BRANCH_BONQI, dohwa_info)
 from .ziwei import ziwei_chart
-from .astro import astro_chart, SIGN_ELEMENT
+from .astro import astro_chart
 from .lifetime import lifetime_reading
 from .story import build_stories
 from .domains import (career_score, money_score, total_score, band_headline,

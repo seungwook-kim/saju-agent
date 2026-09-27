@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import hashlib
 
-from .manseryuk import STEMS_KR
 from .rules import ten_god, branch_relation, _jitter
 from .manseryuk import STEM_ELEMENT
 from .rules import SAENG, GEUK
@@ -174,7 +173,6 @@ def _pick(seed: str, pool: list[str], n: int) -> list[str]:
 
 def career_score(day_stem: int, branches: list[int], today_stem: int,
                  today_branch: int, seed_extra: str = "") -> tuple[int, list[str], str]:
-    from .manseryuk import STEM_ELEMENT
     reasons: list[str] = []
     score = 55
     me_elem = STEM_ELEMENT[day_stem]
@@ -195,7 +193,6 @@ def career_score(day_stem: int, branches: list[int], today_stem: int,
 
 def money_score(day_stem: int, branches: list[int], today_stem: int,
                 today_branch: int, seed_extra: str = "") -> tuple[int, list[str], str]:
-    from .manseryuk import STEM_ELEMENT
     reasons: list[str] = []
     score = 55
     me_elem = STEM_ELEMENT[day_stem]
@@ -223,7 +220,6 @@ def total_score(day_stem: int, branches: list[int], today_stem: int,
                 today_branch: int, love: int, career: int, money: int,
                 daxian_hua: list[str], liunian_branch: int,
                 seed_extra: str = "") -> tuple[int, list[str], str, list[str]]:
-    from .manseryuk import STEM_ELEMENT
     reasons: list[str] = []
     score = round((love + career + money) / 3)
     me_elem = STEM_ELEMENT[day_stem]

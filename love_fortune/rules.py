@@ -7,9 +7,8 @@
 """
 from __future__ import annotations
 
-import hashlib
 
-from .manseryuk import STEM_ELEMENT, BRANCH_ELEMENT, STEMS_KR
+from .manseryuk import STEM_ELEMENT, STEMS_KR
 
 # [정설] 육합 (6쌍)
 LIUHE = {0: 1, 1: 0, 2: 11, 11: 2, 3: 10, 10: 3,
@@ -133,13 +132,13 @@ def love_score(day_stem: int, birth_branches: list[int],
         reasons.append(f"오늘 {today_elem} 기운이 나({STEMS_KR[day_stem]}·{me_elem})를 생해주는 흐름")
     elif SAENG[me_elem] == today_elem:
         score += 1
-        reasons.append(f"내가 오늘 흐름에 에너지를 주는 날, 베푸는 매력이 통하기 쉬운 흐름")
+        reasons.append("내가 오늘 흐름에 에너지를 주는 날, 베푸는 매력이 통하기 쉬운 흐름")
     elif GEUK[me_elem] == today_elem:
         score -= 4
-        reasons.append(f"내 기운이 오늘 흐름을 극하는 날, 밀어붙이기보다 속도 조절이 어울리는 흐름")
+        reasons.append("내 기운이 오늘 흐름을 극하는 날, 밀어붙이기보다 속도 조절이 어울리는 흐름")
     elif GEUK[today_elem] == me_elem:
         score -= 6
-        reasons.append(f"오늘 흐름이 나를 극하는 날, 무리한 고백보다 가벼운 안부가 어울리는 흐름")
+        reasons.append("오늘 흐름이 나를 극하는 날, 무리한 고백보다 가벼운 안부가 어울리는 흐름")
     else:
         score += 3
         reasons.append(f"나와 오늘 흐름이 같은 {me_elem} 기운, 공감대 형성이 수월한 흐름")

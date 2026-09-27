@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    env:
+      LOVE_FORTUNE_AI: "0"          # 시험은 AI 없이 계산 풀이만
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 코드 검사 (ruff)
+        run: uvx ruff check .
+      - name: 시험 (pytest)
+        run: uv run --no-project --with pytest python -m pytest -q

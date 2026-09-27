@@ -14,8 +14,7 @@ from .manseryuk import dayun, ganzhi_str, four_pillars, STEMS_KR, BRANCHES_KR
 from .rules import ten_god, branch_relation
 from .ziwei import ziwei_chart, SIHUA, XIAOXIAN_AT
 
-from .narrate import (GOD_SHORT, REL_TALK, STAR_TALK, HUA_TALK,
-                      JUP_TALK, SAT_TALK, _eun, _wa, _rel_text)
+from .narrate import (GOD_SHORT, STAR_TALK, JUP_TALK, SAT_TALK, _eun, _wa, _rel_text)
 
 MAIN14 = ("자미", "천기", "태양", "무곡", "천동", "염정", "천부",
           "태음", "탐랑", "거문", "천상", "천량", "칠살", "파군")
@@ -99,10 +98,6 @@ def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
                 om = [s for s in opp["stars"] if s in MAIN14]
                 main_story = (f"주성이 비어 있어 건너편 {opp['name']}궁의 "
                               f"{', '.join(om) or '기운'}을 빌려 쓰는 때야")
-            hua_story = ""
-            if pal["hua"]:
-                hua_story = " 여기에 " + ", ".join(
-                    f"{s}에는 {HUA_TALK[h]}" for s, h in pal["hua"].items()) + "."
             mates = [next(x for x in pals if x["branch"] == (pal["branch"] + k) % 12)["name"]
                      for k in (4, 8, 6)]
             aux = [s for s in pal["stars"] if s not in MAIN14]

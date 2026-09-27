@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 from datetime import date
 
-from .manseryuk import STEMS_KR, BRANCHES_KR, STEM_ELEMENT
+from .manseryuk import BRANCHES_KR
 from .rules import ten_god
 
 # ---------- 1. 지장간 본기 (12지지 대표 기운) [명리 통설] ----------

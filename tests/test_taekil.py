@@ -2,7 +2,7 @@
 import re
 from datetime import date
 
-from love_fortune.taekil import pick_dates, MAX_DAYS
+from love_fortune.taekil import pick_dates
 from love_fortune.cli import build_pick_report
 from love_fortune.web import pick_summary, local_agent_reply
 

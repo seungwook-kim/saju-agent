@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from .lunar import solar_to_lunar, birth_moment
-from .manseryuk import STEMS_KR, BRANCHES_KR, STEM_ELEMENT, normalize_sex, ZI_MODE
+from .manseryuk import STEMS_KR, BRANCHES_KR, normalize_sex, ZI_MODE
 
 MAIN_STARS = ["자미", "천기", "태양", "무곡", "천동", "염정",
               "천부", "태음", "탐랑", "거문", "천상", "천량", "칠살", "파군"]

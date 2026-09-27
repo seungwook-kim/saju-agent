@@ -819,10 +819,15 @@ class Handler(BaseHTTPRequestHandler):
         api_key = str(q.get("api_key", "") or "")
         model = str(q.get("model", "") or "gpt-4o-mini")
         backend = str(q.get("backend", "") or "").strip().lower()
+        # 요청이 준 주소로 서버가 대신 요청을 보내는 기능이라, 공개 서버에서는 아무 주소나
+        # 찌르는 통로(SSRF)가 된다. 화면은 쓰지 않으니 LOVE_FORTUNE_CUSTOM_LLM=1 일 때만 연다.
+        custom_ok = os.environ.get("LOVE_FORTUNE_CUSTOM_LLM", "0") == "1"
+        if backend == "openai" and not custom_ok:
+            backend = ""
         if backend not in ("cli", "openai", "local"):
-            # 기본: 직접 연결한 엔드포인트가 있으면 그쪽, 없으면 구독 AI 모델(CLI),
+            # 기본: (허용된 경우) 직접 연결한 엔드포인트, 없으면 구독 AI 모델(CLI),
             # CLI 명령이 없으면 로컬 규칙 에이전트
-            backend = ("openai" if endpoint and api_key
+            backend = ("openai" if custom_ok and endpoint and api_key
                        else "cli" if cli_available() else "local")
         try:
             if backend == "openai":
@@ -854,10 +859,11 @@ def serve(port: int = 8765, host: str = "127.0.0.1"):
     print(f"홈페이지: http://localhost:{port} (종료: Ctrl+C)")
     if host not in ("127.0.0.1", "localhost"):
         print(f"주의: {host} 로 열려 있어 같은 네트워크의 다른 기기도 접속할 수 있습니다.")
-    try:
-        webbrowser.open(f"http://localhost:{port}")
-    except Exception:
-        pass
+    if not os.environ.get("PORT"):          # 배포 환경(PORT 지정)에서는 브라우저를 열지 않는다
+        try:
+            webbrowser.open(f"http://localhost:{port}")
+        except Exception:
+            pass
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
     server.serve_forever()

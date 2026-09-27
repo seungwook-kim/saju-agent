@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from . import astronomy as A
 from .lunar import birth_moment

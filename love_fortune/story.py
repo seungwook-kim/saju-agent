@@ -83,7 +83,7 @@ def build_stories(natal: dict, ma: dict, adv: dict, target) -> dict:
     ]
     for p in lt["phases"]:
         life.append(f"{p['name']} 이야기로는 {p['line']}")
-    life.append(f"올해를 포함한 전후 흐름은 연도별 표에서 확인할 수 있다.")
+    life.append("올해를 포함한 전후 흐름은 연도별 표에서 확인할 수 있다.")
 
     return {"total": total, "love": love, "career": career,
             "money": money, "life": life}

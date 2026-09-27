@@ -7,12 +7,10 @@
 """
 from __future__ import annotations
 
-import hashlib
 from datetime import date
 
 from .manseryuk import four_pillars, STEMS_KR, BRANCHES_KR, STEM_ELEMENT
 from .rules import ten_god, branch_relation
-from .match import BRANCH_BONQI
 from .ziwei import ziwei_chart
 from .astro import natal_chart, SIGN_ELEMENT, ASPECTS
 from .josa import j
@@ -108,13 +106,13 @@ def compatibility(a_birth: date, a_hour: int, a_minute: int, a_sex: str,
         plus.append(f"두 띠({na['year_animal']}·{nb['year_animal']})는 같은 삼합 팀이라 큰 방향이 맞는 흐름")
     if hap_hit:
         score += 4
-        plus.append(f"두 띠는 서로 합이 드는 짝이라 정이 붙기 쉬운 흐름")
+        plus.append("두 띠는 서로 합이 드는 짝이라 정이 붙기 쉬운 흐름")
     if chung_hit:
         score -= 6
-        minus.append(f"두 띠는 정면으로 부딪치는 짝이라 예민한 날은 거리를 두면 좋은 흐름")
+        minus.append("두 띠는 정면으로 부딪치는 짝이라 예민한 날은 거리를 두면 좋은 흐름")
     if wonjin_hit:
         score -= 4
-        minus.append(f"두 띠는 원진살 짝이라(민간 통설) 오해가 생기면 확인을 한 번 더 하면 좋은 흐름")
+        minus.append("두 띠는 원진살 짝이라(민간 통설) 오해가 생기면 확인을 한 번 더 하면 좋은 흐름")
     if not (trio_hit or hap_hit or chung_hit or wonjin_hit):
         info.append(f"두 띠({na['year_animal']}·{nb['year_animal']})는 무난하게 어울리는 흐름")
 
@@ -129,7 +127,7 @@ def compatibility(a_birth: date, a_hour: int, a_minute: int, a_sex: str,
             plus.append(f"같은 {me} 기운이라 말이 잘 통하는 흐름")
         else:
             score -= 3
-            minus.append(f"기운이 서로 견제하는 결이라 밀어붙이기보다 맞춰가면 좋은 흐름")
+            minus.append("기운이 서로 견제하는 결이라 밀어붙이기보다 맞춰가면 좋은 흐름")
 
     # 5. 십신 양방향
     _god_bonus = {"정재": 3, "정관": 3, "정인": 3, "식신": 3, "편재": 2,
