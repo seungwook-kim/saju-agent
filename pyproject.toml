@@ -14,3 +14,7 @@ extend-exclude = ["love_fortune/solar_terms_data.py", "love_fortune/calendar_dat
 
 [tool.ruff.lint]
 select = ["F", "E9"]
+
+[tool.vercel]
+# Vercel 입구: WSGI app (love_fortune/wsgi.py 가 web.Handler 를 그대로 감싼다)
+entrypoint = "love_fortune.wsgi:app"

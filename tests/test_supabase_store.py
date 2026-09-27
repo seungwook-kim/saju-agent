@@ -188,15 +188,38 @@ def test_ai_budget_falls_back_without_supabase(monkeypatch):
     assert CS.ai_budget_take(3) is None
 
 
-def test_vercel_entry_and_config():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("vercel_entry", ROOT / "api" / "index.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    from love_fortune.web import Handler
-    assert mod.handler is Handler
-    cfg = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
-    assert cfg["rewrites"][0]["destination"] == "/api/index"
+def test_vercel_wsgi_entry():
+    # Vercel 은 pyproject 의 entrypoint(love_fortune.wsgi:app)를 WSGI 로 부른다. 실제 요청을 흘려 본다
+    import io
+    import tomllib
+    from wsgiref.util import setup_testing_defaults
+    from love_fortune import wsgi
+    cfg = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert cfg["tool"]["vercel"]["entrypoint"] == "love_fortune.wsgi:app"
+
+    def call(method, path, body=b"", headers=None, qs=""):
+        env = {"REQUEST_METHOD": method, "PATH_INFO": path.encode("utf-8").decode("latin-1"), "QUERY_STRING": qs,
+               "wsgi.input": io.BytesIO(body), "CONTENT_LENGTH": str(len(body)), "REMOTE_ADDR": "203.0.113.9"}
+        if body:
+            env["CONTENT_TYPE"] = "application/json"
+        for k, v in (headers or {}).items():
+            env["HTTP_" + k.upper().replace("-", "_")] = v
+        setup_testing_defaults(env)
+        got = {}
+        out = b"".join(wsgi.app(env, lambda st, hd: got.update(status=st, headers=dict(hd))))
+        return got["status"], got["headers"], out
+
+    st, hd, out = call("GET", "/healthz")
+    assert st.startswith("200") and json.loads(out)["ok"] is True
+    st, hd, out = call("GET", "/")
+    assert st.startswith("200") and b"<html" in out.lower() and "text/html" in hd["Content-Type"]
+    body = json.dumps({"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"}).encode()
+    st, hd, out = call("POST", "/api/v2/report", body, {"Host": "x.vercel.app", "Origin": "https://x.vercel.app"})
+    assert st.startswith("200") and json.loads(out)["token"]
+    st, hd, out = call("GET", "/api/name/hanja", qs="r=%EB%AF%BC")
+    assert st.startswith("200") and json.loads(out)["items"]
+    st, _, _ = call("GET", "/없는주소")
+    assert st.startswith("404")
     vi = (ROOT / ".vercelignore").read_text(encoding="utf-8").splitlines()
     assert ".env" in vi and "tests" in vi
     sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")

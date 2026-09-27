@@ -40,7 +40,7 @@
     부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
     공개 서버에서 SSRF 통로가 된다. SAJU_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
-  - 배포는 Vercel (api/index.py 가 web.Handler 를 그대로 쓴다, vercel.json rewrites). 서버리스라 VERCEL 값이 있으면
+  - 배포는 Vercel (pyproject [tool.vercel] entrypoint = love_fortune.wsgi:app, WSGI 로 web.Handler 를 그대로 감싼다). 서버리스라 VERCEL 값이 있으면
     챕터를 요청 안에서 만들고(SERVERLESS), 결과 토큰(ctx)·AI 시간당 사용량(ai_call)도 Supabase 에 둔다. 임시 파일은 /tmp.
     요청 횟수 제한·상담 횟수는 기계마다 메모리로 세서 서버리스에서는 느슨하다 (돈은 ai_call 총량이 막는다).
   - 저장소: SUPABASE_URL·SUPABASE_SECRET_KEY 가 있으면 Supabase(REST), 없으면 SQLite (content_store.py).
