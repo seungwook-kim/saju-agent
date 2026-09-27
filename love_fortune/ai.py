@@ -63,7 +63,25 @@ def available() -> bool:
 MAX_TOKENS = int(os.environ.get("LOVE_FORTUNE_AI_MAX_TOKENS", "2000"))
 
 
-def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MAX_TOKENS) -> str:
+# 요금 설정 (2026-09-27, 추천 모델 qwen/qwen3.7-flash 기준)
+# - 생각(reasoning) 끄기: 생각하는 모델은 생각한 글도 출력 요금으로 나가고, 답 길이 상한을 생각으로 다 써 버려
+#   빈 답이 올 수 있다. LOVE_FORTUNE_OPENROUTER_REASONING=on 이면 켠다.
+# - 같은 모델이면 가장 싼 제공사로 (provider.sort=price). LOVE_FORTUNE_OPENROUTER_SORT 를 비우면 OpenRouter 기본 배분.
+# - 챕터 풀이는 JSON 모드(response_format)로 받아 깨진 JSON 때문에 다시 부르는 일을 줄인다.
+def _openrouter_extra(json_mode: bool) -> dict:
+    extra: dict = {}
+    if os.environ.get("LOVE_FORTUNE_OPENROUTER_REASONING", "off").strip().lower() not in ("on", "1", "true"):
+        extra["reasoning"] = {"enabled": False}
+    sort = os.environ.get("LOVE_FORTUNE_OPENROUTER_SORT", "price").strip()
+    if sort:
+        extra["provider"] = {"sort": sort}
+    if json_mode:
+        extra["response_format"] = {"type": "json_object"}
+    return extra
+
+
+def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MAX_TOKENS,
+                    json_mode: bool = False) -> str:
     import urllib.error
     import urllib.request
     key = os.environ.get("OPENROUTER_API_KEY", "")
@@ -71,7 +89,8 @@ def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MA
         raise RuntimeError("OpenRouter 키나 모델 이름이 없어")
     body = json.dumps({"model": OPENROUTER_MODEL, "max_tokens": max_tokens,
                        "messages": [{"role": "system", "content": system},
-                                    {"role": "user", "content": prompt}]}).encode("utf-8")
+                                    {"role": "user", "content": prompt}],
+                       **_openrouter_extra(json_mode)}).encode("utf-8")
     req = urllib.request.Request(OPENROUTER_URL, data=body, method="POST", headers={
         "Authorization": f"Bearer {key}", "Content-Type": "application/json",
         "X-Title": os.environ.get("LOVE_FORTUNE_APP_NAME", "love-fortune")})
@@ -94,11 +113,12 @@ def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MA
     return out
 
 
-def run(system: str, prompt: str, timeout: int = AI_TIMEOUT, max_tokens: int = MAX_TOKENS) -> str:
+def run(system: str, prompt: str, timeout: int = AI_TIMEOUT, max_tokens: int = MAX_TOKENS,
+        json_mode: bool = False) -> str:
     """답 문자열. 실패하면 RuntimeError (부르는 쪽이 대신 문장을 쓴다)."""
     _take_budget()
     if BACKEND == "openrouter":
-        return _run_openrouter(system, prompt, timeout, max_tokens)
+        return _run_openrouter(system, prompt, timeout, max_tokens, json_mode)
     exe = shutil.which(AI_CLI)
     if not exe:
         raise RuntimeError("AI 명령을 찾지 못했어")
@@ -140,7 +160,7 @@ def run(system: str, prompt: str, timeout: int = AI_TIMEOUT, max_tokens: int = M
 
 def run_json(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> dict:
     """JSON 객체로 답을 받는다. 코드 울타리나 앞뒤 설명이 붙어 와도 가장 바깥 {...} 만 읽는다."""
-    text = run(system, prompt, timeout)
+    text = run(system, prompt, timeout, json_mode=True)
     m = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.S)
     if m:
         text = m.group(1)

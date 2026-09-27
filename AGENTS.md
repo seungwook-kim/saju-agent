@@ -34,6 +34,8 @@
     AI 에는 facts.py 사실표(개인정보 없음)만 넘기고, 사실표 밖의 사실·확률·단정 예언을
     쓰지 못하게 SYSTEM 프롬프트와 chapters.normalize 로 막는다. 프롬프트를 바꾸면
     chapters.PROMPT_VERSION 을 올려 저장된 풀이를 새로 만들게 한다.
+  - OpenRouter 모델은 qwen/qwen3.7-flash (2026-09-27 사용자 결정, 가장 싼 적합 모델). 부를 때 생각(reasoning) 끄기,
+    provider.sort=price, 챕터는 response_format json_object. 사용자 허락 없이 유료 AI 를 시험으로 부르지 않는다.
   - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(LOVE_FORTUNE_AI_BACKEND=openrouter)로
     부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라

@@ -20,8 +20,8 @@ services:
         value: "0"
       - key: LOVE_FORTUNE_AI_BACKEND     # AI 풀이를 쓰려면 openrouter + 아래 두 값
         value: openrouter
-      - key: LOVE_FORTUNE_OPENROUTER_MODEL
-        sync: false
+      - key: LOVE_FORTUNE_OPENROUTER_MODEL   # 2026-09-27 고른 가장 싼 적합 모델
+        value: qwen/qwen3.7-flash
       - key: OPENROUTER_API_KEY
         sync: false
       - key: SUPABASE_URL               # Supabase 프로젝트 주소 (https://xxxx.supabase.co), 대시보드에서 넣는다

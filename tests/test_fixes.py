@@ -702,3 +702,40 @@ def test_same_origin_rules(monkeypatch):
     assert so(H({"Host": "10.0.0.5:8765", "X-Forwarded-Host": "a.onrender.com", "Origin": "https://a.onrender.com"}))
     monkeypatch.setenv("LOVE_FORTUNE_ORIGINS", "saju.example.com, b.com")
     assert so(H({"Host": "x", "Origin": "https://saju.example.com"}))
+
+
+def test_openrouter_request_is_cheap(monkeypatch):
+    # 실제로 부르지 않는다: 보낼 요청 본문만 본다
+    import json as _json
+    from love_fortune import ai
+    sent = {}
+
+    class R:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return _json.dumps({"choices": [{"message": {"content": "{\"headline\": \"a\"}"}}]}).encode()
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=0: sent.update(_json.loads(req.data)) or R())
+    monkeypatch.setattr(ai, "BACKEND", "openrouter")
+    monkeypatch.setattr(ai, "OPENROUTER_MODEL", "qwen/qwen3.7-flash")
+    monkeypatch.setattr(ai, "PER_HOUR", 0)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+    for k in ("LOVE_FORTUNE_OPENROUTER_REASONING", "LOVE_FORTUNE_OPENROUTER_SORT"):
+        monkeypatch.delenv(k, raising=False)
+    assert ai.run_json("s", "p") == {"headline": "a"}
+    assert sent["reasoning"] == {"enabled": False} and sent["provider"] == {"sort": "price"}
+    assert sent["response_format"] == {"type": "json_object"} and sent["max_tokens"] == 2000
+    ai.run("s", "p")
+    sent.clear()
+    ai.run("s", "p")
+    assert "response_format" not in sent                     # 상담(글)은 JSON 모드를 안 쓴다
+    monkeypatch.setenv("LOVE_FORTUNE_OPENROUTER_REASONING", "on")
+    monkeypatch.setenv("LOVE_FORTUNE_OPENROUTER_SORT", "")
+    sent.clear()
+    ai.run("s", "p")
+    assert "reasoning" not in sent and "provider" not in sent
