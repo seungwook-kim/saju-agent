@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 
 BACKEND = os.environ.get("LOVE_FORTUNE_AI_BACKEND", "cli").strip().lower()
 AI_CLI = os.environ.get("LOVE_FORTUNE_AI_CLI", "claude")          # 실행할 명령 이름 (cli)
@@ -30,6 +31,25 @@ LABEL = "AI 모델" if BACKEND == "openrouter" else "구독 AI 모델"      # �
 AI_TIMEOUT = 180
 PARALLEL = max(1, int(os.environ.get("LOVE_FORTUNE_AI_PARALLEL", "3")))
 _SLOTS = threading.BoundedSemaphore(PARALLEL)
+
+
+# 한 시간에 실제로 부르는 AI 횟수 상한 (공개 서버에서 요금 폭탄을 막는다). 0 이면 제한 없음.
+# OpenRouter(유료)는 기본 300번, 로컬 구독 CLI 는 기본 제한 없음. 넘으면 부르는 쪽이 계산 풀이로 대신한다.
+PER_HOUR = int(os.environ.get("LOVE_FORTUNE_AI_PER_HOUR", "300" if BACKEND == "openrouter" else "0"))
+_CALLS: list[float] = []
+_CALLS_LOCK = threading.Lock()
+
+
+def _take_budget() -> None:
+    if PER_HOUR <= 0:
+        return
+    now = time.time()
+    with _CALLS_LOCK:
+        while _CALLS and now - _CALLS[0] > 3600:
+            _CALLS.pop(0)
+        if len(_CALLS) >= PER_HOUR:
+            raise RuntimeError("이번 시간 AI 사용량이 다 찼어요")
+        _CALLS.append(now)
 
 
 def available() -> bool:
@@ -71,6 +91,7 @@ def _run_openrouter(system: str, prompt: str, timeout: int) -> str:
 
 def run(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> str:
     """답 문자열. 실패하면 RuntimeError (부르는 쪽이 대신 문장을 쓴다)."""
+    _take_budget()
     if BACKEND == "openrouter":
         return _run_openrouter(system, prompt, timeout)
     exe = shutil.which(AI_CLI)

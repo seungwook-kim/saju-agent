@@ -2,3 +2,4 @@
 import os
 
 os.environ["LOVE_FORTUNE_AI"] = "0"
+os.environ["LOVE_FORTUNE_RATE"] = "0"       # 요청 횟수 제한은 test_fixes 에서 따로 켜서 본다

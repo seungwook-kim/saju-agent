@@ -172,11 +172,15 @@ def hanja_for(reading: str, surname: bool = False) -> list[dict]:
     """음으로 고를 수 있는 인명용 한자 [{cp, hun, strokes}] (훈음 있는 것 먼저, 획수 순)."""
     readings = [reading] + (SURNAME_ALT.get(reading, []) if surname else [])
     top = SURNAME_TOP.get(reading) if surname else None
-    rows, seen = [], set()
+    rows, seen = [], {}
     for x in hanja_table():
-        if (x["r"] in readings or x["cp"] == top) and x["cp"] not in seen:
-            seen.add(x["cp"])
-            rows.append(x)
+        if x["r"] in readings or x["cp"] == top:
+            i = seen.get(x["cp"])
+            if i is None:
+                seen[x["cp"]] = len(rows)
+                rows.append(x)
+            elif rows[i]["r"] != reading and x["r"] == reading:   # 음이 여럿인 글자는 고른 음의 훈음으로 (金: 김)
+                rows[i] = x
     rows.sort(key=lambda x: (x["cp"] != top, not x["h"], x["r"] != reading, x["w"], x["cp"]))
     def label(x):
         if x["h"]:

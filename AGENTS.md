@@ -38,6 +38,10 @@
     부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
     공개 서버에서 SSRF 통로가 된다. LOVE_FORTUNE_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
+  - 공개 서버 남용 방지: POST 는 IP 하나당 1분 90번, 상담 채팅은 12번 (web.py _rate_ok, 넘으면 429).
+    유료 AI 는 ai.py 에서 시간당 총량(LOVE_FORTUNE_AI_PER_HOUR, OpenRouter 기본 300)으로 한 번 더 막는다.
+  - 외부 데이터는 라이선스가 명시된 것만 쓰고 THIRD_PARTY_NOTICES.md 에 적는다. 포털 사전을 긁은 자료는 쓰지 않는다
+    (2026-09-27: 네이버 사전 출처 훈음을 libhangul 사전(BSD)으로 바꿈).
   - 내장 데이터(음력표·표준시 이력)는 tools/gen_calendar_data.py 로만 다시 만든다.
     이 도구는 개발할 때만 외부 패키지를 쓰고, 앱 실행에는 쓰지 않는다.
 

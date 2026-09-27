@@ -37,6 +37,34 @@ CONTEXT_TTL = 6 * 3600      # 리포트 요약을 들고 있는 시간(초)
 CONTEXT_MAX = 300           # 동시에 들고 있는 최대 개수
 MAX_BODY = 64_000           # 요청 본문 상한(바이트)
 
+# 요청 횟수 제한 (공개 서버에서 한 사람이 계산·AI 를 마구 두드리지 못하게). 1분 동안 IP 하나당 횟수.
+# LOVE_FORTUNE_RATE=0 이면 끈다 (시험용). 프록시 뒤(Render 등)에서는 LOVE_FORTUNE_TRUST_PROXY=1 로
+# X-Forwarded-For 첫 주소를 쓴다. 이 값은 속일 수 있으니, 돈이 드는 AI 는 ai.py 의 시간당 총량으로 한 번 더 막는다.
+RATE_WINDOW = 60
+RATE_POST = 90              # 모든 POST
+RATE_CHAT = 12              # 상담 채팅 (AI 를 바로 부른다)
+_HITS: dict[tuple[str, str], list[float]] = {}
+_HITS_LOCK = threading.Lock()
+
+
+def _rate_ok(ip: str, path: str) -> bool:
+    if not _truthy(os.environ.get("LOVE_FORTUNE_RATE", "1")):
+        return True
+    now = time.time()
+    keys = [(ip, "post", RATE_POST)] + ([(ip, "chat", RATE_CHAT)] if path == "/api/chat" else [])
+    with _HITS_LOCK:
+        if len(_HITS) > 5000:                       # 오래된 IP 기록은 치운다
+            for k in [k for k, v in _HITS.items() if not v or now - v[-1] > RATE_WINDOW]:
+                del _HITS[k]
+        for ip_, kind, cap in keys:
+            hits = [t for t in _HITS.get((ip_, kind), []) if now - t < RATE_WINDOW]
+            _HITS[(ip_, kind)] = hits
+            if len(hits) >= cap:
+                return False
+        for ip_, kind, _cap in keys:
+            _HITS[(ip_, kind)].append(now)
+    return True
+
 # 채팅 기본 모델. 구독 인증을 쓰는 로컬 AI CLI 명령으로 부른다.
 from .ai import AI_CLI, AI_MODEL  # noqa: E402,F401  (예전 이름 유지)
 from .ai import LABEL as AI_LABEL  # noqa: E402  화면에 보이는 이름 (구독 AI / OpenRouter)
@@ -672,6 +700,23 @@ class Handler(BaseHTTPRequestHandler):
             domain = "total"
         return start, end, domain
 
+    def _drain(self):
+        """본문을 읽지 않고 오류로 답하면 클라이언트가 아직 보내는 중인 연결이 끊겨(윈도에서 잦음)
+        상태 코드 대신 연결 오류가 난다. 상한 안의 본문은 읽어 버린다."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            if 0 < n <= MAX_BODY:
+                self.rfile.read(n)
+        except (ValueError, OSError):
+            pass
+
+    def _client_ip(self) -> str:
+        if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")):
+            xff = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+            if xff:
+                return xff
+        return self.client_address[0]
+
     def do_POST(self):
         routes = {
             "/api/match": self._api_match, "/api/pick": self._api_pick,
@@ -682,15 +727,12 @@ class Handler(BaseHTTPRequestHandler):
         }
         route = routes.get(self.path)
         if route is None:
-            # 본문을 읽지 않고 404 를 보내면 클라이언트가 아직 보내는 중인 연결이 끊겨(윈도에서 잦음)
-            # 404 대신 연결 오류가 난다. 상한 안의 본문은 읽어 버리고 답한다.
-            try:
-                n = int(self.headers.get("Content-Length") or 0)
-                if 0 < n <= MAX_BODY:
-                    self.rfile.read(n)
-            except (ValueError, OSError):
-                pass
+            self._drain()
             self.send_error(404)
+            return
+        if not _rate_ok(self._client_ip(), self.path):
+            self._drain()
+            self._fail(429, "요청이 너무 많아. 1분쯤 뒤에 다시 해 줘.")
             return
         try:
             q = self._fields()

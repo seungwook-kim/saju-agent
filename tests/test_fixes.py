@@ -461,3 +461,50 @@ def test_ask_panel_mobile_fit():
     css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
     assert "visualViewport.addEventListener('resize',fitAsk)" in js and "if(!NARROW.matches)" in js
     assert "82dvh" in css and "safe-area-inset-bottom" in css and "#result #page{padding-bottom:76px}" in css
+
+
+def test_rate_limit_chat(server, monkeypatch):
+    # 공개 서버 남용 방지: 한 IP 가 1분에 상담 채팅을 12번 넘게 보내면 429
+    from love_fortune import web
+    monkeypatch.setenv("LOVE_FORTUNE_RATE", "1")
+    monkeypatch.setattr(web, "_HITS", {})
+    codes = [_post(server, "/api/chat", {"token": "x", "message": "안녕", "backend": "local"})[0] for _ in range(web.RATE_CHAT + 1)]
+    assert 429 not in codes[:-1] and codes[-1] == 429
+    code, j = _post(server, "/api/chat", {"token": "x", "message": "안녕", "backend": "local"})
+    assert code == 429 and "다시" in j["error"]
+    monkeypatch.setattr(web, "_HITS", {})
+
+
+def test_ai_hourly_budget(monkeypatch):
+    # 유료 AI 는 시간당 총량을 넘으면 부르지 않고 RuntimeError (부르는 쪽이 계산 풀이로 대신)
+    from love_fortune import ai
+    monkeypatch.setattr(ai, "PER_HOUR", 2)
+    monkeypatch.setattr(ai, "_CALLS", [])
+    ai._take_budget()
+    ai._take_budget()
+    with pytest.raises(RuntimeError):
+        ai._take_budget()
+
+
+def test_hanja_meanings_have_clear_license_and_no_hanja():
+    # 훈음은 libhangul(BSD) 사전에서 온다. 포털 사전을 긁은 자료는 쓰지 않는다
+    import re as _re
+    from love_fortune import naming
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    gen = (root / "tools" / "gen_name_hanja.py").read_text(encoding="utf-8")
+    notes = (root / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    assert "data-naver" not in gen and "libhangul-hanja.txt" in gen
+    assert "libhangul" in notes and "Choe Hwanjin" in notes
+    han = _re.compile("[" + chr(0x3400) + "-" + chr(0x9FFF) + chr(0xF900) + "-" + chr(0xFAFF) + "]")
+    rows = naming.hanja_table()
+    assert sum(1 for x in rows if x["h"]) > 7000
+    assert not any(han.search(x["h"]) for x in rows)
+    assert all(not x["h"] or x["h"].endswith(x["r"]) for x in rows)
+    assert naming.hanja_for("김", surname=True)[0]["hun"].endswith("김")
+
+
+def test_home_says_for_fun_only():
+    from love_fortune.web import STATIC_DIR
+    html = (STATIC_DIR / "app.html").read_text(encoding="utf-8")
+    assert "재미·참고용" in html and "전문가와 상의" in html

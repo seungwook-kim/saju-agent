@@ -5,7 +5,8 @@
 | 파일 | 원본 | 라이선스 | 쓰는 방식 |
 |---|---|---|---|
 | `love_fortune/name_hanja.json` | Unicode Unihan 16.0 (부수·획수) | Unicode License v3 | 원획을 계산해 코드포인트와 함께 저장 |
-| `love_fortune/name_hanja.json` | rutopio/Korean-Name-Hanja-Charset (대법원 인명용 한자 목록, 훈음) | MIT | 음·훈음을 코드포인트와 함께 저장 |
+| `love_fortune/name_hanja.json` | rutopio/Korean-Name-Hanja-Charset (대법원 인명용 한자 목록) | MIT | 인명용 한자와 음을 코드포인트와 함께 저장 |
+| `love_fortune/name_hanja.json` | libhangul 한자 사전 (data/hanja/hanja.txt) | BSD 3조항 | 훈음(첫 뜻)을 코드포인트와 함께 저장 |
 | `tests/data/iztro_charts.json` | iztro (자미두수 명반 계산 결과, 대조용) | MIT | 테스트 기준값 |
 | `tests/data/saju_pillars.json`, `twelve_stages.json`, `almanac_lunar_python.json` | lunar-python (6tail, 대조용) | MIT | 테스트 기준값 |
 | `tests/data/saenggi_table.json` | 생기복덕 전통 조견표 (우리궁합 표와 대조) | 전통 자료(사실) | 테스트 기준값 |
@@ -86,4 +87,37 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+---
+
+## libhangul 한자 사전 (BSD 3-Clause)
+
+```
+Copyright (c) 2005,2006 Choe Hwanjin
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the author nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
 ```
