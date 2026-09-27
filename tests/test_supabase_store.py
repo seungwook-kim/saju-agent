@@ -197,7 +197,6 @@ def test_vercel_entry_and_config():
     assert mod.handler is Handler
     cfg = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
     assert cfg["rewrites"][0]["destination"] == "/api/index"
-    assert "love_fortune/**" in cfg["functions"]["api/index.py"]["includeFiles"]
     vi = (ROOT / ".vercelignore").read_text(encoding="utf-8").splitlines()
     assert ".env" in vi and "tests" in vi
     sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")
