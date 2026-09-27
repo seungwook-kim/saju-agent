@@ -77,7 +77,10 @@ def _eq(col: str, val: str) -> str:
 def _log(what: str, e: Exception) -> None:
     # 키·내용은 남기지 않고 어떤 일이 어떤 오류로 실패했는지만 남긴다
     code = getattr(e, "code", "")
-    print(f"[저장소] Supabase {what} 실패: {type(e).__name__} {code}".rstrip(), file=sys.stderr)
+    hint = {404: " (표가 없어. Supabase SQL Editor 에서 db/supabase.sql 을 실행해 줘)",
+            401: " (키가 틀렸어. SUPABASE_SECRET_KEY 를 확인해 줘)",
+            403: " (권한이 없어. 공개 키가 아니라 서버 전용 키인지 확인해 줘)"}.get(code, "")
+    print(f"[저장소] Supabase {what} 실패: {type(e).__name__} {code}".rstrip() + hint, file=sys.stderr)
 
 
 def get_chapter(key: str) -> dict | None:
