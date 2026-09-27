@@ -47,6 +47,20 @@ _HITS: dict[tuple[str, str], list[float]] = {}
 _HITS_LOCK = threading.Lock()
 
 
+def _chat_on(ip: str) -> bool:
+    """상담 채팅을 열지. 공개 서버에서는 잠시 막아 둔다 (2026-09-27 사용자 결정, AI 요금).
+    LOVE_FORTUNE_CHAT=1 이면 어디서나, 0 이면 어디서도 안 연다.
+    기본(auto)은 이 컴퓨터에서 직접 접속했을 때만 연다: 요청 주소가 루프백이고 프록시 뒤가 아닐 때."""
+    mode = os.environ.get("LOVE_FORTUNE_CHAT", "auto").strip().lower()
+    if mode in ("1", "on", "true"):
+        return True
+    if mode in ("0", "off", "false"):
+        return False
+    if _truthy(os.environ.get("LOVE_FORTUNE_TRUST_PROXY", "")):
+        return False
+    return ip in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
 def _rate_ok(ip: str, path: str) -> bool:
     if not _truthy(os.environ.get("LOVE_FORTUNE_RATE", "1")):
         return True
@@ -812,7 +826,7 @@ class Handler(BaseHTTPRequestHandler):
         if ai_on and _prefetch_on():
             prefetch.submit_all(f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
-                    "rules": chapters.rule_all(f), "ai": ai_on})
+                    "rules": chapters.rule_all(f), "ai": ai_on, "chat": _chat_on(self._client_ip())})
 
     def _rectify(self, q: dict):
         """태어난 시간 추정: 인생 사건으로 12시진 후보에 점수를 매긴다 (재미·참고용)."""
@@ -864,7 +878,8 @@ class Handler(BaseHTTPRequestHandler):
         f = got["facts"]
         token = _remember("", got["summary"], f["meta"]["target"], facts=f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
-                    "rules": chapters.rule_all(f), "ai": _ai_on(), "shared": True})
+                    "rules": chapters.rule_all(f), "ai": _ai_on(), "shared": True,
+                    "chat": _chat_on(self._client_ip())})
 
     def _v2_ctx(self, q: dict) -> dict:
         ctx = _context(str(q.get("token", "")))
@@ -886,6 +901,9 @@ class Handler(BaseHTTPRequestHandler):
         self._json(body or chapters.rule_chapter(tab, ch, ctx["facts"]))
 
     def _chat(self, q: dict):
+        if not _chat_on(self._client_ip()):
+            self._fail(403, "상담 채팅은 지금 잠시 쉬는 중이야.")
+            return
         ctx = _context(str(q.get("token", ""))) or {}
         summary = ctx.get("summary", "리포트 컨텍스트 없음. 일반적인 운세 상담으로 답할 것.")
         message = str(q.get("message", "")).strip()[:1000]

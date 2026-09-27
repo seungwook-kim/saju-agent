@@ -6,6 +6,8 @@ services:
     plan: free
     healthCheckPath: /healthz
     envVars:
+      - key: LOVE_FORTUNE_CHAT           # 상담 채팅은 공개 서버에서 잠시 막아 둔다 (켜려면 1)
+        value: "0"
       - key: LOVE_FORTUNE_TRUST_PROXY    # Render 프록시 뒤라 방문자 IP 를 X-Forwarded-For 로 본다 (요청 횟수 제한)
         value: "1"
       - key: LOVE_FORTUNE_AI_PER_HOUR    # 한 시간에 부르는 AI 상한 (요금 보호)

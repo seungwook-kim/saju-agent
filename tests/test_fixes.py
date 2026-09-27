@@ -508,3 +508,29 @@ def test_home_says_for_fun_only():
     from love_fortune.web import STATIC_DIR
     html = (STATIC_DIR / "app.html").read_text(encoding="utf-8")
     assert "재미·참고용" in html and "전문가와 상의" in html
+
+
+def test_chat_only_on_local(monkeypatch):
+    # 상담 채팅은 이 컴퓨터에서만. 공개 서버(프록시 뒤)나 다른 기기에서는 막고 화면 버튼도 숨긴다
+    from love_fortune import web
+    monkeypatch.delenv("LOVE_FORTUNE_CHAT", raising=False)
+    monkeypatch.delenv("LOVE_FORTUNE_TRUST_PROXY", raising=False)
+    assert web._chat_on("127.0.0.1") and web._chat_on("::1")
+    assert not web._chat_on("192.168.0.5")
+    monkeypatch.setenv("LOVE_FORTUNE_TRUST_PROXY", "1")
+    assert not web._chat_on("127.0.0.1")
+    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "1")
+    assert web._chat_on("203.0.113.9")
+    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "0")
+    assert not web._chat_on("127.0.0.1")
+    js = (web.STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "chatOn:!!j.chat" in js and "$('askFab').hidden=!S.chatOn" in js
+
+
+def test_chat_blocked_when_off(server, monkeypatch):
+    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "0")
+    code, j = _post(server, "/api/chat", {"token": "x", "message": "안녕", "backend": "local"})
+    assert code == 403 and "쉬는 중" in j["error"]
+    monkeypatch.setenv("LOVE_FORTUNE_CHAT", "auto")
+    code, j = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
+    assert code == 200 and j["chat"] is True          # 시험 서버는 127.0.0.1 이라 열린다

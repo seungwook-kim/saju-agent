@@ -41,7 +41,7 @@ $('fMain').addEventListener('submit',async e=>{
     if(remember){peopleSave(nick,q);form.querySelector('[name="remember"]').checked=false;toggleNick();renderPeople();}
     S.person=q;                         // 궁합·길일에 다시 쓴다 (브라우저 메모리에만)
     S.shareId=null;S.pastAns={};
-    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,
+    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,chatOn:!!j.chat,
       chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today'});
     showResult();
   }catch(err){
@@ -55,6 +55,7 @@ $('btnBack').addEventListener('click',()=>{
 });
 
 function showResult(){
+  $('askFab').hidden=!S.chatOn;if(!S.chatOn) closeAsk();     // 공개 서버에서는 채팅을 잠시 막아 둔다
   loadGloss().then(()=>{if(S.tab&&S.outline[S.tab]) openTab(S.tab);});
   $('home').classList.remove('on');$('result').classList.add('on');
   $('tabs').innerHTML=TAB_ORDER.map(t=>'<button class="tab" type="button" data-tab="'+t+'">'+TAB_NAME[t]+'</button>').join('');
@@ -1328,7 +1329,7 @@ $('shCard').addEventListener('click',()=>{
   if(!m) return;
   try{
     const j=await postJSON('/api/v2/shared',{id:m[1]});
-    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,shareId:m[1],pastAns:{},
+    Object.assign(S,{token:j.token,facts:j.facts,outline:j.outline,rules:j.rules||{},ai:j.ai,chatOn:!!j.chat,shareId:m[1],pastAns:{},
       chapters:{},chat:[],queue:[],inflight:new Set(),tab:'today',person:null});
     showResult();
   }catch(e){$('homeErr').innerHTML='<div class="err">'+esc(e.message)+'</div>';}
