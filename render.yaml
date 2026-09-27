@@ -6,8 +6,8 @@ services:
     plan: free
     healthCheckPath: /healthz
     envVars:
-      - key: SAJU_CHAT           # 상담 채팅은 공개 서버에서 잠시 막아 둔다 (켜려면 1)
-        value: "0"
+      - key: SAJU_CHAT           # 상담 채팅 (한 사람 하루 5번). 막으려면 0
+        value: "1"
       - key: SAJU_CHAT_PER_DAY   # 채팅을 켜면 한 사람당 하루 질문 수 (IP·쿠키·결과·사주 중 하나라도 다 쓰면 막음)
         value: "5"
       - key: SAJU_CHAT_GLOBAL_PER_DAY   # 모두 합쳐 하루 질문 상한 (우회해도 요금이 이 이상 안 나감)

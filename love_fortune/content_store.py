@@ -58,7 +58,7 @@ def backend() -> str:
     return "supabase" if _supabase() else "sqlite"
 
 
-def _rest(method: str, table: str, query: str = "", body: dict | None = None, count: bool = False):
+def _rest(method: str, table: str, query: str = "", body: dict | list | None = None, count: bool = False):
     url, key = _supabase()
     headers = {"apikey": key, "Content-Type": "application/json", "Accept": "application/json"}
     if count:
@@ -104,6 +104,32 @@ def get_ctx(token: str) -> dict | None:
     r = rows[0]
     return {"md": "", "summary": r["summary"], "target": r["target"], "created": r["created"],
             "facts": json.loads(r["facts_json"]) if r["facts_json"] else None}
+
+
+# ---------------- 상담 횟수 (서버가 여러 대여도 한 사람 하루 횟수를 함께 센다)
+
+def chat_take(keys: list[str], per_day: int, global_per_day: int) -> int | None | bool:
+    """한 번 쓴다. 남은 횟수(int), 다 썼으면 None, Supabase 가 없거나 안 되면 False (부르는 쪽이 메모리로 센다).
+    keys 는 이미 해시된 값이라 IP·쿠키 원래 값은 저장되지 않는다."""
+    if not _supabase() or not keys:
+        return False
+    now = time.time()
+    since = now - 24 * 3600
+    try:
+        if _rest("HEAD", "chat_use", f"?select=k&ts=gt.{since}&k=eq.all", count=True) >= global_per_day:
+            return None
+        inlist = ",".join(urllib.parse.quote(k, safe="") for k in keys)
+        rows = _rest("GET", "chat_use", f"?select=k&ts=gt.{since}&k=in.({inlist})") or []
+        used = max((sum(1 for r in rows if r["k"] == k) for k in keys), default=0)
+        if used >= per_day:
+            return None
+        _rest("POST", "chat_use", body=[{"k": k, "ts": now} for k in keys + ["all"]])
+        if now % 100 < 1:
+            _rest("DELETE", "chat_use", f"?ts=lt.{since}")
+        return per_day - used - 1
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
+        _log("상담 횟수", e)
+        return False
 
 
 # ---------------- AI 사용량 (서버가 여러 대여도 시간당 총량을 함께 센다)

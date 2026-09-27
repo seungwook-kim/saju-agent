@@ -73,7 +73,10 @@ LOOPBACK = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
 # 모두 합쳐 하루 상담 상한. 누가 IP·브라우저를 바꿔 가며 뚫어도 하루 요금이 이 이상 안 나간다.
 CHAT_GLOBAL_PER_DAY = int(os.environ.get("SAJU_CHAT_GLOBAL_PER_DAY", "300"))
-_SALT = secrets.token_hex(16)        # 열쇠를 해시할 때 섞는 값 (서버를 켤 때마다 새로, 메모리에만)
+# 열쇠를 해시할 때 섞는 값. 서버가 여러 대(Vercel)여도 같아야 해서 서버 비밀(Supabase 키)에서 만든다.
+# 비밀이 없으면(로컬) 켤 때마다 새로. 해시만 저장하니 IP·쿠키 원래 값은 남지 않는다.
+_SALT = (__import__("hashlib").sha256(("saju-salt|" + os.environ["SUPABASE_SECRET_KEY"]).encode()).hexdigest()
+         if os.environ.get("SUPABASE_SECRET_KEY") else secrets.token_hex(16))
 
 
 def _h(*parts: str) -> str:
@@ -100,6 +103,10 @@ def _chat_take(keys: list[str], local: bool = False) -> int | None:
     남은 횟수를 돌려준다. 이 컴퓨터(local)는 제한 없음(-1)."""
     if local:
         return -1
+    from . import content_store                     # Supabase 가 있으면 서버 여러 대가 함께 센다
+    shared = content_store.chat_take([_h(k) for k in keys if k], CHAT_PER_DAY, CHAT_GLOBAL_PER_DAY)
+    if shared is not False:
+        return shared
     now, day = time.time(), 24 * 3600
     keys = [k for k in keys if k] + ["*all*"]
     with _CHAT_LOCK:

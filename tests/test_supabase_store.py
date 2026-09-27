@@ -32,7 +32,8 @@ class FakeRest(BaseHTTPRequestHandler):
                 continue
             op, val = v[0].split(".", 1)
             test = {"eq": lambda a, b: str(a) == b, "gt": lambda a, b: float(a) > float(b),
-                    "lt": lambda a, b: float(a) < float(b)}[op]
+                    "lt": lambda a, b: float(a) < float(b),
+                    "in": lambda a, b: str(a) in b.strip("()").split(",")}[op]
             rows = [r for r in rows if test(r[k], val)]
         return rows
 
@@ -69,11 +70,12 @@ class FakeRest(BaseHTTPRequestHandler):
     def do_POST(self):
         FakeRest.seen.append(("POST", self.headers.get("apikey"), self.headers.get("Prefer")))
         name, _ = self._table()
-        row = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         pk = {"chapter": "key", "ctx": "token"}.get(name, "id")
-        if name == "ai_call":
-            row["id"] = len(FakeRest.tables.get(name, {})) + 1
-        FakeRest.tables.setdefault(name, {})[row[pk]] = row
+        for row in data if isinstance(data, list) else [data]:
+            if name in ("ai_call", "chat_use"):
+                row["id"] = len(FakeRest.tables.get(name, {})) + 1
+            FakeRest.tables.setdefault(name, {})[row[pk]] = row
         self.send_response(201)
         self.send_header("Content-Length", "0")
         self.end_headers()
@@ -155,7 +157,7 @@ def test_secrets_stay_out_of_git_and_docker():
         if "=" in line and not line.startswith("#"):
             assert line.split("=", 1)[1] == "", line                 # 예시에는 값이 없다
     sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")
-    assert sql.count("enable row level security") == 4
+    assert sql.count("enable row level security") == 5
 
 
 def test_ctx_roundtrip_and_web_context_fallback(fake):
@@ -223,7 +225,7 @@ def test_vercel_wsgi_entry():
     vi = (ROOT / ".vercelignore").read_text(encoding="utf-8").splitlines()
     assert ".env" in vi and "tests" in vi
     sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")
-    assert sql.count("enable row level security") == 4
+    assert sql.count("enable row level security") == 5
 
 
 def test_serverless_chapter_generates_in_request(monkeypatch):
@@ -247,3 +249,21 @@ def test_serverless_chapter_generates_in_request(monkeypatch):
     h = H()
     h._v2_chapter({"token": tok, "tab": "love", "chapter": chapters.TABS["love"]["chapters"][0]["id"]})
     assert called and h.out["headline"] == "h"
+
+
+def test_chat_quota_shared_across_servers(fake, monkeypatch):
+    # 서버 여러 대(Vercel): 한 사람 하루 5번을 Supabase 에서 함께 센다. 원래 IP·쿠키 값은 저장하지 않는다
+    from love_fortune import web
+    monkeypatch.setattr(web, "_CHAT_USED", {})
+    monkeypatch.setattr(web, "CHAT_PER_DAY", 5)
+    monkeypatch.setattr(web, "CHAT_GLOBAL_PER_DAY", 300)
+    T = web._chat_take
+    assert [T(["ip:1.1.1.1", "cid:A", "t:tA"]) for _ in range(5)] == [4, 3, 2, 1, 0]
+    monkeypatch.setattr(web, "_CHAT_USED", {})                       # 다른 기계라고 치고 메모리를 비워도
+    assert T(["ip:1.1.1.1", "cid:Z", "t:tZ"]) is None                # Supabase 기록으로 막힌다
+    assert T(["ip:9.9.9.9", "cid:A", "t:tQ"]) is None                # 쿠키로도 막힌다
+    assert T(["ip:8.8.8.8", "cid:N", "t:tN"]) == 4                   # 다른 사람은 새로 센다
+    stored = json.dumps(FakeRest.tables["chat_use"])
+    assert "1.1.1.1" not in stored and "cid:A" not in stored        # 해시만 저장
+    monkeypatch.setattr(web, "CHAT_GLOBAL_PER_DAY", 6)                # 지금까지 6번 성공
+    assert T(["ip:7.7.7.7"]) is None                                 # 모두 합쳐 하루 상한

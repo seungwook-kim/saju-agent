@@ -46,12 +46,22 @@ create table if not exists public.ai_call (
 );
 create index if not exists ai_call_ts on public.ai_call (ts);
 
+-- 상담 사용 기록 (한 사람 하루 5번을 서버 여러 대가 함께 센다). k 는 IP·쿠키·결과·사주의 해시, 원래 값은 없다.
+create table if not exists public.chat_use (
+    id  bigserial primary key,
+    k   text not null,
+    ts  double precision not null
+);
+create index if not exists chat_use_k_ts on public.chat_use (k, ts);
+
 -- 공개 키로는 못 읽고 못 쓰게 잠근다 (서버 전용 키는 RLS 를 거치지 않는다)
 alter table public.chapter enable row level security;
 alter table public.share enable row level security;
 alter table public.ctx enable row level security;
 alter table public.ai_call enable row level security;
+alter table public.chat_use enable row level security;
 revoke all on public.chapter from anon, authenticated;
 revoke all on public.share from anon, authenticated;
 revoke all on public.ctx from anon, authenticated;
 revoke all on public.ai_call from anon, authenticated;
+revoke all on public.chat_use from anon, authenticated;
