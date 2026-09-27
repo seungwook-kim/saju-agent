@@ -15,22 +15,28 @@ import re
 
 from . import ai, content_store, rule_chapters
 
-PROMPT_VERSION = "ch-7"
+PROMPT_VERSION = "ch-8"   # ch-8: 나쁜 신호도 분명하게, 사실표에 없는 용어 금지 (2026-09-28)
 
 SYSTEM = """너는 정통 사주명리·자미두수·서양 점성술을 함께 보는 다정한 상담가다.
 아래 규칙을 반드시 지킨다.
 1. 사용자가 준 '사실표'에 있는 계산 결과만 근거로 쓴다. 사실표에 없는 것
    (과거 경험, 직업, 성격 단정, 인연의 수, 확률, 퍼센트, 사실표에 없는 날짜나 나이)은 절대 지어내지 않는다.
    시기를 말할 때는 사실표에 나온 달·해만 쓴다. 숫자는 사실표에 있는 것만 쓴다.
-2. 단정적 예언을 하지 않는다. '~할 것이다', '반드시', '100%', '확률' 대신 '~하기 좋은 흐름', '~하기 쉬워' 로 말한다.
+2. 미래를 확정하지 않는다. '~할 것이다', '100%', '확률', '운명의 상대' 같은 말은 쓰지 않는다.
+   하지만 좋은 것만 골라 말하지 않는다. 사실표에 나쁜 신호(충·형·파·해, 화기, 조심·주의 신호, 낮은 점수,
+   여러 체계가 같이 조심을 가리킴)가 있으면 돌려 말하지 말고 분명하고 강하게 말한다 ("이건 안 좋은 신호야",
+   "이 달은 정말 조심해"). 좋은 신호와 나쁜 신호가 같이 있으면 둘 다 말한다. 나쁜 신호를 좋은 말로 덮지 않는다.
 3. 별·궁·십신·신살 같은 용어가 나오면 그 자리에서 괄호로 쉬운 뜻을 붙인다.
-4. 친근한 반말(…야, …해, …거든)로, 점술가가 마주 앉아 말해 주듯 쓴다. 과장하거나 겁주지 않는다.
+4. 친근한 반말(…야, …해, …거든)로, 점술가가 마주 앉아 말해 주듯 쓴다. 과장하지 않되, 나쁜 건 나쁘다고 분명히 말한다.
 5. 한자·일본어를 쓰지 않는다. 긴 줄표(엠 대시)를 쓰지 않는다. 이모지를 쓰지 않는다.
 6. 건강·법률·투자 같은 중요한 결정은 대신 내려 주지 않고 전문가와 상의하라고 권한다.
 7. 체계의 용어를 섞지 않는다. 배우자궁은 사주의 일지(배우자 자리)이고, 부처궁은 자미두수의 궁이다. 둘을 같은 것이라고 말하지 않는다.
 8. 사실표 meta.hour_known 이 false 이면 태어난 시간을 모르는 것이다. 자미두수 명반·상승궁·하우스는 계산하지 않았다고만 말하고 풀이하지 않는다.
 9. 나이는 meta.age(만 나이)를 쓴다. 세는나이가 필요한 문장은 사실표에 적힌 대로 '세는나이'라고 밝힌다.
 10. 출력은 JSON 객체 하나만 쓴다. 설명이나 코드 울타리를 붙이지 않는다.
+11. 사실표에 없는 별 이름(자미두수 주성·사화), 궁 이름, 신살, 십신, 별자리, 행성은 쓰지 않는다. 절대 지어내지 않는다.
+    사실표에 없는 걸 물어보는 챕터면 "계산에 그 정보는 없어"라고 말한다.
+12. 여러 가지를 나열할 때는 text 블록 한 문단에 늘어놓지 말고 steps 나 checklist 블록으로 나눠 읽기 쉽게 쓴다.
 
 JSON 형식:
 {"headline": "챕터 결론 한 줄 (40자 안쪽)",
@@ -232,15 +238,58 @@ def _clean(s) -> str:
 _NUM = re.compile(r"\d+(?:\.\d+)?")
 _NUM_CTX = re.compile(r"(STEP\s*)?(\d+(?:\.\d+)?)\s*(단계|가지|번째|걸음|순위)?")
 _SENT = re.compile(r"(?<=[.!?])\s+")
+_AGE = re.compile(r"(\d+)\s*(살|세|개월)")
 _SURE = re.compile("반드시|틀림없|할 것이다|될 것이다|올 것이다|운명의 상대")
+# 강하게 말하는 조언은 허용한다 ("반드시 조심해"). 미래를 못 박는 말은 계속 막는다 (2026-09-28 사용자: 강하게 말할 땐 말해)
+_SURE_OK = re.compile("반드시 (조심|주의|피해|피하|확인|챙기|챙겨|점검|대비|멈춰|쉬어)")
+
+# 사실표에 있어야만 쓸 수 있는 용어 (지어낸 별·궁·신살을 막는다). 두 글자 이상만.
+_SYSTEM_WORDS = ("자미두수", "점성술", "사주명리", "사주팔자", "사주")          # 체계 이름은 늘 허용 (용어 검사 전에 지운다)
+DOMAIN_TERMS = tuple(sorted({
+    # 자미두수 주성·사화·궁
+    "자미", "천기", "무곡", "천동", "염정", "천부", "태음", "탐랑", "거문", "천상", "천량", "칠살", "파군",
+    "화록", "화권", "화과", "화기", "문창", "문곡", "좌보", "우필", "천괴", "천월", "녹존", "경양", "타라", "화성성", "영성",
+    "형제궁", "부처궁", "자녀궁", "재백궁", "질액궁", "천이궁", "노복궁", "관록궁", "전택궁", "복덕궁", "부모궁",
+    # 사주 십신·신살·십이운성
+    "비견", "겁재", "식신", "상관", "편재", "정재", "편관", "정관", "편인", "정인",
+    "도화", "홍염", "역마", "화개", "공망", "천을귀인", "괴강", "고진", "과숙", "양인", "백호", "원진", "귀문",
+    "홍란", "천희", "장성", "문창귀인", "학당", "현침", "탕화",
+    "장생", "관대", "건록", "제왕",
+    # 점성술 별자리·행성
+    "양자리", "황소자리", "쌍둥이자리", "게자리", "사자자리", "처녀자리", "천칭자리", "전갈자리", "사수자리",
+    "염소자리", "물병자리", "물고기자리", "수성", "금성", "목성", "토성", "천왕성", "해왕성", "명왕성",
+}, key=len, reverse=True))
+
+
+def terms_ok(sent: str, text: str) -> bool:
+    """문장에 나온 전문 용어가 모두 사실표(text)에 있으면 통과. 궁은 '궁'을 뺀 이름으로도 찾는다."""
+    s = sent
+    for w in _SYSTEM_WORDS:
+        s = s.replace(w, " ")
+    for t in DOMAIN_TERMS:
+        if t in s:
+            base = t[:-1] if t.endswith("궁") and len(t) > 2 else t
+            if t not in text and base not in text:
+                return False
+            s = s.replace(t, " ")                  # 긴 말부터 지워 짧은 말이 겹쳐 걸리지 않게 (천을귀인 > 귀인)
+    return True
 # 챕터의 틀로 늘 쓰는 기간 말 (대운 10년, 앞으로 12개월·3년). 사람마다 다른 숫자가 아니라 허용한다
 _GENERIC = re.compile("10년|12개월|3년")
 
 
-def _grounded_sentence(sent: str, allowed: set[str]) -> bool:
-    """문장 속 숫자가 모두 사실표에 있으면 통과. '3단계', '2가지', 'STEP 1' 같은 순서 표기는 허용."""
-    if _SURE.search(sent):
+def _grounded_sentence(sent: str, allowed: set[str], text: str | None = None) -> bool:
+    """문장 속 숫자와 전문 용어가 모두 사실표에 있으면 통과. '3단계', '2가지', 'STEP 1' 같은 순서 표기는 허용."""
+    if _SURE.search(_SURE_OK.sub("", sent)):
         return False
+    if text is not None and not terms_ok(sent, text):
+        return False
+    if text is not None:
+        # 나이·기간은 숫자만 맞으면 안 되고 그 나이·기간으로 사실표에 있어야 한다 ('37살' 이 점수 37 로 통과하지 않게)
+        for n, unit in _AGE.findall(sent):
+            if unit in ("살", "세") and not any(k in text for k in (f"{n}살", f"{n}세", f'"age": {n}', f"만 {n}")):
+                return False
+            if unit == "개월" and f"{n}개월" not in text:
+                return False
     for step, n, unit in _NUM_CTX.findall(_GENERIC.sub("", sent)):
         counting = (step or unit) and float(n) <= 10
         if n not in allowed and not counting:
@@ -248,8 +297,42 @@ def _grounded_sentence(sent: str, allowed: set[str]) -> bool:
     return True
 
 
-def _ground_text(s: str, allowed: set[str]) -> str:
-    return " ".join(x for x in _SENT.split(s or "") if x and _grounded_sentence(x, allowed)).strip()
+def _ground_text(s: str, allowed: set[str], text: str | None = None) -> str:
+    return " ".join(x for x in _SENT.split(s or "") if x and _grounded_sentence(x, allowed, text)).strip()
+
+
+_LIST_NO = re.compile(r"^\s*(\d{1,2})[.)]\s+")
+
+
+def ground_reply(reply: str, context: str) -> str:
+    """상담 답 거름망: 상담 요약(context)에 없는 숫자·용어가 든 문장, 미래를 못 박는 문장을 뺀다.
+    줄 단위로 거르고 '1. 2. 3.' 번호 줄은 번호를 빼고 검사한 뒤, 남은 줄끼리 번호를 다시 매긴다."""
+    allowed = set(_NUM.findall(context))
+    out, n = [], 0
+    for line in (reply or "").splitlines():
+        m = _LIST_NO.match(line)
+        body = line[m.end():] if m else line
+        kept = _ground_text(body, allowed, context)
+        if not kept:
+            continue
+        if m:
+            n += 1
+            out.append(f"{n}. {kept}")
+        else:
+            out.append(kept)
+    return "\n".join(out).strip()
+
+
+def numbered(reply: str) -> str:
+    """계산값 답(' / ' 로 이은 것)을 '머리말' + '1. 2. 3.' 줄로 바꿔 읽기 쉽게 한다."""
+    if " / " not in reply:
+        return reply
+    head, sep, rest = reply.partition(": ")
+    if not sep or " / " in head:
+        head, rest = "", reply
+    items = [x.strip().rstrip(".") for x in rest.split(" / ") if x.strip()]
+    lines = [f"{i}. {x}." for i, x in enumerate(items, 1)]
+    return ((head + ":\n") if head else "") + "\n".join(lines)
 
 
 def ground(body: dict, facts_part: dict) -> dict:
@@ -258,25 +341,26 @@ def ground(body: dict, facts_part: dict) -> dict:
     AI 가 '3개월 안에', '35세에' 처럼 사실표에 없는 숫자를 지어내는 것을 막는 마지막 거름망.
     저장된 풀이에도 읽을 때마다 적용한다.
     """
-    allowed = set(_NUM.findall(json.dumps(facts_part, ensure_ascii=False)))
+    text = json.dumps(facts_part, ensure_ascii=False)
+    allowed = set(_NUM.findall(text))
     out = dict(body)
-    out["headline"] = _ground_text(body.get("headline", ""), allowed)
-    out["lead"] = _ground_text(body.get("lead", ""), allowed)
-    out["closing"] = _ground_text(body.get("closing", ""), allowed)
+    out["headline"] = _ground_text(body.get("headline", ""), allowed, text)
+    out["lead"] = _ground_text(body.get("lead", ""), allowed, text)
+    out["closing"] = _ground_text(body.get("closing", ""), allowed, text)
     blocks = []
     for b in body.get("blocks", []):
         b = dict(b)
         if b["type"] in ("text", "quote", "callout"):
-            b["body"] = _ground_text(b.get("body", ""), allowed)
+            b["body"] = _ground_text(b.get("body", ""), allowed, text)
             if not b["body"]:
                 continue
         elif b["type"] == "checklist":
-            b["items"] = [x for x in b["items"] if _grounded_sentence(x, allowed)]
+            b["items"] = [x for x in b["items"] if _grounded_sentence(x, allowed, text)]
             if not b["items"]:
                 continue
         else:
-            b["items"] = [dict(i, body=_ground_text(i["body"], allowed)) for i in b["items"]
-                          if _grounded_sentence(i.get("title", ""), allowed)]
+            b["items"] = [dict(i, body=_ground_text(i["body"], allowed, text)) for i in b["items"]
+                          if _grounded_sentence(i.get("title", ""), allowed, text)]
             b["items"] = [i for i in b["items"] if i["body"]]
             if not b["items"]:
                 continue
