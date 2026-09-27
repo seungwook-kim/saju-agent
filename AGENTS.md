@@ -36,6 +36,8 @@
     chapters.PROMPT_VERSION 을 올려 저장된 풀이를 새로 만들게 한다.
   - OpenRouter 모델은 qwen/qwen3.7-flash (2026-09-27 사용자 결정, 가장 싼 적합 모델). 부를 때 생각(reasoning) 끄기,
     provider.sort=price, 챕터는 response_format json_object. 사용자 허락 없이 유료 AI 를 시험으로 부르지 않는다.
+  - AI 호출 기록: LANGFUSE_PUBLIC_KEY·SECRET_KEY 가 있으면 ai.run 이 부를 때마다 Langfuse 로 보낸다 (langfuse.py, 외부 패키지 없음).
+    보내는 입력은 AI 에 보내는 것과 같다(개인정보 없는 사실표, 상담 질문). SAJU_LANGFUSE_CONTENT=0 이면 숫자만.
   - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(SAJU_AI_BACKEND=openrouter)로
     부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라

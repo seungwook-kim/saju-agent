@@ -347,7 +347,8 @@ def generate(tab: str, chapter: str, facts: dict, use_ai: bool = True) -> dict:
                   + "\n\nJSON 하나로 답해.")
         for _ in range(2):
             try:
-                body = normalize(ai.run_json(SYSTEM, prompt))
+                body = normalize(ai.run_json(SYSTEM, prompt, name="chapter",
+                                             meta={"tab": tab, "chapter": chapter, "prompt_version": PROMPT_VERSION}))
                 content_store.put_chapter(key, tab, chapter, "ai", body)
                 body = ground(body, part)
                 if len(body["blocks"]) < 2:

@@ -81,7 +81,7 @@ def test_normalize_cleans_ai_output():
 def test_ai_chapter_is_cached(sheet, monkeypatch):
     calls = []
 
-    def fake(system, prompt, timeout=0):
+    def fake(system, prompt, timeout=0, **kw):
         calls.append(prompt)
         assert "1990" not in prompt
         return {"headline": "요약", "lead": "도입", "blocks": [{"type": "text", "body": "풀이"},

@@ -96,6 +96,7 @@ def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MA
     body = json.dumps({"model": OPENROUTER_MODEL, "max_tokens": max_tokens,
                        "messages": [{"role": "system", "content": system},
                                     {"role": "user", "content": prompt}],
+                       "usage": {"include": True},        # 답에 토큰·비용(달러)을 같이 받는다 (Langfuse 기록용)
                        **_openrouter_extra(json_mode)}).encode("utf-8")
     req = urllib.request.Request(OPENROUTER_URL, data=body, method="POST", headers={
         "Authorization": f"Bearer {key}", "Content-Type": "application/json",
@@ -116,13 +117,34 @@ def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MA
         raise RuntimeError(f"AI 응답 형식 오류: {str(data)[:200]}") from None
     if not out:
         raise RuntimeError("AI 가 빈 답을 보냈어")
+    u = data.get("usage") or {}
+    _LAST.usage, _LAST.cost, _LAST.model = u, u.get("cost"), data.get("model") or OPENROUTER_MODEL
     return out
 
 
+_LAST = threading.local()          # 방금 부른 호출의 토큰·비용·모델 (Langfuse 기록용)
+
+
 def run(system: str, prompt: str, timeout: int = AI_TIMEOUT, max_tokens: int = MAX_TOKENS,
-        json_mode: bool = False) -> str:
-    """답 문자열. 실패하면 RuntimeError (부르는 쪽이 대신 문장을 쓴다)."""
+        json_mode: bool = False, name: str = "ai", meta: dict | None = None) -> str:
+    """답 문자열. 실패하면 RuntimeError (부르는 쪽이 대신 문장을 쓴다).
+    Langfuse 키가 있으면 부를 때마다 기록한다 (name: chapter·chat, meta: 탭·챕터 등)."""
     _take_budget()
+    from . import langfuse
+    _LAST.usage, _LAST.cost, _LAST.model = None, None, AI_MODEL
+    start = time.time()
+    try:
+        out = _run_backend(system, prompt, timeout, max_tokens, json_mode)
+    except RuntimeError as e:
+        langfuse.log_generation(name, _LAST.model, system, prompt, None, start, time.time(),
+                                _LAST.usage, _LAST.cost, error=str(e), meta=meta)
+        raise
+    langfuse.log_generation(name, _LAST.model, system, prompt, out, start, time.time(),
+                            _LAST.usage, _LAST.cost, meta=meta)
+    return out
+
+
+def _run_backend(system: str, prompt: str, timeout: int, max_tokens: int, json_mode: bool) -> str:
     if BACKEND == "openrouter":
         return _run_openrouter(system, prompt, timeout, max_tokens, json_mode)
     exe = shutil.which(AI_CLI)
@@ -161,12 +183,13 @@ def run(system: str, prompt: str, timeout: int = AI_TIMEOUT, max_tokens: int = M
     out = str(env.get("result", "")).strip()
     if not out:
         raise RuntimeError("AI 가 빈 답을 보냈어")
+    _LAST.usage, _LAST.cost = env.get("usage") or {}, env.get("total_cost_usd")
     return out
 
 
-def run_json(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> dict:
+def run_json(system: str, prompt: str, timeout: int = AI_TIMEOUT, name: str = "ai", meta: dict | None = None) -> dict:
     """JSON 객체로 답을 받는다. 코드 울타리나 앞뒤 설명이 붙어 와도 가장 바깥 {...} 만 읽는다."""
-    text = run(system, prompt, timeout, json_mode=True)
+    text = run(system, prompt, timeout, json_mode=True, name=name, meta=meta)
     m = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.S)
     if m:
         text = m.group(1)

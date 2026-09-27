@@ -641,7 +641,8 @@ def cli_chat(summary: str, history: list[dict], message: str) -> str:
     prompt = (("지금까지 나눈 대화:\n" + "\n".join(lines) + "\n\n") if lines else "") \
         + f"사용자의 새 질문: {message}\n\n위 리포트를 아는 상담사로서 답해 줘."
     system = SYSTEM_PROMPT + "\n\n" + USER_PII_NOTE + "\n" + summary
-    return ai.run(system, prompt, AI_TIMEOUT, max_tokens=CHAT_MAX_TOKENS)
+    return ai.run(system, prompt, AI_TIMEOUT, max_tokens=CHAT_MAX_TOKENS, name="chat",
+                  meta={"history_turns": len(history)})
 
 
 # ---------------- 채팅 요약 (궁합·택일) ----------------
