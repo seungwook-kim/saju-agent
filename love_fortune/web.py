@@ -191,6 +191,13 @@ def agent_context(birth: date, hour: int | None, minute: int, sex: str,
     return md, text, summary
 
 
+def josa_iya(word: str) -> str:
+    """'공원이야 / 카페야' 처럼 받침에 맞는 서술 조사."""
+    w = word.strip()
+    c = ord(w[-1]) - 0xAC00 if w else -1
+    return "이야" if 0 <= c < 11172 and c % 28 else "야"
+
+
 def local_agent_reply(message: str, summary: str) -> str:
     """규칙 기반 오프라인 답변. 단정적 예언 금지, 흐름체만 사용."""
     m = message.replace(" ", "")
@@ -241,8 +248,8 @@ def local_agent_reply(message: str, summary: str) -> str:
         seg = [s for s in summary.split(" / ")
                if s.startswith(("궁합", "잘맞는점", "조심할점", "나 일간", "상대 일간", "참고", "이야기"))]
         seg = [_strip_story(s) for s in seg]
-        return ("두 사람 궁합은요, " + (" / ".join(seg) if seg
-                else "궁합은 첫 화면의 궁합 폼에서 두 사람 생년월일을 입력하면 봐요."))
+        return ("두 사람 궁합은 이래: " + (" / ".join(seg) if seg
+                else "궁합은 결과 화면의 궁합 탭에서 두 사람 생년월일을 넣으면 볼 수 있어."))
 
     import re as _re_wk
     import datetime as _dt_wk
@@ -251,7 +258,7 @@ def local_agent_reply(message: str, summary: str) -> str:
             _seg_m = next((_strip_story(s) for s in summary.split(" / ")
                            if s.startswith("이번달 ")), "")
             if _seg_m:
-                return "이번 달 전체 흐름은요, " + _seg_m
+                return "이번 달 전체 흐름은 이래: " + _seg_m
         _t_wk = _re_wk.search(r"대상일 (\d{4})-(\d{2})-(\d{2})", summary)
         _seg_wk = next((s for s in summary.split(" / ") if s.startswith("일운표 ")), "")
         _rows_wk = [r.strip() for r in _seg_wk[len("일운표 "):].split(";")] if _seg_wk else []
@@ -274,7 +281,7 @@ def local_agent_reply(message: str, summary: str) -> str:
             if _cands:
                 _label = "이번 주" if "이번주" in m else "다음 주" if "다음주" in m else "이번 달"
                 _top3 = "; ".join(r for _, r in _cands[:3])
-                return f"{_label} 좋은 날 top3는요, {_top3}."
+                return f"{_label} 좋은 날 top3는 이거야: {_top3}."
         return "해당 기간 표가 없어. 리포트의 총운 탭 일운 표를 참고해줘."
     import re as _re_ilun
     _mm_ilun = _re_ilun.search(r"(\d+)일\s*(뒤|후)", m)
@@ -296,55 +303,54 @@ def local_agent_reply(message: str, summary: str) -> str:
             _rows = [r.strip() for r in _seg[len("일운표 "):].split(";")] if _seg else []
             _hit = next((r for r in _rows if r.startswith(_tag)), "")
             if _hit:
-                return f"{_want.month}월 {_want.day}일 운세는요, {_hit}."
+                return f"{_want.month}월 {_want.day}일 운세는 이래: {_hit}."
             return "그 날짜는 30일 표 밖에 있어. 리포트의 평생 탭 연도별 표를 참고해줘."
 
     if has("택일", "길일", "좋은날", "날짜고르", "언제가좋", "날잡기") and not decide:
         seg = [s for s in summary.split(" / ")
                if s.startswith(("택일", "상위", "이야기"))]
         seg = [_strip_story(s) for s in seg]
-        return ("고른 날짜 중에서는요, " + (" / ".join(seg) if seg
-                else "첫 화면의 길일 고르기 폼에서 기간을 입력하면 봐요."))
+        return ("고른 날짜 중에서는 이래: " + (" / ".join(seg) if seg
+                else "결과 화면의 길일 고르기 탭에서 기간을 넣으면 볼 수 있어."))
 
     if has("안녕", "하이", "헬로", "처음"):
-        return ("안녕하세요! 오늘 리포트를 바탕으로 운세 고민을 함께 이야기하는 상담 에이전트예요. "
-                "(정통 공식 기반 상세 해석, 전통 해석 체계에 근거합니다.) "
-                "점수·장소·대화팁·별자리·타로·대운·사화 등 편하게 물어보세요.")
+        return ("안녕! 지금 본 사주 계산 결과를 바탕으로 같이 이야기해 줄게. "
+                "연애·직장·금전·평생 흐름, 모르는 용어 같은 거 편하게 물어봐.")
     if has("배우자", "결혼", "상대", "신랑", "신부", "아내", "남편", "와이프") and not decide:
         seg = [s for s in summary.split(" / ")
                if s.startswith(("배우자궁", "상대 ", "관계 ", "관계팁", "직업군", "배우자성", "일주운성"))]
-        return ("사주 기반 인연 아키타입(정통 계산)은요, " + " / ".join(seg)
-                + ". 더 자세한 직업군·만남 자리는 '어떤 사람을 만나기 쉬울까'라고 물어보세요.")
+        return ("사주로 본 인연의 모습은 이래: " + " / ".join(seg)
+                + ". 더 궁금하면 '어떤 사람을 만나기 쉬울까'라고 물어봐.")
     if has("이상형", "외모", "생김", "어떤사람", "만날", "만남", "직업", "인상", "스타일") \
             and not has("장소", "코스", "어디"):
         seg = [s for s in summary.split(" / ")
                if s.startswith(("부처궁", "금성", "달 ", "만남TOP3", "직업군"))]
-        return ("만나기 쉬운 인연의 모습(정통 계산)은요, " + " / ".join(seg)
-                + ". '배우자 궁합'처럼 더 물어보셔도 돼요.")
+        return ("만나기 쉬운 인연의 모습은 이래: " + " / ".join(seg)
+                + ". '배우자 궁합'처럼 더 물어봐도 돼.")
     if has("도화", "홍염", "매력", "인기"):
         seg = [s for s in summary.split(" / ") if s.startswith(("도화", "홍염살", "올해", "이야기연애"))]
         seg = [_strip_story(s) for s in seg]
-        return "매력·인연의 기운은요, " + (" / ".join(seg) if seg else "리포트의 인연 카드를 참고해 주세요.")
+        return "매력·인연의 기운은 이래: " + (" / ".join(seg) if seg else "연애 탭을 같이 봐 줘.")
     if has("직장", "회사", "업무", "상사", "동료", "취업", "이직", "승진", "면접",
             "출근", "야근", "프로젝트") and not decide:
         seg = [s for s in summary.split(" / ")
                if s.startswith(("직장운", "관록궁", "원국 관성", "현재 대운", "사주 대운",
                                 "직장운 근거", "이야기직장"))]
         seg = [_strip_story(s) for s in seg]
-        return ("오늘 직장운은요, " + (" / ".join(seg) if seg else "리포트의 직장 탭을 참고해 주세요."))
+        return ("오늘 직장운은 이래: " + (" / ".join(seg) if seg else "직장 탭을 같이 봐 줘."))
     if has("금전", "돈", "재물", "투자", "저축", "월급", "지출", "쇼핑", "주식", "코인") \
             and not decide:
         seg = [s for s in summary.split(" / ")
                if s.startswith(("금전운", "재백궁", "원국 재성",
                                 "금전운 근거", "이야기금전"))]
         seg = [_strip_story(s) for s in seg]
-        return ("오늘 금전운은요, " + (" / ".join(seg) if seg else "리포트의 금전 탭을 참고해 주세요."))
+        return ("오늘 금전운은 이래: " + (" / ".join(seg) if seg else "금전 탭을 같이 봐 줘."))
     if has("총운", "오늘운", "키워드", "종합", "전반"):
         seg = [s for s in summary.split(" / ")
                if s.startswith(("총운", "오늘 일진",
                                 "총운 근거", "이야기총운"))]
         seg = [_strip_story(s) for s in seg]
-        return ("오늘 총운은요, " + (" / ".join(seg) if seg else "리포트의 총운 탭을 참고해 주세요."))
+        return ("오늘 총운은 이래: " + (" / ".join(seg) if seg else "오늘 탭을 같이 봐 줘."))
     if has("평생", "인생", "앞으로", "노후", "말년", "초년", "중년", "여생",
             "대운", "유년", "소운", "용신", "격국", "신강", "신약",
             "기질", "타고난") and not decide:
@@ -353,10 +359,10 @@ def local_agent_reply(message: str, summary: str) -> str:
                                  "중년", "말년", "타고난기질", "신강약",
                                  "이야기평생"))]
         seg = [_strip_story(s) for s in seg]
-        return ("평생 흐름은요, " + (" / ".join(seg) if seg else "리포트의 평생 탭을 참고해 주세요."))
+        return ("평생 흐름은 이래: " + (" / ".join(seg) if seg else "평생 탭을 같이 봐 줘."))
     if has("시기", "언제", "올해", "운성"):
         seg = [s for s in summary.split(" / ") if s.startswith(("올해", "일주운성"))]
-        return "시기의 흐름은요, " + (" / ".join(seg) if seg else "리포트의 인연 카드를 참고해 주세요.")
+        return "시기의 흐름은 이래: " + (" / ".join(seg) if seg else "평생 탭의 연도별 흐름을 같이 봐 줘.")
     import re as _re_wk
     import datetime as _dt_wk
     if has("점수", "총평", "어때"):
@@ -365,55 +371,61 @@ def local_agent_reply(message: str, summary: str) -> str:
         reason = next((_strip_story(s) for s in summary.split(" / ") if s.startswith("근거:")), "")
         story = next((_strip_story(s) for s in summary.split(" / ")
                       if s.startswith("이야기연애")), "")
-        return (f"오늘 연애운은 {score}점이에요. {head} 흐름으로 보시면 좋을 것 같아요. "
+        return (f"오늘 연애운은 {score}점이야. {head} 흐름으로 보면 돼. "
                 + (reason + " " if reason else "")
                 + (story + " " if story else "")
-                + "자세한 근거는 위 리포트 카드의 '해석 근거'를 참고해 주세요.")
+                + "자세한 근거는 각 챕터의 '근거 보기'를 눌러 봐.")
     if has("색", "번호", "숫자", "방향", "시간"):
         seg = summary.split("/ 행운의 색 ")[1].split(" / ")[0] if "/ 행운의 색 " in summary else summary
-        return f"오늘 행운 요소는 이렇게 나와 있어요: {seg}. 외출할 때 하나쯤 챙겨보시면 기분 전환에 좋은 흐름이에요."
+        return f"오늘 행운 요소는 이렇게 나와: {seg}. 나갈 때 하나쯤 챙기면 기분 전환에 좋아."
     if has("장소", "코스", "데이트", "어디"):
         seg = summary.split("장소 ", 1)[1].split(" / ")[0] if "장소 " in summary else ""
-        return (f"오늘 추천 장소는 {seg}예요. 무리한 이벤트보다 가볍게 걷고 이야기 나누기 좋은 흐름이에요. "
-                "시간대는 리포트의 '좋은 시간대'를 참고해 보세요.")
+        return (f"오늘 추천 장소는 {seg}{josa_iya(seg)}. 무리한 이벤트보다 가볍게 걷고 이야기 나누기 좋은 흐름이야. "
+                "시간대는 오늘 탭의 좋은 시간대를 같이 봐 줘.")
     if has("대화", "말", "카톡", "연락", "팁", "화제"):
         seg = summary.split("대화팁 ", 1)[1].split(", 피할 것")[0] if "대화팁 " in summary else ""
         avoid = summary.split("피할 것 ", 1)[1].split(" / ")[0] if "피할 것 " in summary else ""
-        return (f"대화 팁으로는 '{seg}' 같은 흐름이 좋아 보여요. "
-                f"반대로 '{avoid}'은 오늘은 피하는 게 좋은 흐름이에요.")
+        return (f"대화 팁으로는 '{seg}' 같은 흐름이 좋아 보여. "
+                f"반대로 '{avoid}'는 오늘은 피하는 게 좋아.")
     if has("신살", "천을", "역마", "화개", "공망", "장성", "괴강", "고진", "사주") \
             and not decide:
         seg = [s for s in summary.split(" / ")
                if s.startswith(("사주 대운", "신살", "천을", "역마", "화개",
                                  "공망", "장성", "괴강", "고진"))]
-        return ("사주 대운·신살은요, " + (" / ".join(seg) if seg else "리포트를 참고해 주세요."))
+        return ("사주 대운·신살은 이래: " + (" / ".join(seg) if seg else "평생 탭을 같이 봐 줘."))
     if has("역행"):
         seg = [s for s in summary.split(" / ") if "역행" in s]
-        return ("역행 관련해서는요, " + (" / ".join(seg) if seg else "현재 역행 중인 행성은 없어요."))
+        return ("역행은 이래: " + (" / ".join(seg) if seg else "지금 역행 중인 행성은 없어."))
     if has("자미", "명궁", "부처", "도화", "사화", "명반"):
         seg = [s for s in summary.split(" / ")
                if any(k in s for k in ("부처궁", "생년사화", "대운", "유년", "오행국", "명궁", "도화"))]
-        return ("자미두수 정통 명반에서는 이렇게 나와 있어요: " + " / ".join(seg)
-                + ". 궁별 전체 배치는 리포트의 자미두수 카드를 참고해 주세요.")
+        return ("자미두수 명반에서는 이렇게 나와: " + " / ".join(seg)
+                + ". 궁별 전체 배치는 평생 탭의 자미두수 챕터를 같이 봐 줘.")
     if has("별자리", "금성", "달", "점성", "궁합", "하우스", "어스펙트", "상승궁"):
         seg = [s for s in summary.split(" / ")
                if any(k in s for k in ("금성", "궁합", "생명수", "상승궁", "하우스", "어스펙트", "달 "))]
-        return " / ".join(seg) if seg else "리포트의 점성술 카드를 참고해 주세요."
+        return " / ".join(seg) if seg else "평생 탭의 점성술 챕터를 같이 봐 줘."
     if has("타로", "주역", "오미쿠지", "점괘", "운세"):
         seg = [s for s in summary.split(" / ") if "타로" in s or "주역" in s or "오미쿠지" in s]
-        return "오늘의 점괘는요, " + " / ".join(seg)
+        return "오늘의 점괘는 이래: " + (" / ".join(seg) if seg else "지금 결과에는 점괘가 없어.")
     if has("내일"):
-        return ("내일 리포트는 상단 폼에서 '내일 운세 보기'를 체크하고 다시 조회해 보세요. "
-                "그럼 내일 날짜 기준으로 새 리포트와 함께 이어서 대화할 수 있어요.")
+        return ("내일 운세는 '내일 운세 어때'처럼 물어보면 30일 표에서 찾아 줄게. "
+                "오늘 탭에서도 앞으로 며칠 흐름을 볼 수 있어.")
     if has("고마", "감사", "좋아", "도움"):
-        return ("도움이 됐다니 다행이에요! 좋은 흐름은 살리고, 애매한 날은 무리하지 않는 게 포인트예요. "
-                "(정통 공식 기반 상세 해석, 전통 해석 체계에 근거합니다.)")
-    if has("결혼", "헤어", "이별", "죽", "자살", "우울"):
-        return ("그런 고민을 하고 계시는군요. 저는 운세 해석 에이전트라서 인생의 중요한 결정에는 답해드릴 수 없어요. "
-                "힘들면 주변 사람이나 전문 상담(예: 생명의전화 109, 청소년 1388)과 꼭 이야기해 보세요.")
-    return ("음, 그 질문에는 오늘 리포트만으로 답하기 어렵네요. "
-            "총운·연애·직장·금전·평생 중에서 궁금한 걸 골라 물어봐 주세요. "
-            "모르는 용어는 '정관이 뭐야'처럼 물어보면 풀어드립니다.")
+        return "도움이 됐다니 다행이다! 좋은 흐름은 살리고, 애매한 날은 무리하지 않는 게 포인트야."
+    # 스스로를 해치는 말이 분명할 때만 도움받을 곳을 알려 준다. 이별·결혼 고민에 전화번호를 붙이지 않는다
+    if has("자살", "죽고싶", "죽을래", "죽어버리", "자해"):
+        return ("많이 힘든 것 같아. 이건 사주로 답할 일이 아니라서, 지금 바로 믿는 사람이나 "
+                "자살예방상담전화 109(24시간)와 이야기해 줘.")
+    if has("우울", "외로", "힘들", "지쳐", "슬퍼"):
+        return ("마음이 무거운 때구나. 사주가 답을 정해 주진 못해도, 지금 흐름이 어떤지는 같이 볼 수 있어. "
+                "'이번 달 연애운 어때'나 '올해 흐름 알려줘'처럼 물어봐.")
+    if has("결혼", "헤어", "이별"):
+        return ("그건 네가 정할 일이라 사주로 대신 정해 주진 않을게. 대신 두 사람 흐름이나 "
+                "올해 연애 흐름처럼 궁금한 걸 물어보면 계산 결과로 같이 봐 줄게.")
+    return ("음, 그 질문은 지금 결과만으로는 답하기 어려워. "
+            "총운·연애·직장·금전·평생 중에서 궁금한 걸 골라 물어봐 줘. "
+            "모르는 용어는 '정관이 뭐야'처럼 물어보면 풀어 줄게.")
 
 
 # ---------------- 선택적 LLM 연결 (OpenAI 호환) ----------------
@@ -442,7 +454,7 @@ def llm_chat(endpoint: str, api_key: str, model: str,
     # file:// 등은 막고 http(s) 만 받는다.
     from urllib.parse import urlparse
     if urlparse(endpoint).scheme not in ("http", "https"):
-        raise RuntimeError("LLM 주소는 http:// 또는 https:// 로 시작해야 해요")
+        raise RuntimeError("LLM 주소는 http:// 또는 https:// 로 시작해야 해")
     url = endpoint.rstrip("/") + "/chat/completions"
     payload = {
         "model": model,
@@ -607,7 +619,7 @@ class Handler(BaseHTTPRequestHandler):
         page = ("<!doctype html><html lang=\"ko\"><meta charset=\"utf-8\">"
                 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                 "<title>입력 확인</title><div style=\"font-family:sans-serif;padding:2em;"
-                "max-width:640px;margin:auto\"><h2>다시 확인해 주세요</h2>"
+                "max-width:640px;margin:auto\"><h2>다시 확인해 줘</h2>"
                 f"<p>{html.escape(msg)}</p><p><a href=\"/\">처음으로</a></p></div></html>")
         self._send(page.encode("utf-8"), "text/html; charset=utf-8", code=code)
 
@@ -903,7 +915,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 reply, mode, used = local_agent_reply(message, summary), "local", "로컬 규칙 에이전트"
         except RuntimeError as e:
-            reply = (f"{e}\n\n대신 로컬 에이전트가 답할게요: "
+            reply = (f"{e}\n\n대신 계산 결과로 바로 답할게: "
                      + local_agent_reply(message, summary))
             mode, used = "local-fallback", "로컬 규칙 에이전트"
         self._json({"reply": reply, "mode": mode, "model": used})

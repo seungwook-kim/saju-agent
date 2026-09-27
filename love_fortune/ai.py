@@ -48,7 +48,7 @@ def _take_budget() -> None:
         while _CALLS and now - _CALLS[0] > 3600:
             _CALLS.pop(0)
         if len(_CALLS) >= PER_HOUR:
-            raise RuntimeError("이번 시간 AI 사용량이 다 찼어요")
+            raise RuntimeError("이번 시간 AI 사용량이 다 찼어")
         _CALLS.append(now)
 
 
@@ -63,7 +63,7 @@ def _run_openrouter(system: str, prompt: str, timeout: int) -> str:
     import urllib.request
     key = os.environ.get("OPENROUTER_API_KEY", "")
     if not key or not OPENROUTER_MODEL:
-        raise RuntimeError("OpenRouter 키나 모델 이름이 없어요")
+        raise RuntimeError("OpenRouter 키나 모델 이름이 없어")
     body = json.dumps({"model": OPENROUTER_MODEL,
                        "messages": [{"role": "system", "content": system},
                                     {"role": "user", "content": prompt}]}).encode("utf-8")
@@ -79,13 +79,13 @@ def _run_openrouter(system: str, prompt: str, timeout: int) -> str:
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             raise RuntimeError(f"AI 연결 실패: {e}") from None
         except json.JSONDecodeError:
-            raise RuntimeError("AI 응답을 읽지 못했어요") from None
+            raise RuntimeError("AI 응답을 읽지 못했어") from None
     try:
         out = str(data["choices"][0]["message"]["content"] or "").strip()
     except (KeyError, IndexError, TypeError):
         raise RuntimeError(f"AI 응답 형식 오류: {str(data)[:200]}") from None
     if not out:
-        raise RuntimeError("AI 가 빈 답을 보냈어요")
+        raise RuntimeError("AI 가 빈 답을 보냈어")
     return out
 
 
@@ -96,7 +96,7 @@ def run(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> str:
         return _run_openrouter(system, prompt, timeout)
     exe = shutil.which(AI_CLI)
     if not exe:
-        raise RuntimeError("AI 명령을 찾지 못했어요")
+        raise RuntimeError("AI 명령을 찾지 못했어")
     fd, sys_path = tempfile.mkstemp(prefix="lf_sys_", suffix=".txt")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -111,7 +111,7 @@ def run(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> str:
                     errors="replace", timeout=timeout, cwd=tempfile.gettempdir(),
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             except subprocess.TimeoutExpired:
-                raise RuntimeError(f"AI 응답이 {timeout}초 안에 오지 않았어요") from None
+                raise RuntimeError(f"AI 응답이 {timeout}초 안에 오지 않았어") from None
             except OSError as e:
                 raise RuntimeError(f"AI 실행 실패: {e}") from None
     finally:
@@ -124,12 +124,12 @@ def run(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> str:
     try:
         env = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        raise RuntimeError("AI 응답을 읽지 못했어요") from None
+        raise RuntimeError("AI 응답을 읽지 못했어") from None
     if env.get("is_error"):
         raise RuntimeError(f"AI 오류: {str(env.get('result', ''))[:200]}")
     out = str(env.get("result", "")).strip()
     if not out:
-        raise RuntimeError("AI 가 빈 답을 보냈어요")
+        raise RuntimeError("AI 가 빈 답을 보냈어")
     return out
 
 
@@ -141,11 +141,11 @@ def run_json(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> dict:
         text = m.group(1)
     a, b = text.find("{"), text.rfind("}")
     if a < 0 or b <= a:
-        raise RuntimeError("AI 답이 JSON 이 아니에요")
+        raise RuntimeError("AI 답이 JSON 이 아니야")
     try:
         obj = json.loads(text[a:b + 1])
     except json.JSONDecodeError as e:
         raise RuntimeError(f"AI 답 JSON 오류: {e}") from None
     if not isinstance(obj, dict):
-        raise RuntimeError("AI 답이 객체가 아니에요")
+        raise RuntimeError("AI 답이 객체가 아니야")
     return obj

@@ -34,7 +34,8 @@ def test_local_agent_answers_tips():
 def test_local_agent_sensitive_topic():
     _, _, summary = _ctx()
     reply = local_agent_reply("헤어져야 할까?", summary)
-    assert "109" in reply or "전문" in reply  # 도움말 연결
+    assert "네가 정할 일" in reply and "109" not in reply   # 이별 고민에 전화번호를 붙이지 않는다
+    assert "109" in local_agent_reply("죽고싶어", summary)  # 스스로를 해치는 말이 분명할 때만
 
 
 def test_local_agent_daily_lookup():
@@ -74,4 +75,4 @@ def test_local_agent_month_lookup():
     assert len(ma["dohwa_lines"]) >= 1  # 없으면 안내문
     _, _, summary = _ctx()
     r = local_agent_reply("이번달 운세 어때", summary)
-    assert "이번 달 전체 흐름은요" in r and "평균" in r
+    assert "이번 달 전체 흐름은 이래" in r and "평균" in r
