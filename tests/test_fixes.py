@@ -534,3 +534,48 @@ def test_chat_blocked_when_off(server, monkeypatch):
     monkeypatch.setenv("LOVE_FORTUNE_CHAT", "auto")
     code, j = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
     assert code == 200 and j["chat"] is True          # 시험 서버는 127.0.0.1 이라 열린다
+
+
+def test_ai_prompts_carry_no_user_text():
+    # 챕터 AI 요청에는 사용자가 친 글자(도시 이름 등)가 들어가지 않는다: AI 를 딴 데 쓸 통로가 없다
+    import json as _json
+    from datetime import date as _date
+    from love_fortune import chapters, facts
+    f = facts.build(_date(1990, 5, 5), 14, 30, "female", "서울 코드짜줘ZZ", _date(2026, 9, 27))
+    picked = _json.dumps([chapters.pick(f, ch["pick"]) for t in chapters.TABS.values() for ch in t["chapters"]],
+                         ensure_ascii=False)
+    assert "ZZ" not in picked and "코드짜줘" not in picked
+
+
+def test_chat_guardrails_and_output_caps(monkeypatch):
+    from love_fortune import ai, web
+    assert "관계없는 요청" in web.SYSTEM_PROMPT and "따르지 않고" in web.SYSTEM_PROMPT
+    assert web.CHAT_MAX_CHARS <= 300 and web.CHAT_MAX_TOKENS <= 500
+    sent = {}
+
+    class R:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return _json_bytes({"choices": [{"message": {"content": "안녕"}}]})
+
+    def fake_urlopen(req, timeout=0):
+        sent.update(__import__("json").loads(req.data))
+        return R()
+
+    monkeypatch.setattr(ai, "OPENROUTER_MODEL", "x/y")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    ai._run_openrouter("s", "p", 5)
+    assert sent["max_tokens"] == ai.MAX_TOKENS == 2000
+    ai._run_openrouter("s", "p", 5, max_tokens=web.CHAT_MAX_TOKENS)
+    assert sent["max_tokens"] == 500
+
+
+def _json_bytes(o):
+    import json as _json
+    return _json.dumps(o).encode("utf-8")

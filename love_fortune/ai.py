@@ -58,13 +58,18 @@ def available() -> bool:
     return shutil.which(AI_CLI) is not None
 
 
-def _run_openrouter(system: str, prompt: str, timeout: int) -> str:
+# 한 번에 받는 답의 길이 상한 (토큰). 챕터 풀이는 평균 950, 가장 긴 것 1,700 정도라 2,000 이면 넉넉하다.
+# 상한이 없으면 모델이 길게 쓰는 만큼 요금이 나간다.
+MAX_TOKENS = int(os.environ.get("LOVE_FORTUNE_AI_MAX_TOKENS", "2000"))
+
+
+def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MAX_TOKENS) -> str:
     import urllib.error
     import urllib.request
     key = os.environ.get("OPENROUTER_API_KEY", "")
     if not key or not OPENROUTER_MODEL:
         raise RuntimeError("OpenRouter 키나 모델 이름이 없어")
-    body = json.dumps({"model": OPENROUTER_MODEL,
+    body = json.dumps({"model": OPENROUTER_MODEL, "max_tokens": max_tokens,
                        "messages": [{"role": "system", "content": system},
                                     {"role": "user", "content": prompt}]}).encode("utf-8")
     req = urllib.request.Request(OPENROUTER_URL, data=body, method="POST", headers={
@@ -89,11 +94,11 @@ def _run_openrouter(system: str, prompt: str, timeout: int) -> str:
     return out
 
 
-def run(system: str, prompt: str, timeout: int = AI_TIMEOUT) -> str:
+def run(system: str, prompt: str, timeout: int = AI_TIMEOUT, max_tokens: int = MAX_TOKENS) -> str:
     """답 문자열. 실패하면 RuntimeError (부르는 쪽이 대신 문장을 쓴다)."""
     _take_budget()
     if BACKEND == "openrouter":
-        return _run_openrouter(system, prompt, timeout)
+        return _run_openrouter(system, prompt, timeout, max_tokens)
     exe = shutil.which(AI_CLI)
     if not exe:
         raise RuntimeError("AI 명령을 찾지 못했어")
