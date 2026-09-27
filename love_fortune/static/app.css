@@ -424,3 +424,25 @@ table.cons tr.cold td{background:#fff4f2}
 .pin-row input{flex:1 1 120px;min-width:0}
 .pin-row .go{flex:0 0 auto;min-height:46px;padding:0 18px;width:auto}
 .ppl-act{margin-top:6px}
+/* AI에게 묻기: 떠 있는 버튼 + 오른쪽 패널 */
+.ask-fab{position:fixed;right:18px;bottom:18px;z-index:40;border:0;border-radius:999px;padding:12px 18px;
+  background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;cursor:pointer;box-shadow:0 8px 24px rgba(60,30,50,.25)}
+.ask-fab:hover{transform:translateY(-1px)}
+body.ask-open .ask-fab{display:none}
+#askPanel{position:fixed;z-index:50;top:0;right:0;height:100%;width:min(400px,100vw);background:var(--card);
+  box-shadow:-10px 0 30px rgba(60,30,50,.18);display:flex;flex-direction:column;gap:8px;padding:16px;
+  transform:translateX(105%);transition:transform .25s var(--ease);visibility:hidden}
+#askPanel.on{transform:none;visibility:visible}
+.ask-head{display:flex;align-items:center;justify-content:space-between}
+.ask-head h3{margin:0;font-size:1.05rem}
+.ask-x{border:0;background:var(--soft);border-radius:10px;width:36px;height:36px;cursor:pointer;font-size:1rem}
+#askPanel .msgs{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:4px 2px}
+#askPanel .msg.me{align-self:flex-end}
+#askPanel .msg.bot{align-self:flex-start}
+#askPanel .chatrow input{flex:1;min-width:0}
+@media (min-width:641px){#askScrim{display:none!important}}
+@media (max-width:640px){
+  .ask-fab{right:12px;bottom:12px;padding:12px 14px}
+  #askPanel{top:auto;bottom:0;height:82vh;width:100%;border-radius:22px 22px 0 0;transform:translateY(105%)}
+  #askPanel.on{transform:none}
+}

@@ -49,7 +49,7 @@ $('fMain').addEventListener('submit',async e=>{
   }finally{btn.disabled=false;btn.textContent='내 사주 펼쳐 보기';}
 });
 $('btnBack').addEventListener('click',()=>{
-  S.queue=[];renderPeople();
+  S.queue=[];renderPeople();closeAsk();
   $('result').classList.remove('on');$('home').classList.add('on');
   document.body.dataset.theme='rose';window.scrollTo(0,0);
 });
@@ -120,7 +120,6 @@ function openTab(tab){
       '</section>';
   });
   if(tab==='love') h+=sokSection();
-  h+=chatCard();
   $('page').innerHTML=h;
   window.scrollTo(0,0);
   animate($('page'));
@@ -369,14 +368,28 @@ function animate(root){
 
 // ---------------- 상담 채팅
 
-function chatCard(){
-  return '<section class="chapter"><div class="ch-label">ASK</div><div class="ch-head"><div class="ch-emoji" aria-hidden="true">💬</div>'+
-    '<div class="ch-title">AI 상담에게 더 묻기</div></div><div class="card chat"><div class="msgs" id="chatMsgs">'+
-    S.chat.map(m=>'<div class="msg '+(m.role==='user'?'me':'bot')+'">'+esc(m.content)+'</div>').join('')+'</div>'+
-    '<form class="chatrow" id="chatForm"><input id="chatIn" maxlength="200" placeholder="예: 이번 달 연애운은 왜 이래?">'+
-    '<button type="submit">전송</button></form>'+
-    '<p class="fine" style="margin-top:8px">생년월일은 보내지 않고 계산 결과 요약만 보내. 단정적인 예언은 하지 않아.</p></div></section>';
+// 결과 화면 오른쪽 아래 버튼으로 여는 패널. 탭을 옮겨도 대화는 그대로 남는다.
+const ASK_HINT='<div class="msg bot">지금 본 사주 계산 결과를 바탕으로 답해 줄게. 궁금한 걸 편하게 물어봐.</div>';
+function renderChat(){
+  $('chatMsgs').innerHTML=ASK_HINT+S.chat.map(m=>'<div class="msg '+(m.role==='user'?'me':'bot')+'">'+esc(m.content)+'</div>').join('');
 }
+function openAsk(){
+  renderChat();
+  $('askPanel').classList.add('on');$('askScrim').classList.add('on');
+  $('askPanel').setAttribute('aria-hidden','false');$('askFab').setAttribute('aria-expanded','true');
+  document.body.classList.add('ask-open');
+  const box=$('chatMsgs');box.scrollTop=box.scrollHeight;
+  setTimeout(()=>$('chatIn').focus(),60);
+}
+function closeAsk(){
+  $('askPanel').classList.remove('on');$('askScrim').classList.remove('on');
+  $('askPanel').setAttribute('aria-hidden','true');$('askFab').setAttribute('aria-expanded','false');
+  document.body.classList.remove('ask-open');
+}
+$('askFab').addEventListener('click',()=>$('askPanel').classList.contains('on')?closeAsk():openAsk());
+$('askClose').addEventListener('click',closeAsk);
+$('askScrim').addEventListener('click',closeAsk);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('askPanel').classList.contains('on')) closeAsk();});
 document.addEventListener('submit',async e=>{
   if(e.target.id!=='chatForm') return;
   e.preventDefault();

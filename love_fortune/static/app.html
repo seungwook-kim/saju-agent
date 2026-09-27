@@ -65,6 +65,7 @@
       <button class="tab-arrow r" id="tabR" type="button" aria-label="다음 탭 보기">›</button>
     </div>
     <div id="page"></div>
+    <button class="ask-fab" id="askFab" type="button" aria-controls="askPanel" aria-expanded="false">💬 <span>AI에게 묻기</span></button>
   </section>
 </div>
 
@@ -93,6 +94,16 @@
   <p class="fine">링크에는 생년월일·이름·도시가 들어가지 않아. 다만 사주 원국(여덟 글자)은 보이니, 믿는 사람에게만 보내 줘.</p>
   <button class="ghost" id="shClose" type="button">닫기</button>
 </div>
+
+<!-- AI에게 묻기: 오른쪽 패널 (폰에서는 아래에서 올라옴) -->
+<div class="scrim" id="askScrim"></div>
+<aside id="askPanel" role="dialog" aria-labelledby="askTitle" aria-hidden="true">
+  <div class="ask-head"><h3 id="askTitle">💬 AI에게 묻기</h3><button class="ask-x" id="askClose" type="button" aria-label="닫기">✕</button></div>
+  <div class="msgs" id="chatMsgs"></div>
+  <form class="chatrow" id="chatForm"><input id="chatIn" maxlength="200" placeholder="예: 이번 달 연애운은 왜 이래?" autocomplete="off">
+    <button type="submit">전송</button></form>
+  <p class="fine">생년월일은 보내지 않고 계산 결과 요약만 보내. 단정적인 예언은 하지 않아.</p>
+</aside>
 
 <div id="termTip" role="tooltip"></div>
 <script src="/static/viz.js"></script>

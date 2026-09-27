@@ -441,3 +441,14 @@ def test_match_api_has_sok(server):
     code, j = _post(server, "/api/match", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울",
                                            "birth2": "1992-03-03", "birth2_time": "09:00", "sex2": "male", "city2": "부산"})
     assert code == 200 and len(j["data"]["sok"]["rows"]) == 2
+
+
+def test_ask_panel_floats_on_the_right():
+    # AI에게 묻기는 페이지 맨 아래가 아니라 떠 있는 버튼으로 여는 오른쪽 패널
+    from love_fortune.web import STATIC_DIR
+    html = (STATIC_DIR / "app.html").read_text(encoding="utf-8")
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    assert 'id="askFab"' in html and 'id="askPanel"' in html and 'id="chatForm"' in html
+    assert "chatCard" not in js and "function openAsk" in js and "closeAsk();" in js
+    assert ".ask-fab{position:fixed" in css and "#askPanel{position:fixed" in css
