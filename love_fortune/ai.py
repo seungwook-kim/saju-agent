@@ -43,6 +43,12 @@ _CALLS_LOCK = threading.Lock()
 def _take_budget() -> None:
     if PER_HOUR <= 0:
         return
+    from . import content_store                     # Supabase 가 있으면 서버 여러 대의 사용량을 함께 센다
+    shared = content_store.ai_budget_take(PER_HOUR)
+    if shared is False:
+        raise RuntimeError("이번 시간 AI 사용량이 다 찼어")
+    if shared is True:
+        return
     now = time.time()
     with _CALLS_LOCK:
         while _CALLS and now - _CALLS[0] > 3600:

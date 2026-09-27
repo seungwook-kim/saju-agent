@@ -1,0 +1,16 @@
+# Vercel 에 올리지 않는 것 (비밀 설정·개발용·시험)
+.env
+.env.*
+!.env.example
+.git
+.github
+.venv
+data
+tests
+tools
+docs
+watchdog.py
+watchdog.log
+*.bundle
+Dockerfile
+render.yaml

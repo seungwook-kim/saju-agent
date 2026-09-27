@@ -22,7 +22,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SQL = ROOT / "db" / "content.sql"
-DB = Path(os.environ.get("SAJU_CONTENT_DB", ROOT / "data" / "content.db"))
+# Vercel 같은 서버리스는 /tmp 말고는 쓸 수 없다
+_TMP_DEFAULT = Path("/tmp") if os.environ.get("VERCEL") else ROOT / "data"
+DB = Path(os.environ.get("SAJU_CONTENT_DB", _TMP_DEFAULT / "content.db"))
 _LOCK = threading.Lock()
 _READY = False
 
@@ -56,9 +58,11 @@ def backend() -> str:
     return "supabase" if _supabase() else "sqlite"
 
 
-def _rest(method: str, table: str, query: str = "", body: dict | None = None) -> list | None:
+def _rest(method: str, table: str, query: str = "", body: dict | None = None, count: bool = False):
     url, key = _supabase()
     headers = {"apikey": key, "Content-Type": "application/json", "Accept": "application/json"}
+    if count:
+        headers["Prefer"] = "count=exact"
     if key.startswith("eyJ"):                       # 예전 방식 키(JWT)는 Authorization 에도 넣는다
         headers["Authorization"] = "Bearer " + key
     if method == "POST":
@@ -67,7 +71,59 @@ def _rest(method: str, table: str, query: str = "", body: dict | None = None) ->
     req = urllib.request.Request(f"{url}/rest/v1/{table}{query}", data=data, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=REST_TIMEOUT) as r:
         raw = r.read()
+        if count:                                   # Content-Range: 0-0/12 또는 */12
+            return int((r.headers.get("Content-Range") or "*/0").rsplit("/", 1)[1] or 0)
     return json.loads(raw) if raw else None
+
+
+# ---------------- 결과 토큰 (서버리스에서 요청마다 다른 기계가 받아도 이어지게)
+
+def put_ctx(token: str, summary: str, target: str, facts: dict | None) -> None:
+    if not _supabase():
+        return
+    try:
+        _rest("POST", "ctx", body={"token": token, "summary": summary, "target": target,
+                                   "facts_json": json.dumps(facts, ensure_ascii=False) if facts else "",
+                                   "created": time.time()})
+        if time.time() % 50 < 1:                    # 가끔 6시간 넘은 것을 치운다
+            _rest("DELETE", "ctx", f"?created=lt.{time.time() - 6 * 3600}")
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        _log("결과 저장", e)
+
+
+def get_ctx(token: str) -> dict | None:
+    if not _supabase() or not token:
+        return None
+    try:
+        rows = _rest("GET", "ctx", "?select=summary,target,facts_json,created&" + _eq("token", token))
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        _log("결과 읽기", e)
+        return None
+    if not rows:
+        return None
+    r = rows[0]
+    return {"md": "", "summary": r["summary"], "target": r["target"], "created": r["created"],
+            "facts": json.loads(r["facts_json"]) if r["facts_json"] else None}
+
+
+# ---------------- AI 사용량 (서버가 여러 대여도 시간당 총량을 함께 센다)
+
+def ai_budget_take(per_hour: int) -> bool | None:
+    """한 번 쓴다. 남았으면 True, 다 찼으면 False. Supabase 가 없거나 안 되면 None (부르는 쪽이 메모리로 센다)."""
+    if not _supabase():
+        return None
+    now = time.time()
+    try:
+        used = _rest("HEAD", "ai_call", f"?select=ts&ts=gt.{now - 3600}", count=True)
+        if used >= per_hour:
+            return False
+        _rest("POST", "ai_call", body={"ts": now})
+        if now % 100 < 1:
+            _rest("DELETE", "ai_call", f"?ts=lt.{now - 86400}")
+        return True
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        _log("AI 사용량", e)
+        return None
 
 
 def _eq(col: str, val: str) -> str:

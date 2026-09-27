@@ -25,11 +25,21 @@ class FakeRest(BaseHTTPRequestHandler):
         assert u.path.startswith("/rest/v1/")
         return u.path[len("/rest/v1/"):], urllib.parse.parse_qs(u.query)
 
+    def _match(self, name, q):
+        rows = list(FakeRest.tables.get(name, {}).values())
+        for k, v in q.items():
+            if k in ("select", "limit"):
+                continue
+            op, val = v[0].split(".", 1)
+            test = {"eq": lambda a, b: str(a) == b, "gt": lambda a, b: float(a) > float(b),
+                    "lt": lambda a, b: float(a) < float(b)}[op]
+            rows = [r for r in rows if test(r[k], val)]
+        return rows
+
     def do_GET(self):
         FakeRest.seen.append(("GET", self.headers.get("apikey"), self.headers.get("Authorization")))
         name, q = self._table()
-        col, val = next((k, v[0][3:]) for k, v in q.items() if k != "select")
-        rows = [r for r in FakeRest.tables.get(name, {}).values() if str(r[col]) == val]
+        rows = self._match(name, q)
         cols = q["select"][0].split(",")
         body = json.dumps([{c: r[c] for c in cols} for r in rows]).encode()
         self.send_response(200)
@@ -38,11 +48,31 @@ class FakeRest(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_HEAD(self):
+        name, q = self._table()
+        n = len(self._match(name, q))
+        self.send_response(200)
+        self.send_header("Content-Range", f"*/{n}")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_DELETE(self):
+        name, q = self._table()
+        for r in self._match(name, q):
+            pk = next(k for k in ("key", "id", "token", "ts") if k in r)
+            FakeRest.tables[name] = {k: v for k, v in FakeRest.tables[name].items() if v is not r}
+            del pk
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_POST(self):
         FakeRest.seen.append(("POST", self.headers.get("apikey"), self.headers.get("Prefer")))
         name, _ = self._table()
         row = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        pk = "key" if name == "chapter" else "id"
+        pk = {"chapter": "key", "ctx": "token"}.get(name, "id")
+        if name == "ai_call":
+            row["id"] = len(FakeRest.tables.get(name, {})) + 1
         FakeRest.tables.setdefault(name, {})[row[pk]] = row
         self.send_response(201)
         self.send_header("Content-Length", "0")
@@ -125,4 +155,73 @@ def test_secrets_stay_out_of_git_and_docker():
         if "=" in line and not line.startswith("#"):
             assert line.split("=", 1)[1] == "", line                 # 예시에는 값이 없다
     sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")
-    assert sql.count("enable row level security") == 2
+    assert sql.count("enable row level security") == 4
+
+
+def test_ctx_roundtrip_and_web_context_fallback(fake):
+    # 서버리스: 다른 기계 메모리에 없는 토큰도 Supabase 에서 찾아 이어진다
+    from love_fortune import web
+    tok = web._remember("", "요약", "2026-09-27", facts={"natal": {"a": 1}, "meta": {"target": "2026-09-27"}})
+    assert tok in FakeRest.tables["ctx"]
+    with web._CONTEXTS_LOCK:
+        web._CONTEXTS.pop(tok)                              # 다른 기계라고 치고 메모리를 비운다
+    ctx = web._context(tok)
+    assert ctx and ctx["summary"] == "요약" and ctx["facts"]["natal"] == {"a": 1}
+    assert web._context("zz") is None and web._context("0" * 16) is None
+
+
+def test_ai_budget_shared_across_servers(fake):
+    assert [CS.ai_budget_take(3) for _ in range(4)] == [True, True, True, False]
+    from love_fortune import ai
+    import pytest as _pt
+    old = ai.PER_HOUR
+    try:
+        ai.PER_HOUR = 3
+        with _pt.raises(RuntimeError):
+            ai._take_budget()
+    finally:
+        ai.PER_HOUR = old
+
+
+def test_ai_budget_falls_back_without_supabase(monkeypatch):
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    assert CS.ai_budget_take(3) is None
+
+
+def test_vercel_entry_and_config():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("vercel_entry", ROOT / "api" / "index.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    from love_fortune.web import Handler
+    assert mod.handler is Handler
+    cfg = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
+    assert cfg["rewrites"][0]["destination"] == "/api/index"
+    assert "love_fortune/**" in cfg["functions"]["api/index.py"]["includeFiles"]
+    vi = (ROOT / ".vercelignore").read_text(encoding="utf-8").splitlines()
+    assert ".env" in vi and "tests" in vi
+    sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")
+    assert sql.count("enable row level security") == 4
+
+
+def test_serverless_chapter_generates_in_request(monkeypatch):
+    from datetime import date
+    from love_fortune import chapters, facts, web
+    f = facts.build(date(1990, 5, 5), 14, 30, "female", "서울", date(2026, 9, 27))
+    tok = web._remember("", "s", "2026-09-27", facts=f)
+    called = []
+    monkeypatch.setattr(web, "SERVERLESS", True)
+    monkeypatch.setattr(web, "_ai_on", lambda: True)
+    monkeypatch.setattr(chapters, "generate", lambda tab, ch, fx, use_ai=True: called.append((tab, ch)) or
+                        {"headline": "h", "lead": "", "blocks": [], "closing": "", "source": "ai"})
+
+    class H(web.Handler):
+        def __init__(self):
+            self.out = None
+
+        def _json(self, obj):
+            self.out = obj
+
+    h = H()
+    h._v2_chapter({"token": tok, "tab": "love", "chapter": chapters.TABS["love"]["chapters"][0]["id"]})
+    assert called and h.out["headline"] == "h"

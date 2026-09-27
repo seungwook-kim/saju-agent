@@ -29,8 +29,29 @@ create table if not exists public.share (
 );
 create index if not exists share_created on public.share (created);
 
+-- 사주를 펼친 결과 (6시간). 서버가 여러 대(Vercel)여도 탭·상담이 이어지게. 개인정보 없이 계산 결과·요약만.
+create table if not exists public.ctx (
+    token       text primary key,
+    summary     text not null,
+    target      text not null,
+    facts_json  text not null,
+    created     double precision not null
+);
+create index if not exists ctx_created on public.ctx (created);
+
+-- AI 호출 시각 (시간당 총량을 서버 여러 대가 함께 센다)
+create table if not exists public.ai_call (
+    id  bigserial primary key,
+    ts  double precision not null
+);
+create index if not exists ai_call_ts on public.ai_call (ts);
+
 -- 공개 키로는 못 읽고 못 쓰게 잠근다 (서버 전용 키는 RLS 를 거치지 않는다)
 alter table public.chapter enable row level security;
 alter table public.share enable row level security;
+alter table public.ctx enable row level security;
+alter table public.ai_call enable row level security;
 revoke all on public.chapter from anon, authenticated;
 revoke all on public.share from anon, authenticated;
+revoke all on public.ctx from anon, authenticated;
+revoke all on public.ai_call from anon, authenticated;

@@ -18,7 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 INIT_SQL = ROOT / "db" / "init.sql"
-DB_PATH = Path(os.environ.get("SAJU_DB", ROOT / "data" / "fortune.db"))
+# Vercel 같은 서버리스는 /tmp 말고는 쓸 수 없다
+DB_PATH = Path(os.environ.get("SAJU_DB", (Path("/tmp") if os.environ.get("VERCEL") else ROOT / "data") / "fortune.db"))
 _LOCK = threading.Lock()
 
 

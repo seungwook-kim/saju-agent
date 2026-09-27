@@ -161,6 +161,8 @@ def _remember(md: str, summary: str, target: str, token: str | None = None,
             del _CONTEXTS[min(_CONTEXTS, key=lambda k: _CONTEXTS[k]["created"])]
         _CONTEXTS[token] = {"md": md, "summary": summary, "target": target, "created": now,
                             "facts": facts}
+    from . import content_store                     # 서버리스(Vercel)면 다음 요청을 다른 기계가 받을 수 있어 같이 저장
+    content_store.put_ctx(token, summary, target, facts)
     return token
 
 
@@ -170,7 +172,17 @@ def _context(token: str) -> dict | None:
         if ctx and time.time() - ctx["created"] > CONTEXT_TTL:
             del _CONTEXTS[token]
             return None
-        return ctx
+        if ctx:
+            return ctx
+    if not re.fullmatch(r"[0-9a-f]{16}", token or ""):
+        return None
+    from . import content_store                     # 이 기계 메모리에 없으면 Supabase 에서
+    ctx = content_store.get_ctx(token)
+    if not ctx or time.time() - ctx["created"] > CONTEXT_TTL:
+        return None
+    with _CONTEXTS_LOCK:
+        _CONTEXTS[token] = ctx
+    return ctx
 
 
 CHAT_MAX_CHARS = 300          # 질문 한 번의 길이 상한 (화면 입력칸은 200자). 긴 글을 붙여 AI 를 딴 데 쓰지 못하게
@@ -707,6 +719,7 @@ STATIC_FILES = {"app.html": "text/html; charset=utf-8", "app.css": "text/css; ch
                 "app.js": "text/javascript; charset=utf-8"}
 
 
+SERVERLESS = bool(os.environ.get("VERCEL"))   # Vercel 에서 돌면 Vercel 이 넣어 주는 값
 CHAPTER_WAIT = 300         # AI 챕터 풀이를 기다리는 최대 시간(초). 넘으면 계산 풀이를 준다
 
 
@@ -1059,7 +1072,10 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("없는 탭")
         chapters.spec(tab, ch)
         body = None
-        if _ai_on():
+        if _ai_on() and SERVERLESS:
+            # 서버리스는 답을 보낸 뒤 뒤에서 도는 일꾼이 멈출 수 있어, 이 요청 안에서 바로 만든다
+            body = chapters.generate(tab, ch, ctx["facts"])
+        elif _ai_on():
             from . import prefetch
             body = prefetch.wait(tab, ch, ctx["facts"], CHAPTER_WAIT)
         self._json(body or chapters.rule_chapter(tab, ch, ctx["facts"]))
