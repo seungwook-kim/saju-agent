@@ -452,3 +452,12 @@ def test_ask_panel_floats_on_the_right():
     assert 'id="askFab"' in html and 'id="askPanel"' in html and 'id="chatForm"' in html
     assert "chatCard" not in js and "function openAsk" in js and "closeAsk();" in js
     assert ".ask-fab{position:fixed" in css and "#askPanel{position:fixed" in css
+
+
+def test_ask_panel_mobile_fit():
+    # 폰: 키보드 위로 패널을 맞추고, 아이폰 홈 막대·주소창 높이를 피하고, 버튼이 맨 아래 내용을 가리지 않게
+    from love_fortune.web import STATIC_DIR
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    assert "visualViewport.addEventListener('resize',fitAsk)" in js and "if(!NARROW.matches)" in js
+    assert "82dvh" in css and "safe-area-inset-bottom" in css and "#result #page{padding-bottom:76px}" in css

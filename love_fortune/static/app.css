@@ -442,7 +442,10 @@ body.ask-open .ask-fab{display:none}
 #askPanel .chatrow input{flex:1;min-width:0}
 @media (min-width:641px){#askScrim{display:none!important}}
 @media (max-width:640px){
-  .ask-fab{right:12px;bottom:12px;padding:12px 14px}
-  #askPanel{top:auto;bottom:0;height:82vh;width:100%;border-radius:22px 22px 0 0;transform:translateY(105%)}
+  .ask-fab{right:12px;bottom:calc(12px + env(safe-area-inset-bottom));padding:12px 14px}
+  #result #page{padding-bottom:76px}                     /* 떠 있는 버튼이 맨 아래 내용을 가리지 않게 */
+  #askPanel{top:auto;bottom:0;height:82vh;height:82dvh;width:100%;border-radius:22px 22px 0 0;transform:translateY(105%);
+    padding-bottom:calc(16px + env(safe-area-inset-bottom))}
   #askPanel.on{transform:none}
+  body.ask-open{overflow:hidden}                          /* 패널 뒤 본문이 같이 밀리지 않게 */
 }

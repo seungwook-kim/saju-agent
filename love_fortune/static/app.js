@@ -379,12 +379,25 @@ function openAsk(){
   $('askPanel').setAttribute('aria-hidden','false');$('askFab').setAttribute('aria-expanded','true');
   document.body.classList.add('ask-open');
   const box=$('chatMsgs');box.scrollTop=box.scrollHeight;
-  setTimeout(()=>$('chatIn').focus(),60);
+  if(!NARROW.matches) setTimeout(()=>$('chatIn').focus(),60);   // 폰은 열자마자 키보드가 올라와 대화를 가리니 자동 포커스 안 함
+  fitAsk();
 }
+// 폰: 키보드가 올라오면 보이는 영역(visualViewport)에 맞춰 패널을 줄여 입력칸이 키보드 위에 오게 한다
+const NARROW=matchMedia('(max-width:640px)');
+function fitAsk(){
+  const p=$('askPanel'),vv=window.visualViewport;
+  if(!vv||!NARROW.matches||!p.classList.contains('on')){p.style.height='';p.style.bottom='';return;}
+  const kb=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
+  p.style.bottom=kb+'px';
+  p.style.height=kb>0?Math.round(vv.height*0.92)+'px':'';
+  const box=$('chatMsgs');box.scrollTop=box.scrollHeight;
+}
+if(window.visualViewport){visualViewport.addEventListener('resize',fitAsk);visualViewport.addEventListener('scroll',fitAsk);}
 function closeAsk(){
   $('askPanel').classList.remove('on');$('askScrim').classList.remove('on');
   $('askPanel').setAttribute('aria-hidden','true');$('askFab').setAttribute('aria-expanded','false');
   document.body.classList.remove('ask-open');
+  $('askPanel').style.height='';$('askPanel').style.bottom='';
 }
 $('askFab').addEventListener('click',()=>$('askPanel').classList.contains('on')?closeAsk():openAsk());
 $('askClose').addEventListener('click',closeAsk);
