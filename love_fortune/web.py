@@ -1161,7 +1161,9 @@ def serve(port: int = 8765, host: str = "127.0.0.1"):
     print(f"홈페이지: http://localhost:{port} (종료: Ctrl+C)")
     if host not in ("127.0.0.1", "localhost"):
         print(f"주의: {host} 로 열려 있어 같은 네트워크의 다른 기기도 접속할 수 있습니다.")
-    if not os.environ.get("PORT"):          # 배포 환경(PORT 지정)에서는 브라우저를 열지 않는다
+    # 브라우저는 자동으로 열지 않는다 (2026-09-27 사용자 요청: 서버를 켤 때마다 창이 뜨는 게 싫다).
+    # 열고 싶으면 SAJU_OPEN_BROWSER=1
+    if os.environ.get("SAJU_OPEN_BROWSER") == "1" and not os.environ.get("PORT"):
         try:
             webbrowser.open(f"http://localhost:{port}")
         except Exception:
