@@ -644,7 +644,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path.startswith("/static/"):
             self._static(path[len("/static/"):])
         elif self.path == "/healthz":
-            self._send(b'{"ok":true}', "application/json")
+            from . import content_store      # 저장소 종류만 보인다 (주소·키는 안 보인다)
+            self._send(json.dumps({"ok": True, "store": content_store.backend()}).encode(), "application/json")
         elif self.path.split("?")[0] == "/api/lunar-year":
             self._lunar_year()
         elif path == "/api/name/hanja":

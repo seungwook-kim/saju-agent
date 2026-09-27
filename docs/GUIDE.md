@@ -63,6 +63,23 @@ python -m love_fortune --birth 1990-05-15 --date 2026-09-20 --no-save
 python -m pytest
 ```
 
+## 설정 (.env)과 Supabase 연결
+
+설정은 프로젝트 폴더의 `.env` 에 적는다 (git 에 안 올라간다). 적는 법과 항목은 `.env.example` 에 있다.
+배포(Render)에서는 `.env` 대신 Render 대시보드 > Environment 에 같은 이름으로 넣는다.
+
+Supabase 에 공유 링크·AI 풀이를 저장하려면:
+
+1. supabase.com 에서 프로젝트를 만든다. 지역은 서울(Northeast Asia, Seoul)을 고른다.
+2. 대시보드 > SQL Editor > New query 에 `db/supabase.sql` 내용을 붙여 넣고 Run. 표 두 개(chapter, share)가 생긴다.
+3. Project Settings > API 에서 두 값을 복사해 `.env` (또는 Render Environment)에 넣는다.
+   - `SUPABASE_URL`: Project URL (https://xxxx.supabase.co)
+   - `SUPABASE_SECRET_KEY`: Secret key (sb_secret_...) 또는 예전 화면의 service_role 키. anon/publishable 키가 아니다.
+4. 서버를 다시 켠다. `/healthz` 가 `{"ok": true, "store": "supabase"}` 로 나오면 연결된 것이다.
+
+값을 비워 두면 지금처럼 로컬 SQLite(`data/content.db`)에 저장한다.
+Supabase 무료 프로젝트는 7일 동안 요청이 없으면 일시정지되니, 멈추면 대시보드에서 다시 켠다.
+
 ## 오늘의 운세를 보는 방식
 
 오늘 운세는 세 체계와 한국 택일을 함께 본다 (`today.py`). 리포트 맨 앞의

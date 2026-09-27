@@ -13,5 +13,10 @@ pick_*.md
 tools/.skyfield/
 tools/.cache/
 
+# 비밀 설정 (Supabase·OpenRouter 키). 적는 법은 .env.example
+.env
+.env.*
+!.env.example
+
 # 실행할 때 db/init.sql 로 만드는 DB
 data/

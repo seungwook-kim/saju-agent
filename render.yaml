@@ -20,3 +20,7 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
+      - key: SUPABASE_URL               # Supabase 프로젝트 주소 (https://xxxx.supabase.co), 대시보드에서 넣는다
+        sync: false
+      - key: SUPABASE_SECRET_KEY        # Supabase 서버 전용 키 (sb_secret_... 또는 service_role), 대시보드에서 넣는다
+        sync: false

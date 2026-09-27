@@ -38,6 +38,9 @@
     부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
     공개 서버에서 SSRF 통로가 된다. LOVE_FORTUNE_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
+  - 저장소: SUPABASE_URL·SUPABASE_SECRET_KEY 가 있으면 Supabase(REST), 없으면 SQLite (content_store.py).
+    표는 db/supabase.sql. 서버 전용 키는 환경변수(.env·Render)에만 두고 화면·저장소·로그에 절대 넣지 않는다.
+    .env 는 git 에 올리지 않는다. 적는 법은 .env.example. 시험은 .env 를 읽지 않는다(conftest).
   - 상담 채팅은 이 컴퓨터에서 직접 접속할 때만 열린다 (2026-09-27 사용자 결정, AI 요금).
     web.py _chat_on: LOVE_FORTUNE_CHAT=auto(기본) 루프백만, 1 어디서나, 0 막음. 막히면 화면의 채팅 버튼도 숨긴다.
   - 공개 서버 남용 방지: POST 는 IP 하나당 1분 90번, 상담 채팅은 12번 (web.py _rate_ok, 넘으면 429).

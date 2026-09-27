@@ -1,4 +1,6 @@
 """love_fortune package, 정통 공식 기반 상세 해석 (로컬·오프라인)."""
+from . import dotenv as _dotenv
+_dotenv.load()                      # .env (있으면) 를 다른 모듈보다 먼저 읽는다
 from .manseryuk import four_pillars, dayun, shensha
 from .rules import love_score
 from .advise import build_advice
