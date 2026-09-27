@@ -6,4 +6,5 @@ for _k in ("SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
     os.environ.pop(_k, None)
 
 os.environ["SAJU_AI"] = "0"
-os.environ["SAJU_RATE"] = "0"       # 요청 횟수 제한은 test_fixes 에서 따로 켜서 본다
+os.environ["SAJU_RATE"] = "0"
+os.environ["SAJU_BOT_BLOCK"] = "0"          # 시험 도구(python-urllib)가 봇으로 막히지 않게. test_guard 에서 따로 켠다       # 요청 횟수 제한은 test_fixes 에서 따로 켜서 본다

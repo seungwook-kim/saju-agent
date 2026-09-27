@@ -756,6 +756,9 @@ class Handler(BaseHTTPRequestHandler):
     def _send(self, body: bytes, ctype: str, disp: str = "", code: int = 200, cache: str = ""):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        from . import guard                  # 모든 응답에 색인·보관·AI 학습 금지 헤더
+        for k, v in guard.HEADERS:
+            self.send_header(k, v)
         if getattr(self, "_cookie", None):
             self.send_header("Set-Cookie", self._cookie)
         if cache:
@@ -784,7 +787,16 @@ class Handler(BaseHTTPRequestHandler):
         self._send(page.encode("utf-8"), "text/html; charset=utf-8", code=code)
 
     def do_GET(self):
+        from . import guard
         path = self.path.split("?")[0]
+        self._cookie = None
+        if path in guard.FILES:                          # 수집 금지 안내는 크롤러도 읽을 수 있게
+            text, ctype = guard.FILES[path]
+            self._send(text.encode("utf-8"), ctype)
+            return
+        if guard.blocked(path, self.headers.get("User-Agent")):
+            self._send(guard.BLOCK_BODY.encode("utf-8"), "text/plain; charset=utf-8", code=403)
+            return
         if path == "/" or SHARE_PATH.fullmatch(path):
             self._static("app.html")          # 저장 링크(/r/<id>)도 같은 화면이 열어서 불러온다
         elif path.startswith("/static/"):
@@ -945,6 +957,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         self._cookie = None
+        from . import guard
+        if guard.blocked(self.path.split("?")[0], self.headers.get("User-Agent")):
+            self._drain()
+            self._fail(403, "자동 수집(스크랩)과 AI 수집은 허용하지 않아.")
+            return
         if not self._same_origin():
             self._drain()
             self._fail(403, "다른 사이트에서 온 요청은 받지 않아.")
