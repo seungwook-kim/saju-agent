@@ -372,8 +372,26 @@ function animate(root){
 
 // 결과 화면 오른쪽 아래 버튼으로 여는 패널. 탭을 옮겨도 대화는 그대로 남는다.
 const ASK_HINT='<div class="msg bot">지금 본 사주 계산 결과를 바탕으로 답해 줄게. 궁금한 걸 편하게 물어봐.</div>';
+// 상담 답을 읽기 쉽게: '1. 제목: 설명' 줄은 번호 목록으로, 제목은 굵게, 나머지 줄은 문단으로. 글은 모두 이스케이프한다
+function fmtMsg(t){
+  const lines=String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  let h='',list='';
+  const item=x=>{
+    const m=x.match(/^(.{1,16}?)\s*[:：]\s+(.+)$/);
+    return m?'<b>'+esc(m[1])+'</b> '+esc(m[2]):esc(x);
+  };
+  const flush=()=>{if(list){h+='<ol class="msg-ol">'+list+'</ol>';list='';}};
+  for(const x of lines){
+    const n=x.match(/^\d{1,2}[.)]\s+(.*)$/);
+    if(n){list+='<li>'+item(n[1])+'</li>';continue;}
+    flush();h+='<p>'+esc(x)+'</p>';
+  }
+  flush();
+  return h;
+}
 function renderChat(){
-  $('chatMsgs').innerHTML=ASK_HINT+S.chat.map(m=>'<div class="msg '+(m.role==='user'?'me':'bot')+'">'+esc(m.content)+'</div>').join('');
+  $('chatMsgs').innerHTML=ASK_HINT+S.chat.map(m=>m.role==='user'?'<div class="msg me">'+esc(m.content)+'</div>':
+    '<div class="msg bot rich">'+fmtMsg(m.content)+'</div>').join('');
 }
 function openAsk(){
   renderChat();
@@ -415,7 +433,7 @@ document.addEventListener('submit',async e=>{
   box.scrollTop=box.scrollHeight;
   try{
     const j=await postJSON('/api/chat',{token:S.token,message:msg,history:S.chat.slice(-10)});
-    box.querySelector('[data-tmp]').outerHTML='<div class="msg bot">'+esc(j.reply)+'<small>'+esc(j.model||'')+'</small></div>';
+    box.querySelector('[data-tmp]').outerHTML='<div class="msg bot rich">'+fmtMsg(j.reply)+'<small>'+esc(j.model||'')+'</small></div>';
     if(typeof j.left==='number'&&j.left>=0) $('chatLeft').textContent='오늘 남은 질문 '+j.left+'번. ';
     S.chat.push({role:'user',content:msg},{role:'assistant',content:j.reply});
   }catch(err){

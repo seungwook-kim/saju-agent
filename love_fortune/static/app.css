@@ -450,3 +450,11 @@ body.ask-open .ask-fab,.ask-fab[hidden]{display:none}
   #askPanel.on{transform:none}
   body.ask-open{overflow:hidden}                          /* 패널 뒤 본문이 같이 밀리지 않게 */
 }
+/* 상담 답: 결론 문단 + 번호 목록 (제목 굵게, 항목 사이 간격) */
+.msg.rich{white-space:normal;line-height:1.65}
+.msg.rich p{margin:0 0 .45rem}
+.msg.rich p:last-of-type{margin-bottom:.2rem}
+.msg-ol{margin:.35rem 0 .2rem;padding-left:1.3rem;display:grid;gap:.5rem}
+.msg-ol li{padding-left:.15rem}
+.msg-ol li::marker{font-weight:800;color:var(--accent)}
+.msg-ol b{display:block;font-weight:800;margin-bottom:.1rem}

@@ -84,4 +84,4 @@ def test_numbered_formats_calculation_answers():
     assert chapters.numbered("오늘 직장운은 이래: 점수 60 / 관록궁 칠살 / 조심할 날") == \
         "오늘 직장운은 이래:\n1. 점수 60.\n2. 관록궁 칠살.\n3. 조심할 날."
     assert chapters.numbered("정관: 원칙과 책임의 기운") == "정관: 원칙과 책임의 기운"
-    assert "1. 2. 3." in web.SYSTEM_PROMPT and "steps" in chapters.SYSTEM
+    assert "1. 짧은 제목: 설명" in web.SYSTEM_PROMPT and "steps" in chapters.SYSTEM

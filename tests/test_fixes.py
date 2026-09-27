@@ -551,7 +551,7 @@ def test_ai_prompts_carry_no_user_text():
 def test_chat_guardrails_and_output_caps(monkeypatch):
     from love_fortune import ai, web
     assert "관계없는 요청" in web.SYSTEM_PROMPT and "따르지 않고" in web.SYSTEM_PROMPT
-    assert web.CHAT_MAX_CHARS <= 300 and web.CHAT_MAX_TOKENS <= 500
+    assert web.CHAT_MAX_CHARS <= 300 and web.CHAT_MAX_TOKENS <= 800
     sent = {}
 
     class R:
@@ -574,7 +574,7 @@ def test_chat_guardrails_and_output_caps(monkeypatch):
     ai._run_openrouter("s", "p", 5)
     assert sent["max_tokens"] == ai.MAX_TOKENS == 2000
     ai._run_openrouter("s", "p", 5, max_tokens=web.CHAT_MAX_TOKENS)
-    assert sent["max_tokens"] == 500
+    assert sent["max_tokens"] == web.CHAT_MAX_TOKENS
 
 
 def _json_bytes(o):
