@@ -53,3 +53,9 @@ def test_ground_keeps_numbered_lines_in_chapter_text():
             "blocks": [{"type": "text", "title": "t", "body": "요점이야.\n1. 일: 칠살이라 밀어붙여.\n2. 돈: 화기라 조심해."}]}
     out = chapters.ground(body, part)
     assert out["blocks"][0]["body"] == "요점이야.\n1. 일: 칠살이라 밀어붙여.\n2. 돈: 화기라 조심해."
+
+
+def test_soft_font_loaded_with_fallbacks():
+    css = (web.STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    assert css.count("font-family:'SajuRound'") >= 4 and "NanumSquareRoundEB.woff2" in css
+    assert "font-family:'SajuRound','Pretendard','Apple SD Gothic Neo','Malgun Gothic'" in css
