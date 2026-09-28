@@ -59,3 +59,14 @@ def test_soft_font_loaded_with_fallbacks():
     css = (web.STATIC_DIR / "app.css").read_text(encoding="utf-8")
     assert css.count("font-family:'SajuRound'") >= 4 and "NanumSquareRoundEB.woff2" in css
     assert "font-family:'SajuRound','Pretendard','Apple SD Gothic Neo','Malgun Gothic'" in css
+
+
+def test_sticky_header_and_hanja_in_picker():
+    html = (web.STATIC_DIR / "app.html").read_text(encoding="utf-8")
+    css = (web.STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    js = (web.STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    a, b = html.index('<div class="rhead" id="rhead">'), html.index('<div id="page"></div>')
+    assert 'class="topbar"' in html[a:b] and 'class="tabbar"' in html[a:b]       # 상단과 탭 줄이 한 덩어리
+    assert ".rhead{position:sticky;top:0" in css
+    assert "String.fromCodePoint(x.cp)" in js                                    # 한자는 코드포인트로 그린다
+    assert not re.search("[\u4e00-\u9fff]", js)                                  # 코드에 한자 글자는 없다

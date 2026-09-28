@@ -55,8 +55,12 @@ $('btnBack').addEventListener('click',()=>{
   document.body.dataset.theme='rose';window.scrollTo(0,0);
 });
 
+// 상단 묶음 높이 (스크롤해도 붙어 있는 탭 줄 아래로 다른 붙는 요소를 놓기 위해)
+function rheadHeight(){const r=$('rhead');if(r) document.documentElement.style.setProperty('--rhead-h',r.offsetHeight+'px');}
+window.addEventListener('resize',rheadHeight);
 function showResult(){
   $('askFab').hidden=!S.chatOn;if(!S.chatOn) closeAsk();     // 공개 서버에서는 채팅을 잠시 막아 둔다
+  setTimeout(rheadHeight,0);
   loadGloss().then(()=>{if(S.tab&&S.outline[S.tab]) openTab(S.tab);});
   $('home').classList.remove('on');$('result').classList.add('on');
   $('tabs').innerHTML=TAB_ORDER.map(t=>'<button class="tab" type="button" data-tab="'+t+'">'+TAB_NAME[t]+'</button>').join('');
@@ -687,9 +691,9 @@ async function nmPick(){
   for(let i=0;i<name.length;i++){
     const r=await fetch('/api/name/hanja?r='+encodeURIComponent(name[i])+'&s='+(i<ns?1:0)).then(x=>x.json()).catch(()=>({items:[]}));
     h+='<label class="f"><span>'+esc(name[i])+(i<ns?' (성)':'')+'</span><select data-nmi="'+i+'"><option value="">한자 없음 / 모름</option>'+
-      (r.items||[]).map(x=>'<option value="'+x.cp+'">'+esc(x.hun)+' · '+x.strokes+'획</option>').join('')+'</select></label>';
+      (r.items||[]).map(x=>'<option value="'+x.cp+'">'+String.fromCodePoint(x.cp)+'  '+esc(x.hun)+' · '+x.strokes+'획</option>').join('')+'</select></label>';
   }
-  $('nmHanja').innerHTML='<div class="nm-grid">'+h+'</div><p class="fine">뜻(훈음)과 획수로 골라. 성은 많이 쓰는 한자가 맨 위야.</p>';
+  $('nmHanja').innerHTML='<div class="nm-grid">'+h+'</div><p class="fine">한자와 뜻(훈음)·획수를 보고 골라. 성은 많이 쓰는 한자가 맨 위야.</p>';
 }
 function nameView(d){
   const chain=s=>'<div class="nm-chain">'+d.name.split('').map((c,i)=>'<span class="nm-syl"><b>'+esc(c)+'</b><i class="'+EL_CLS[s.elements[i]]+'">'+s.elements[i]+'</i></span>'+

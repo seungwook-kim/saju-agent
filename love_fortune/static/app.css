@@ -66,8 +66,10 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .err{background:#fff1f0;border:1px solid #f3b8b3;border-radius:14px;padding:.8rem 1rem;font-size:.9rem;margin:10px 0}
 
 /* 결과: 상단 */
-.topbar{position:sticky;top:0;z-index:30;display:grid;grid-template-columns:110px 1fr 110px;align-items:center;
-  padding:10px 0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px)}
+/* 상단 묶음(뒤로·로고·저장 + 탭 줄)은 스크롤해도 위에 붙어 있다 (2026-09-28 사용자 요청) */
+.rhead{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(10px);
+  margin:0 -2px;padding:0 2px;box-shadow:0 6px 12px -10px rgba(60,30,50,.25)}
+.topbar{display:grid;grid-template-columns:110px 1fr 110px;align-items:center;padding:10px 0 4px}
 .topbar .logo{text-align:center}
 .back{border:0;background:none;color:var(--muted);cursor:pointer;min-height:40px;text-align:left;white-space:nowrap}
 .tabbar{position:relative}
@@ -328,7 +330,8 @@ input:focus,select:focus,.datebtn:focus-visible{outline:2px solid var(--accent2)
 .w-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 
 /* 되짚기 */
-.tally{position:sticky;top:60px;z-index:15}
+.tally{position:sticky;top:var(--rhead-h,112px);z-index:15}
+.chapter,#toolOut{scroll-margin-top:calc(var(--rhead-h,112px) + 8px)}
 .yr-card{background:#fff;border-radius:18px;padding:12px 14px;margin:10px 0;box-shadow:0 4px 14px rgba(80,30,60,.06)}
 .yr-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
 .yr-head b{font-size:1.15rem;color:var(--accent)}
