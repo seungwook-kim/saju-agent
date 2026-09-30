@@ -78,6 +78,8 @@ Supabase 에 공유 링크·AI 풀이를 저장하려면:
 4. 서버를 다시 켠다. `/healthz` 가 `{"ok": true, "store": "supabase"}` 로 나오면 연결된 것이다.
 
 값을 비워 두면 지금처럼 로컬 SQLite(`data/content.db`)에 저장한다.
+Supabase 에 쌓인 데이터를 DBeaver 로 보려면 `uv run --no-project python tools/sync_supabase.py` 를 돌린다.
+Supabase → `data/content.db` 한 방향 복사이고(로컬에만 있는 줄은 남김), 복사 전에 `content.db.bak` 을 떠 둔다.
 Supabase 무료 프로젝트는 7일 동안 요청이 없으면 일시정지되니, 멈추면 대시보드에서 다시 켠다.
 
 ## 오늘의 운세를 보는 방식
