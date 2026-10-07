@@ -54,7 +54,6 @@ python -m love_fortune --interactive
 python -m love_fortune form
 # → http://localhost:8765  (홈페이지식 UI + 리포트 카드 + 채팅 상담 에이전트)
 # 휴대폰 등 다른 기기에서 보려면: python -m love_fortune form --host 0.0.0.0
-# (watchdog.py 는 이 옵션으로 띄운다. 같은 와이파이의 기기에서 http://<이 PC IP>:8765)
 
 # 특정 날짜 재현 (테스트·디버그용)
 python -m love_fortune --birth 1990-05-15 --date 2026-09-20 --no-save

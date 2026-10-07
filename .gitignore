@@ -6,7 +6,6 @@ __pycache__/
 uv.lock
 
 # 실행 기록·개인 리포트 (개인정보가 들어갈 수 있다)
-watchdog.log
 report_*.md
 match_*.md
 pick_*.md

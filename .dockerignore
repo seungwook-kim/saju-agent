@@ -9,8 +9,6 @@ data
 tests
 tools
 docs
-watchdog.py
-watchdog.log
 *.md
 !README.md
 !THIRD_PARTY_NOTICES.md

@@ -9,8 +9,6 @@ data
 tests
 tools
 docs
-watchdog.py
-watchdog.log
 *.bundle
 Dockerfile
 render.yaml

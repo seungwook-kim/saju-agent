@@ -156,7 +156,7 @@ def _remember(md: str, summary: str, target: str, token: str | None = None,
               facts: dict | None = None) -> str:
     """리포트 요약을 잠시 보관하고 토큰을 돌려준다.
 
-    예전엔 넣기만 하고 지우지 않아서, watchdog 이 서버를 계속 살려두는 동안
+    예전엔 넣기만 하고 지우지 않아서, 서버를 오래 켜 두는 동안
     메모리가 끝없이 늘었다. 오래된 것부터 치운다.
     """
     token = token or secrets.token_hex(8)
