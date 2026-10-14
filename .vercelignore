@@ -11,4 +11,3 @@ tools
 docs
 *.bundle
 Dockerfile
-render.yaml

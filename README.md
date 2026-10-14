@@ -6,7 +6,7 @@ AI는 계산된 사실표만 받고, 사실표에 없는 숫자나 단정하는 
 [![CI](https://github.com/seungwook-kim/saju-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/seungwook-kim/saju-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
-![tests](https://img.shields.io/badge/tests-591%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-650%20passed-brightgreen)
 
 | 첫 화면 | 오늘 탭 | 평생 탭 (대운 x 원국) |
 |---|---|---|
@@ -71,18 +71,21 @@ flowchart LR
   W --> P[prefetch.py<br/>AI 풀이 대기열]
   P --> C[chapters.py<br/>프롬프트 · ground 거름망]
   C --> AI[ai.py<br/>CLI / OpenRouter]
-  C --> S[(content_store<br/>SQLite 캐시)]
+  C --> S[(content_store<br/>Supabase · SQLite)]
   B -->|POST /api/v2/chapter| W
 ```
 
 | 폴더·파일 | 역할 |
 |---|---|
-| `love_fortune/` | 계산 엔진, 웹 서버, 풀이 생성 (파이썬 파일 44개) |
+| `love_fortune/` | 계산 엔진, 웹 서버, 풀이 생성 (파이썬 파일 51개) |
 | `love_fortune/static/` | 화면 (바닐라 JS, 빌드 도구 없음) |
-| `tests/` | 시험 591개. 외부 기준값 파일은 `tests/data/` |
+| `tests/` | 시험 650개. 외부 기준값 파일은 `tests/data/` |
 | `tools/` | 기준값·데이터 생성 도구 (개발할 때만 외부 패키지 사용) |
-| `db/` | 해석 데이터·AI 풀이 캐시의 SQLite 초기화 스크립트 |
+| `db/` | 해석 데이터·AI 풀이 저장소의 표 만들기 스크립트 (SQLite, Supabase) |
 | `docs/GUIDE.md` | 자세한 실행법, 운세 체계, 데이터 출처 |
+| `docs/PRD.md` | 제품 요구사항: 목표, 원칙, 기능, 운영 정책, 결정 기록 |
+| `docs/SDD.md` | 설계: 구성, 요청 흐름, API, AI 호출, 보안, 설정, 배포 |
+| `docs/ERD.md` | 데이터: 표 구조, 사실표, 브라우저 저장, 수명 |
 
 **외부 패키지가 0개인 이유:** 계산 엔진을 오프라인에서도 결정적으로(같은 입력이면 항상 같은 결과) 돌리고, 배포를 단순하게 하려고 표준 라이브러리만 썼습니다. 천문 계산은 공개된 궤도 요소 공식을 직접 구현했고, 정확도가 필요한 절기 시각만 개발 단계에서 천체력으로 표를 만들어 넣었습니다.
 
@@ -108,8 +111,8 @@ export OPENROUTER_API_KEY=<키>
 
 ## 배포
 
+- **Vercel**(운영): `pyproject.toml`의 `[tool.vercel]` 입구 `love_fortune.wsgi:app`이 표준 라이브러리 HTTP 핸들러를 WSGI로 감쌉니다. 서울 리전, 저장소는 Supabase, AI는 OpenRouter입니다. 자세한 구성은 [`docs/SDD.md`](docs/SDD.md#10-배포와-운영).
 - `Dockerfile`: 패키지 설치 없이 `python -m love_fortune form`으로 뜨고, `PORT`·`HOST` 환경변수를 따릅니다. `/healthz`로 상태를 확인합니다.
-- `render.yaml`: [Render](https://render.com)에서 저장소를 연결하면 이 설정으로 무료 웹 서비스를 만듭니다. 방문자마다 AI 풀이를 미리 만들지 않도록 `SAJU_PREFETCH=0`이 기본입니다.
 
 ## 개발 방식
 
