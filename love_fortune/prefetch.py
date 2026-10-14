@@ -106,9 +106,8 @@ def _work() -> None:
 def wait(tab: str, chapter: str, facts: dict, timeout: float) -> dict | None:
     """AI 풀이를 기다려 받는다. 저장돼 있으면 바로. 시간 안에 못 받으면 None."""
     from . import content_store
-    hit = content_store.get_chapter(chapters.key_of(tab, chapter, facts))
-    if hit:
-        return hit
+    if content_store.get_chapter(chapters.key_of(tab, chapter, facts)):
+        return chapters.generate(tab, chapter, facts, use_ai=False)   # 저장된 풀이도 거름망(ground)을 다시 거친다
     job = submit(tab, chapter, facts, URGENT)
     if not job.done.wait(timeout):
         return None

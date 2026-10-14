@@ -200,6 +200,21 @@ def test_prefetch_orders_dedupes_and_waits(sheet, monkeypatch):
     assert calls.index(("life", "final")) < calls.index(("life", "dayun"))
 
 
+def test_prefetch_wait_grounds_stored_chapter(sheet):
+    # 저장된 AI 풀이를 바로 꺼낼 때도 사실표에 없는 숫자·단정 문장은 빠져야 한다 (예전엔 그대로 나갔다)
+    from love_fortune import prefetch
+    ch = chapters.spec("love", "final")
+    key = chapters.cache_key("love", "final", chapters.pick(sheet, ch["pick"]))
+    body = {"headline": "오늘 연애 한마디", "lead": "",
+            "blocks": [{"type": "text", "title": "", "body": "3개월 안에 인연이 올 거야. 천천히 다가가 봐."},
+                       {"type": "text", "title": "", "body": "먼저 인사해 봐."}],
+            "closing": ""}
+    content_store.put_chapter(key, "love", "final", "ai", body)
+    got = prefetch.wait("love", "final", sheet, timeout=1)
+    assert got["source"] == "ai"
+    assert got["blocks"][0]["body"] == "천천히 다가가 봐."
+
+
 def test_v2_report_includes_rule_chapters(server):
     rep = _post(server + "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30",
                                             "sex": "female", "city": "서울"})
