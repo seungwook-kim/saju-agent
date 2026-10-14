@@ -67,7 +67,7 @@ flowchart LR
 
 ## 3. 모듈 구성
 
-`love_fortune/` 아래 파이썬 파일 51개. 층별로 나누면 이렇다.
+`love_fortune/` 아래 파이썬 파일 52개. 층별로 나누면 이렇다.
 
 | 층 | 모듈 | 하는 일 |
 |---|---|---|
@@ -79,7 +79,7 @@ flowchart LR
 | 택일 | `almanac`, `taekil`, `tojeong`, `tojeong_data`* | 생기복덕·건제·황도흑도, 길일 고르기, 토정비결 |
 | 종합 | `synthesis`, `today`, `domains`, `lifetime`, `newyear`, `past`, `insights`, `match`, `matchmaking`, `sok`, `rectify`, `naming` | 오늘 세 체계 종합, 영역 점수, 평생·신년·되짚기, 세 체계 합의도·골든타임, 궁합, 속궁합, 시간 찾기, 이름 풀이 |
 | 풀이 | `facts`, `rule_chapters`, `chapters`, `narrate`, `story`, `glossary`, `josa`, `advise` | 사실표, 계산 풀이, 챕터 설계·AI 프롬프트·거름망, 서사 문장, 용어집, 조사 고르기, 행운 요소 |
-| AI·저장 | `ai`, `prefetch`, `content_store`, `store`, `langfuse` | AI 호출, 미리 만들기, 풀이·공유·토큰 저장, 해석 데이터 DB, AI 기록 |
+| AI·저장 | `ai`, `prefetch`, `content_store`, `store`, `langfuse`, `injection` | AI 호출, 미리 만들기, 풀이·공유·토큰 저장, 해석 데이터 DB, AI 기록, 프롬프트 인젝션 막기 |
 
 `*` 표시는 도구(`tools/gen_*.py`)로 만든 자동 생성 파일이다. 손으로 고치지 않는다.
 
@@ -154,26 +154,44 @@ flowchart TD
   B -->|아니오| X403[403]
   B --> C{토큰 유효?}
   C -->|아니오| X400[400]
-  C --> D[질문 300자로 자름]
-  D --> E{운세 밖 요청 / 짧은 인사?}
-  E -->|예| F[정해 둔 답, 횟수 안 셈]
+  C --> D[질문 정리: 보이지 않는 문자 제거, 300자]
+  D --> INJ{인젝션으로 보임?}
+  INJ -->|예| F[정해 둔 답, 횟수 안 셈]
+  INJ -->|아니오| E{운세 밖 요청 / 짧은 인사?}
+  E -->|예| F
   E -->|아니오| G[네 열쇠로 하루 횟수 확인<br/>ip /64 · cid 쿠키 · 토큰 · 사주 해시]
   G -->|다 씀| X429[429]
-  G --> H{백엔드}
+  G --> HS[대화 기록 거르기<br/>서명 없는 상담사 답, 인젝션 질문 빼기]
+  HS --> H{백엔드}
   H -->|SAJU_CUSTOM_LLM=1 + 주소·키| I[OpenAI 호환 LLM]
   H -->|AI 있음| J[ai.run 800토큰]
   H -->|없음| K[로컬 규칙 에이전트]
   I --> L[ground_reply 거름망]
   J --> L
-  L -->|다 빠짐| K
-  L --> OUT[reply · mode · left]
+  L -->|다 빠짐 또는 지시문이 샘| K
+  L --> OUT[reply · mode · left · sig]
+  K --> OUT
+  F --> OUT
 ```
 
 - 횟수: 한 사람 하루 5번(`SAJU_CHAT_PER_DAY`), 모두 합쳐 하루 300번(`SAJU_CHAT_GLOBAL_PER_DAY`).
 - 열쇠는 서버 비밀에서 만든 소금을 섞어 SHA-256으로 해시해서 Supabase `chat_use`에 적는다. 원래 IP, 쿠키 값은 남지 않는다. Supabase가 없거나 실패하면 기계 메모리로 센다.
 - 루프백 접속(프록시 신뢰가 꺼진 로컬)은 세지 않는다.
 - `cid` 쿠키: 16바이트 무작위, HttpOnly, SameSite=Strict, 30일, 프록시 뒤면 Secure.
-- 상담 AI에 보내는 것: 개인정보 없는 요약(`agent_context`), 최근 대화 10개(각 900자 안), 질문.
+- 상담 AI에 보내는 것: 개인정보 없는 요약(`agent_context`), 최근 대화 10개, 질문.
+
+#### 프롬프트 인젝션 막기 (`injection.py`)
+
+사용자가 친 글이 AI까지 가는 길은 상담 채팅 하나뿐이다 (챕터 풀이는 계산한 사실표만 보낸다). 그 길을 여러 겹으로 막는다.
+
+| 겹 | 하는 일 |
+|---|---|
+| 정리 `clean` | 보이지 않는 문자(폭 없는 공백, 방향 바꾸기 문자 등)와 제어 문자를 지우고 300자로 자른다. NFKC는 낱자 자모(ㅋ, ㅎ)를 바꿔 버려서 정리에는 쓰지 않는다. |
+| 알아보기 `looks_like` | 규칙 무시, 역할 바꾸기, 지시문 공개 요청, 가짜 역할 꼬리표(`</질문>`, `상담사:`, `[SYSTEM]`, `<\|im_start\|>`)를 찾으면 AI 없이 `INJECTION_REPLY`로 답한다 (횟수에 안 셈). 전각 글자, 닮은 키릴·그리스 글자, 글자 사이 공백·점·보이지 않는 문자로 피해 가도 같은 글로 본다. 운세 질문을 잘못 막지 않게 '앞의, 모든, 너의' 같은 꾸밈말이 붙은 경우만 잡는다. |
+| 기록 거르기 `_clean_history` | 브라우저가 보낸 대화 기록에서 상담사 답은 서버가 서명한 것(`sig`, 결과 토큰에 묶인 HMAC)만 남긴다. 사용자 말은 새 질문과 똑같이 정리하고 인젝션·운세 밖이면 뺀다. |
+| 가두기 `fence` | 사용자 글을 `<대화>`, `<질문>` 울타리 안에 한 줄로 넣고 꺾쇠를 괄호로 바꾼다. 줄바꿈으로 가짜 '상담사:' 줄을 만들거나 울타리를 닫을 수 없다. 시스템 지시문 11번 규칙이 울타리 안 글을 자료로만 다루게 한다. |
+| 새는지 보기 `leaks` | 답에 시스템 지시문의 글자 24개가 연달아 그대로 있으면 그 답을 버리고 계산 결과 답으로 바꾼다. |
+| 거름망 `ground_reply` | 원래 있던 거름망. 요약에 없는 숫자, 용어, 확정 예언을 뺀다. |
 
 ## 5. API 명세
 
@@ -204,7 +222,7 @@ flowchart TD
 | `/api/match` | 두 사람 입력 (뒤 사람은 `2` 붙인 이름) | `token, data{score, head, story, strengths, cautions, a, b, dates, sok}` |
 | `/api/pick` | 사람 입력 + `from_date, to_date, domain` | `token, data{start, end, domain, story, rows}` |
 | `/api/name` | `surname, given, hanja[≤5], token?` | 이름 풀이 결과 |
-| `/api/chat` | `token, message, history` (+ `backend, endpoint, api_key, model`) | `reply, mode, model, left` |
+| `/api/chat` | `token, message, history[{role, content, sig}]` (+ `backend, endpoint, api_key, model`) | `reply, mode, model, left, sig` |
 
 **사람 입력**: `birth`(YYYY-MM-DD), `calendar`(solar\|lunar), `leap`, `birth_time`(HH:MM, 기본 12:00), `unknown_time`, `sex`(기본 male), `city`(기본 서울, 40자), `zi`(next\|split).
 
@@ -248,6 +266,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 | 요청 폭주 | IP당 POST 1분 90번, 상담 12번 | `web.py:43-46, 127-143` |
 | AI 요금 폭탄 | 시간당 300번, 상담 하루 5번·전체 300번, 질문 300자, 답 길이 상한 | `ai.py`, `web.py` |
 | AI를 다른 용도로 | 챕터 요청에는 사용자가 친 글자가 없다. 상담은 운세 밖 요청을 AI 없이 돌려보낸다 | `chapters.py`, `web.offtopic` |
+| 프롬프트 인젝션 | 정리, 알아보기, 서명한 기록만 믿기, 울타리, 지시문 샘 검사 (4.4절) | `injection.py`, `web._chat` |
 | SSRF | 사용자 지정 LLM 주소는 `SAJU_CUSTOM_LLM=1`일 때만, http/https만 | `web.py:1152-1159, 603-634` |
 | IP 꾸미기 | X-Forwarded-For 맨 왼쪽이 아니라 오른쪽에서 `SAJU_PROXY_HOPS`번째, 또는 `SAJU_IP_HEADER` | `web.py:931-945` |
 | 키 유출 | 서버 전용 키는 환경변수에만, 화면·저장소·로그에 넣지 않음. `.env`는 git과 배포에서 뺀다 | `.gitignore`, `.vercelignore` |
@@ -313,7 +332,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 
 ## 12. 시험
 
-- `tests/` 아래 32개 파일, 시험 650개 (2026-10-14). 실행: `uv run --no-project --with pytest python -m pytest -q`.
+- `tests/` 아래 33개 파일, 시험 705개 (2026-10-14). 실행: `uv run --no-project --with pytest python -m pytest -q`.
 - 시험은 AI 없이(`SAJU_AI=0`), `.env` 없이(`SAJU_DOTENV=0`), Supabase 키 없이 돈다 (`tests/conftest.py`).
 - 외부 기준 대조:
 

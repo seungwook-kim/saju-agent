@@ -332,7 +332,8 @@ def test_llm_chat_sends_current_message(monkeypatch):
 
     monkeypatch.setattr(web.urllib.request, "urlopen", fake_urlopen)
     web.llm_chat("http://x/v1", "k", "m", "요약", [{"role": "user", "content": "앞 질문"}], "지금 질문")
-    assert seen["body"]["messages"][-1] == {"role": "user", "content": "지금 질문"}
+    last = seen["body"]["messages"][-1]                # 질문은 <질문> 울타리 안에 (injection.fence)
+    assert last["role"] == "user" and "지금 질문" in last["content"] and last["content"].startswith("<질문>")
 
 
 def test_llm_endpoint_scheme_is_restricted():
