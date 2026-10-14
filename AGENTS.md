@@ -50,7 +50,7 @@
   - AI 호출 기록: LANGFUSE_PUBLIC_KEY·SECRET_KEY 가 있으면 ai.run 이 부를 때마다 Langfuse 로 보낸다 (langfuse.py, 외부 패키지 없음).
     보내는 입력은 AI 에 보내는 것과 같다(개인정보 없는 사실표, 상담 질문). SAJU_LANGFUSE_CONTENT=0 이면 숫자만.
   - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(SAJU_AI_BACKEND=openrouter)로
-    부를 예정이다 (2026-09-25 사용자 결정). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
+    부른다 (2026-09-25 사용자 결정, 운영 Vercel 에서 쓰는 중). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
     공개 서버에서 SSRF 통로가 된다. SAJU_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
   - 배포는 Vercel (pyproject [tool.vercel] entrypoint = love_fortune.wsgi:app, WSGI 로 web.Handler 를 그대로 감싼다). 서버리스라 VERCEL 값이 있으면
@@ -59,7 +59,7 @@
   - 저장소: SUPABASE_URL·SUPABASE_SECRET_KEY 가 있으면 Supabase(REST), 없으면 SQLite (content_store.py).
     표는 db/supabase.sql. 서버 전용 키는 환경변수(.env·Vercel)에만 두고 화면·저장소·로그에 절대 넣지 않는다.
     .env 는 git 에 올리지 않는다. 적는 법은 .env.example. 시험은 .env 를 읽지 않는다(conftest).
-  - 상담 채팅은 이 컴퓨터에서 직접 접속할 때만 열린다 (2026-09-27 사용자 결정, AI 요금).
+  - 상담 채팅 기본값은 이 컴퓨터에서 직접 접속할 때만 열린다 (2026-09-27 사용자 결정, AI 요금). 운영(Vercel)은 SAJU_CHAT=1 로 켠다.
     web.py _chat_on: SAJU_CHAT=auto(기본) 루프백만, 1 어디서나, 0 막음. 막히면 화면의 채팅 버튼도 숨긴다.
   - AI 를 운세 밖 용도로 못 쓰게: 챕터 AI 요청에는 사용자가 친 글자가 들어가지 않는다(서버가 계산한 사실표·정해진 요청문만).
     채팅은 질문 300자 상한. 뻔한 운세 밖 요청(코딩·번역·숙제·규칙 무시 등)은 web.offtopic 이 AI 없이 정해 둔 답으로
