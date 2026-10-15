@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from .josa import j
+
 from .rules import headline as _headline
 from .narrate import STAR_TALK, _eun
 
@@ -41,7 +43,7 @@ def build_stories(natal: dict, ma: dict, adv: dict, target) -> dict:
         love = [
             f"오늘 연애운은 {t['love']}점이다. {love_head} "
             f"일간 {ilgan}의 입장에서 오늘 일진(그날의 간지)과 사주 궁합을 셈한 결과다.",
-            f"눈에 띄는 건 부처궁(배우자를 보는 자리)에 {ma['ziwei_main']}이 앉아 있다는 점이다. "
+            f"눈에 띄는 건 부처궁(배우자를 보는 자리)에 {j(ma['ziwei_main'], '이')} 앉아 있다는 점이다. "
             f"{ma['ziwei_detail']['look']} "
             f"이런 상대와는 {ma['ziwei_detail']['tip']}",
             f"금성은 {ma['venus']}에 있어 {vd['style']} "

@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+from .josa import j
+
 
 from .manseryuk import STEM_ELEMENT, STEMS_KR
 
@@ -170,7 +172,7 @@ def love_score(day_stem: int, birth_branches: list[int],
     score += god_bonus.get(god, 0)
     if sex and god in _SPOUSE_GODS[sex]:
         star = "재성(남성에게 이성 인연을 뜻하는 별)" if sex == "male"             else "관성(여성에게 이성 인연을 뜻하는 별)"
-        reasons.append(f"오늘 들어온 '{god}'은 {star}이라 인연이 가까이 오기 쉬운 흐름")
+        reasons.append(f"오늘 들어온 {j(chr(39) + god + chr(39), '은')} {star}이라 인연이 가까이 오기 쉬운 흐름")
     reasons.append(f"오늘 들어온 기운과 나는 '{god}' 사이야. {GOD_MEAN[god]} "
                    + {"정재": "진심이 통하기 쉬운 흐름",
                       "정관": "신뢰가 쌓이기 쉬운 흐름",

@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+from .josa import j
+
 from datetime import date, datetime, timedelta
 
 from .manseryuk import four_pillars, day_pillar, ganzhi_str, year_pillar
@@ -57,21 +59,24 @@ def pick_dates(birth: date, hour: int | None, minute: int, sex: str, city: str,
             "god": god, "god_mean": GOD_SHORT[god],
         })
         d += timedelta(days=1)
-    key = {"total": "total", "love": "love",
-           "career": "career", "money": "money"}[domain]
-    rows.sort(key=lambda r: (-r[key], r["date"]))
+    key = domain
+    # score: 순위를 매긴 바로 그 점수. 화면 막대·순위·이야기가 모두 이 값을 쓴다
+    # (예전엔 총운일 때 화면이 연애·직장·금전 평균을 따로 셈해 1위 점수가 이야기와 달랐다)
+    for r in rows:
+        r["score"] = r[key]
+    rows.sort(key=lambda r: (-r["score"], r["date"]))
     for i, r in enumerate(rows, 1):
         r["rank"] = i
     _dn = {"total": "총운", "love": "연애",
            "career": "직장", "money": "금전"}[domain]
     _top1 = rows[0]
-    _avg = sum(r[key] for r in rows) // len(rows)
-    _spread = rows[0][key] - rows[-1][key]
+    _avg = sum(r["score"] for r in rows) // len(rows)
+    _spread = rows[0]["score"] - rows[-1]["score"]
     story = [
         f"기간 {start.isoformat()}~{end.isoformat()} {len(rows)}일 중에서 "
         f"{_dn} 평균은 {_avg}점이야. "
-        f"1위는 {_top1['label']}({_top1['ganzhi']}) {_top1[key]}점이야.",
-        f"1위 날 들어오는 기운은 {_top1['god']}이라 {_top1['god_mean']} 흐름이야.",
+        f"1위는 {_top1['label']}({_top1['ganzhi']}) {_top1['score']}점이야.",
+        f"1위 날 들어오는 기운은 {j(_top1['god'], '이라')} {_top1['god_mean']} 흐름이야.",
         f"1위와 꼴찌 차이는 {_spread}점이야. " + (
             "차이가 커서 날짜를 가리면 좋은 기간이야." if _spread >= 15
             else "날짜별 차이가 작아서 편한 날을 고르면 돼."),

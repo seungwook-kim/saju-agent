@@ -56,9 +56,18 @@ def test_ground_keeps_numbered_lines_in_chapter_text():
 
 
 def test_soft_font_loaded_with_fallbacks():
+    # 글꼴은 외부 서버가 아니라 이 앱이 직접 준다 (Gowun Batang 700·Gowun Dodum 400 부분 글꼴, OFL). 못 받으면 기기 글꼴로
     css = (web.STATIC_DIR / "app.css").read_text(encoding="utf-8")
-    assert css.count("font-family:'SajuRound'") >= 4 and "NanumSquareRoundEB.woff2" in css
-    assert "font-family:'SajuRound','Pretendard','Apple SD Gothic Neo','Malgun Gothic'" in css
+    html = (web.STATIC_DIR / "app.html").read_text(encoding="utf-8")
+    fonts = (web.STATIC_DIR / "fonts" / "fonts-v1.css").read_text(encoding="utf-8")
+    assert "pstatic.net" not in css + html and "fonts.googleapis" not in css + html
+    assert '<link rel="stylesheet" href="/static/fonts/fonts-v1.css">' in html
+    assert "--bat:'SajuBatang'" in css and "--dod:'SajuDodum','Apple SD Gothic Neo','Malgun Gothic'" in css
+    for fam, w in (("SajuBatang", 700), ("SajuDodum", 400)):
+        assert fonts.count(f"font-family:'{fam}';font-weight:{w}") == 2       # ks + 나머지 한글
+    for name in web.FONT_FILES:
+        assert (web.STATIC_DIR / name).exists(), name
+    assert "SIL Open Font License" in fonts
 
 
 def test_sticky_header_and_hanja_in_picker():
@@ -67,6 +76,6 @@ def test_sticky_header_and_hanja_in_picker():
     js = (web.STATIC_DIR / "app.js").read_text(encoding="utf-8")
     a, b = html.index('<div class="rhead" id="rhead">'), html.index('<div id="page"></div>')
     assert 'class="topbar"' in html[a:b] and 'class="tabbar"' in html[a:b]       # 상단과 탭 줄이 한 덩어리
-    assert ".rhead{position:sticky;top:0" in css
+    assert ".rhead{position:sticky;top:calc(-1 * var(--top-h,48px))" in css      # 탭 줄은 붙어 있고 맨 위 줄만 스크롤로 사라진다
     assert "String.fromCodePoint(x.cp)" in js                                    # 한자는 코드포인트로 그린다
     assert not re.search("[\u4e00-\u9fff]", js)                                  # 코드에 한자 글자는 없다

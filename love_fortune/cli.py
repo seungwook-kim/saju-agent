@@ -551,7 +551,7 @@ def build_pick_report(birth: date, hour: int, minute: int, sex: str,
     for p in r["story"]:
         L.append(f"  {p}")
     for row in r["rows"][:top]:
-        L.append(f"  {row['rank']}위: {row['label']} {row['ganzhi']} "
+        L.append(f"  {row['rank']}위: {row['label']} {row['ganzhi']} {dom_name} {row['score']}점 "
                  f"(연애 {row['love']}·직장 {row['career']}·금전 {row['money']})")
     L.append("\n[전체 표]")
     for row in r["rows"]:
@@ -571,7 +571,7 @@ def build_pick_report(birth: date, hour: int, minute: int, sex: str,
         M.append(f"- [이야기] {p}")
     M.append("")
     for row in r["rows"][:top]:
-        M.append(f"- {row['rank']}위: {row['label']} {row['ganzhi']} "
+        M.append(f"- {row['rank']}위: {row['label']} {row['ganzhi']} {dom_name} {row['score']}점 "
                  f"(연애 {row['love']}·직장 {row['career']}·금전 {row['money']})")
     M.append("")
     M.append("## 전체 표")

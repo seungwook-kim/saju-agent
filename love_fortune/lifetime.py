@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+from .josa import j
+
 from datetime import date
 
 from . import astronomy as A
@@ -90,19 +92,19 @@ def lifetime_reading(birth: date, hour: int, minute: int, sex: str,
                      + (f" [{hua}]" if hua else ""))
             pname = pal["name"]
             if mains:
-                main_story = f"주성 {mains[0]}은 {STAR_TALK[mains[0]]}"
+                main_story = f"주성 {j(mains[0], '은')} {STAR_TALK[mains[0]]}"
                 if len(mains) > 1:
                     main_story += f" 같이 있는 {', '.join(mains[1:])}도 힘을 보태."
             else:
                 opp = next(x for x in pals if x["branch"] == (pal["branch"] + 6) % 12)
                 om = [s for s in opp["stars"] if s in MAIN14]
                 main_story = (f"주성이 비어 있어 건너편 {opp['name']}궁의 "
-                              f"{', '.join(om) or '기운'}을 빌려 쓰는 때야")
+                              f"{j(', '.join(om) or '기운', '을')} 빌려 쓰는 때야")
             mates = [next(x for x in pals if x["branch"] == (pal["branch"] + k) % 12)["name"]
                      for k in (4, 8, 6)]
             aux = [s for s in pal["stars"] if s not in MAIN14]
             aux_note = f" 작은 별 {len(aux)}개도 함께 거들어." if aux else ""
-            seat = (f"여기엔 {', '.join(mains)}이 앉아 있고, " if mains
+            seat = (f"여기엔 {j(', '.join(mains), '이')} 앉아 있고, " if mains
                     else "여기엔 주성이 비어 있고, ")
             ziwei_story = (f"자미로 풀어보면, 이 시기 중심은 {pal['name']} 자리야. "
                            f"{seat}{main_story}.{aux_note} "

@@ -17,6 +17,8 @@
 """
 from __future__ import annotations
 
+from .josa import j
+
 from datetime import date, datetime
 
 from .astronomy import JIE_BRANCH, JIE_LON, solar_term_moment
@@ -156,7 +158,7 @@ def day_luck_points(info: dict) -> tuple[int, list[str]]:
         pts -= 1
     if info.get("clash_me"):
         pts -= 2
-        why.append(f"오늘 일진이 내 사주의 {', '.join(info['clash_me'])}와 정면으로 부딪쳐(충) 확인을 한 번 더 하면 좋은 날")
+        why.append(f"오늘 일진이 내 사주의 {j(', '.join(info['clash_me']), '와')} 정면으로 부딪쳐(충) 확인을 한 번 더 하면 좋은 날")
     return pts, why
 
 

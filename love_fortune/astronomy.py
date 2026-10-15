@@ -214,6 +214,30 @@ JIE_LON = {"입춘": 315.0, "경칩": 345.0, "청명": 15.0, "입하": 45.0,
            "한로": 195.0, "입동": 225.0, "대설": 255.0, "소한": 285.0}
 # 절 이후의 월지 (0=자..11=해): 입춘→인(2), 경칩→묘(3), ... 소한→축(1)
 JIE_BRANCH = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1]
+# 24절기 이름 (태양 황경 15도마다, 춘분 0도부터)
+TERM_NAME = {0: "춘분", 15: "청명", 30: "곡우", 45: "입하", 60: "소만", 75: "망종",
+             90: "하지", 105: "소서", 120: "대서", 135: "입추", 150: "처서", 165: "백로",
+             180: "추분", 195: "한로", 210: "상강", 225: "입동", 240: "소설", 255: "대설",
+             270: "동지", 285: "소한", 300: "대한", 315: "입춘", 330: "우수", 345: "경칩"}
+
+
+def season_term(d: date) -> dict | None:
+    """d 가 속한 절기(그날까지 가장 최근에 든 절기)와 다음 절기. 날짜는 한국 표준시 기준.
+
+    내장 절기표(solar_terms_data, JPL DE421)만 쓴다. 표 범위 밖이면 None.
+    절기가 드는 날은 그 시각과 상관없이 그날부터 새 절기로 친다 (달력의 절기 표기와 같다).
+    """
+    from .solar_terms_data import TERMS
+    moments = sorted((datetime.fromisoformat(iso).date(), int(lon))
+                     for y in (d.year - 1, d.year, d.year + 1) for lon, iso in TERMS.get(y, ()))
+    past = [m for m in moments if m[0] <= d]
+    later = [m for m in moments if m[0] > d]
+    if not past or not later:
+        return None
+    (d0, l0), (d1, l1) = past[-1], later[0]
+    if (d - d0).days > 16 or (d1 - d).days > 16:     # 표 가장자리에서 절기가 빠진 경우
+        return None
+    return {"name": TERM_NAME[l0], "date": d0.isoformat(), "next": TERM_NAME[l1], "next_date": d1.isoformat()}
 
 
 def _sun_lon_kst(dt: datetime) -> float:

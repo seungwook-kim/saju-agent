@@ -76,13 +76,13 @@ def months_blocks(rows: list[dict], dom: str) -> list:
     out = []
     if push:
         out.append(text("밀고 나가기 좋은 달", " ".join(
-            f"{_ym(r)}은 {_why(r) or '여러 기운이 함께 받쳐 주는 때'}라 {word}에서 한 걸음 내딛기 좋은 흐름이야."
+            f"{_ym(r)}은 {j(_why(r) or '여러 기운이 함께 받쳐 주는 때', '라')} {word}에서 한 걸음 내딛기 좋은 흐름이야."
             for r in push)))
     if good:
         out.append(cards("흐름이 좋은 달", [(_ym(r), _why(r) or "무리 없이 순하게 흐르는 때") for r in good]))
     if care:
         out.append(text("다듬고 조심할 달", " ".join(
-            f"{_ym(r)}은 {_why(r) or '기운이 엇갈리는 때'}라 {r['tag'].replace(' 때', '')} 때야. "
+            f"{_ym(r)}은 {j(_why(r) or '기운이 엇갈리는 때', '라')} {r['tag'].replace(' 때', '')} 때야. "
             f"큰 결정보다 점검에 힘을 쓰면 좋아." for r in care)))
     if not (push or good or care):
         out.append(text("", f"앞으로 열두 달은 {word}에서 특별히 튀는 달 없이 잔잔한 흐름이야."))
@@ -139,7 +139,7 @@ def _yongsin_plain(y: str) -> str:
 def strength_line(n: dict) -> str:
     strong = "센 편(신강)" if "신강" in n["strength"] else "약한 편(신약)"
     return (f"내 사주는 나를 이루는 기운이 {strong}이야. 타고난 그릇의 모양(격국)은 {n['geguk']}인데, "
-            f"{n['geguk_mean']} 그래서 균형을 잡아 주는 기운(용신)은 {_yongsin_plain(n['yongsin'])}이야.")
+            f"{n['geguk_mean']} 그래서 균형을 잡아 주는 기운(용신)은 {j(_yongsin_plain(n['yongsin']), '이야')}.")
 
 
 def ten_gods_plain(n: dict) -> str:
@@ -340,7 +340,7 @@ def love_nature(f: dict) -> dict:
         text("끌림의 별(도화·홍염)", *L["dohwa"], L["hongyeom"]),
         text("내가 사랑하는 방식", f"금성이 {j(v['sign'], '라')} {v['style']}", v["ideal"],
              f"달이 {j(m['sign'], '라')} {m['need']}"),
-        cards(f"부처궁 {zs['star']}로 본 잘 맞는 상대의 결",
+        cards(f"부처궁 {j(zs['star'], '로')} 본 잘 맞는 상대의 결",
               [("인상", zs["look"]), ("성격", zs["mind"]), ("어울리는 분야", zs["job"]),
                ("만나는 자리", zs["meet"])]) if zs else None,
         checklist("인연이 들어오기 쉬운 자리", L["meet_paths"]),
@@ -360,7 +360,7 @@ def work_nature(f: dict, dom: str) -> dict:
         blocks.append(text("잘 맞는 분야", D["fit_jobs"]))
         blocks.append(text("도움이 되는 사람(귀인)", *guiin, *n["guiin"]))
     blocks.append(text("태어날 때 하늘의 별", *born_with(D["extra"])))
-    blocks.append(callout(f"균형을 잡아 주는 기운(용신)은 {n['yongsin']}이야. 계절로 보면(조후) "
+    blocks.append(callout(f"균형을 잡아 주는 기운(용신)은 {j(n['yongsin'], '이야')}. 계절로 보면(조후) "
                           f"{j(n['johu']['main'][0], '도')} 반가운 기운이야. 이런 기운이 들어오는 때와 자리를 살리면 "
                           f"{j(DOMAIN_WORD[dom], '이')} 한결 편해지기 쉬워."))
     title = "타고난 일의 결" if dom == "career" else "타고난 돈의 결"
@@ -402,7 +402,7 @@ def life(f: dict, ch: str) -> dict:
         c = n["ilju"]
         return chapter(f"{c['pillar']} 일주: {c['title']}", n["character"], [
             text("일주 그림", f"일간 {j(c['pillar'][0], '은')} {j(c['image'], '이고')} 일지 {j(c['pillar'][1], '은')} {c['animal']}띠 자리야. "
-                 f"그래서 {c['pillar']} 일주는 '{c['title']}'로 그려 볼 수 있어.",
+                 f"그래서 {c['pillar']} 일주는 {j(chr(39) + c['title'] + chr(39), '로')} 그려 볼 수 있어.",
                  f"요즘 색으로 부르는 말로는 '{c['modern']}'인데, 띠에 색을 붙이는 건 요즘 생긴 표현이야."),
             text("일주의 기운 단계", L_day_stage(f)),
             text("배우자 자리", f["love"]["spouse_seat"].split(" 팁:")[0]),
@@ -445,7 +445,7 @@ def newyear(f: dict, ch: str) -> dict:
     if ch == "overview":
         sig = ny["signals"]
         return chapter(f"{y}년 {ny['ganzhi']}년, 만 {ny['age']}세의 한 해",
-                       f"{y}년 기운은 나에게 {ny['god']}으로 다가와. {ny['rel']}", [
+                       f"{y}년 기운은 나에게 {j(ny['god'], '으로')} 다가와. {ny['rel']}", [
             cards("세 영역의 한 해", [(f"{words[d]}: {sig[d]['tag']}", ", ".join(sig[d]["why"]) or "특별히 걸리는 신호 없이 잔잔한 해")
                                    for d in ("love", "career", "money")]),
             callout(ny["dayun_note"]),

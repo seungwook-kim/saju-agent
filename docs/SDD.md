@@ -174,7 +174,7 @@ flowchart TD
   F --> OUT
 ```
 
-- 횟수: 한 사람 하루 5번(`SAJU_CHAT_PER_DAY`), 모두 합쳐 하루 300번(`SAJU_CHAT_GLOBAL_PER_DAY`).
+- 횟수: 한 사람 하루 10번(`SAJU_CHAT_PER_DAY`), 모두 합쳐 하루 300번(`SAJU_CHAT_GLOBAL_PER_DAY`).
 - 열쇠는 서버 비밀에서 만든 소금을 섞어 SHA-256으로 해시해서 Supabase `chat_use`에 적는다. 원래 IP, 쿠키 값은 남지 않는다. Supabase가 없거나 실패하면 기계 메모리로 센다.
 - 루프백 접속(프록시 신뢰가 꺼진 로컬)은 세지 않는다.
 - `cid` 쿠키: 16바이트 무작위, HttpOnly, SameSite=Strict, 30일, 프록시 뒤면 Secure.
@@ -264,7 +264,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 | AI 수집·스크랩 | 수집 도구 UA 403 (빈 UA 포함, 카카오톡·슬랙 등 링크 미리보기는 허용), noai 헤더, 안내 파일 | `guard.py` |
 | 다른 사이트에서 POST | Origin이 Host(또는 신뢰하는 X-Forwarded-Host, `SAJU_ORIGINS`)와 다르면 403. `Origin: null`도 403 | `web.py:901-914` |
 | 요청 폭주 | IP당 POST 1분 90번, 상담 12번 | `web.py:43-46, 127-143` |
-| AI 요금 폭탄 | 시간당 300번, 상담 하루 5번·전체 300번, 질문 300자, 답 길이 상한 | `ai.py`, `web.py` |
+| AI 요금 폭탄 | 시간당 300번, 상담 하루 10번·전체 300번, 질문 300자, 답 길이 상한 | `ai.py`, `web.py` |
 | AI를 다른 용도로 | 챕터 요청에는 사용자가 친 글자가 없다. 상담은 운세 밖 요청을 AI 없이 돌려보낸다 | `chapters.py`, `web.offtopic` |
 | 프롬프트 인젝션 | 정리, 알아보기, 서명한 기록만 믿기, 울타리, 지시문 샘 검사 (4.4절) | `injection.py`, `web._chat` |
 | SSRF | 사용자 지정 LLM 주소는 `SAJU_CUSTOM_LLM=1`일 때만, http/https만 | `web.py:1152-1159, 603-634` |
@@ -286,7 +286,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 | 지킴 | `SAJU_TRUST_PROXY` | 없음 | 프록시 헤더 믿기, Secure 쿠키, 상담 auto 끔 |
 | 지킴 | `SAJU_IP_HEADER`, `SAJU_PROXY_HOPS` | 없음, 1 | 방문자 IP 읽는 법 |
 | 상담 | `SAJU_CHAT` | auto | auto 루프백만, 1 어디서나, 0 막음 |
-| 상담 | `SAJU_CHAT_PER_DAY`, `SAJU_CHAT_GLOBAL_PER_DAY` | 5, 300 | |
+| 상담 | `SAJU_CHAT_PER_DAY`, `SAJU_CHAT_GLOBAL_PER_DAY` | 10, 300 | |
 | 상담 | `SAJU_CUSTOM_LLM` | 0 | 1이면 사용자 지정 LLM 주소 허용 |
 | AI | `SAJU_AI` | 1 | 0이면 계산 풀이만 |
 | AI | `SAJU_PREFETCH` | 1 | 0이면 연 탭만 만듦 |

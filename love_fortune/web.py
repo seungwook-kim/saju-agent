@@ -62,11 +62,11 @@ def _chat_on(ip: str) -> bool:
     return ip in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
 
-# 상담 횟수: 한 사람이 24시간에 CHAT_PER_DAY 번 (2026-09-27 사용자 결정 5번).
+# 상담 횟수: 한 사람이 24시간에 CHAT_PER_DAY 번 (2026-09-27 사용자 결정 5번, 2026-10-15 10번으로 늘림).
 # 로그인이 없어서 "한 사람"을 IP 와 결과 토큰 두 가지로 센다. 둘 중 하나라도 다 쓰면 막는다.
 # IP 를 바꾸고(데이터·VPN) 사주도 새로 펼치면 뚫리지만, 그래도 AI 요금은 ai.py 시간당 총량에서 한 번 더 막힌다.
 # 정해 둔 답(잡담·운세 밖 요청)은 세지 않는다. 이 컴퓨터(루프백)에서는 세지 않는다.
-CHAT_PER_DAY = int(os.environ.get("SAJU_CHAT_PER_DAY", "5"))
+CHAT_PER_DAY = int(os.environ.get("SAJU_CHAT_PER_DAY", "10"))
 _CHAT_USED: dict[str, list[float]] = {}
 _CHAT_LOCK = threading.Lock()
 LOOPBACK = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
@@ -558,8 +558,10 @@ def local_agent_reply(message: str, summary: str) -> str:
     if has("대화", "말", "카톡", "연락", "팁", "화제"):
         seg = summary.split("대화팁 ", 1)[1].split(", 피할 것")[0] if "대화팁 " in summary else ""
         avoid = summary.split("피할 것 ", 1)[1].split(" / ")[0] if "피할 것 " in summary else ""
+        from .josa import j as _j
+        eun = _j(avoid, "은")[len(avoid):]          # 받침에 맞게 '은/는' ('메신저 장문 논쟁'은)
         return (f"대화 팁으로는 '{seg}' 같은 흐름이 좋아 보여. "
-                f"반대로 '{avoid}'는 오늘은 피하는 게 좋아.")
+                f"반대로 '{avoid}'{eun} 오늘은 피하는 게 좋아.")
     if has("신살", "천을", "역마", "화개", "공망", "장성", "괴강", "고진", "사주") \
             and not decide:
         seg = [s for s in summary.split(" / ")
@@ -751,7 +753,7 @@ def api_pick_data(r: dict) -> dict:
             "rows": [{"rank": x["rank"], "label": x["label"],
                       "ganzhi": x["ganzhi"], "love": x["love"],
                       "career": x["career"], "money": x["money"],
-                      "god": x["god"]} for x in r["rows"]]}
+                      "god": x["god"], "score": x.get("score")} for x in r["rows"]]}
 
 
 # ---------------- HTTP 서버 ----------------
@@ -764,6 +766,10 @@ SHARE_PATH = re.compile(r"/r/[A-Za-z0-9_-]{8,16}")
 STATIC_FILES = {"app.html": "text/html; charset=utf-8", "app.css": "text/css; charset=utf-8",
                 "viz.js": "text/javascript; charset=utf-8",
                 "app.js": "text/javascript; charset=utf-8"}
+# 글꼴 (Gowun Batang 700·Gowun Dodum 400 부분 글꼴, SIL OFL 1.1). 파일 이름에 판 번호가 있어 한 해 동안 캐시한다.
+FONT_FILES = ("fonts/fonts-v1.css", "fonts/GowunBatang-700-ks-v1.woff2", "fonts/GowunBatang-700-rest-v1.woff2",
+              "fonts/GowunDodum-400-ks-v1.woff2", "fonts/GowunDodum-400-rest-v1.woff2")
+STATIC_FILES.update({n: ("text/css; charset=utf-8" if n.endswith(".css") else "font/woff2") for n in FONT_FILES})
 
 
 SERVERLESS = bool(os.environ.get("VERCEL"))   # Vercel 에서 돌면 Vercel 이 넣어 주는 값
@@ -796,6 +802,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", cache)
         if disp:
             self.send_header("Content-Disposition", disp)
+        if getattr(self, "_etag", None):
+            self.send_header("ETag", self._etag)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -854,7 +862,21 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         body = (STATIC_DIR / name).read_bytes()
+        if name.startswith("fonts/"):          # 판 번호가 붙은 글꼴은 바뀌지 않으니 한 해 동안 다시 받지 않는다
+            self._send(body, STATIC_FILES[name], cache="public, max-age=31536000, immutable")
+            return
+        # 화면 파일은 매번 확인하되, 바뀌지 않았으면 본문 없이 304 로 답한다 (서버리스에서 같은 파일을 또 보내지 않게)
+        import hashlib
+        tag = '"' + hashlib.sha256(body).hexdigest()[:20] + '"'
+        if tag in (self.headers.get("If-None-Match") or ""):
+            self.send_response(304)
+            self.send_header("ETag", tag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            return
+        self._etag = tag
         self._send(body, STATIC_FILES[name], cache="no-cache")
+        self._etag = None
 
     def _lunar_year(self):
         """그해 음력 달 목록 (캘린더 선택기용). ?y=1995"""

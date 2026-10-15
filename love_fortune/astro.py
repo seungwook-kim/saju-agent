@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+from .josa import j
+
 from datetime import date, datetime
 
 from . import astronomy as A
@@ -68,13 +70,13 @@ def natal_chart(d: date, hour: int | None = 12, minute: int = 0,
     aspects = []
     keys = list(pos)
     for i in range(len(keys)):
-        for j in range(i + 1, len(keys)):
-            diff = abs(pos[keys[i]]["lon"] - pos[keys[j]]["lon"])
+        for k in range(i + 1, len(keys)):
+            diff = abs(pos[keys[i]]["lon"] - pos[keys[k]]["lon"])
             diff = min(diff, 360.0 - diff)
             for ang, name, orb in ASPECTS:
                 if abs(diff - ang) <= orb:
                     aspects.append(
-                        f"{BODY_KR[keys[i]]}–{BODY_KR[keys[j]]} {name}"
+                        f"{BODY_KR[keys[i]]}–{BODY_KR[keys[k]]} {name}"
                         f"({diff:.1f}°)")
                     break
     return {"positions": pos, "houses": houses, "aspects": aspects,
@@ -121,7 +123,7 @@ def astro_chart(birth: date, hour: int, target: date,
     asc = natal["asc"]["sign"]
     t_sun = natal_chart(target, 12, 0, city)["positions"]["sun"]["sign"]
     line = compat_line(SIGN_ELEMENT[venus], SIGN_ELEMENT[t_sun])
-    cusp_notes = [f"{BODY_KR[b]}이 {p['sign']} 끝자락(경계 부근)"
+    cusp_notes = [f"{j(BODY_KR[b], '이')} {p['sign']} 끝자락(경계 부근)"
                   for b, p in natal["positions"].items() if p["cusp"]]
     retro_notes = [f"{BODY_KR[b]} 역행" for b, p in natal["positions"].items()
                    if p["retro"]]
@@ -139,6 +141,6 @@ def astro_chart(birth: date, hour: int, target: date,
         "cusp_notes": cusp_notes, "retro_notes": retro_notes,
         "positions": natal["positions"],
         "today_sun": t_sun,
-        "compat_line": (f"내 금성 {venus}와 오늘 태양 {t_sun}은 {line}"),
+        "compat_line": (f"내 금성 {j(venus, '와')} 오늘 태양 {j(t_sun, '은')} {line}"),
         "city_ok": natal["city_ok"],
     }

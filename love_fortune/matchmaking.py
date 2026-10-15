@@ -77,7 +77,7 @@ def compatibility(a_birth: date, a_hour: int, a_minute: int, a_sex: str,
     # 1. 일간 천간합·극
     if {sa, sb} in STEM_HAP:
         score += 8
-        plus.append(f"두 일간 {STEMS_KR[sa]}·{STEMS_KR[sb]}은 서로 합이 드는 짝이라 끌어당기기 쉬운 흐름")
+        plus.append(f"두 일간 {j(STEMS_KR[sa] + '·' + STEMS_KR[sb], '은')} 서로 합이 드는 짝이라 끌어당기기 쉬운 흐름")
     elif STEM_ELEMENT[sa] != STEM_ELEMENT[sb]:
         from .rules import GEUK
         if GEUK[ea] == eb or GEUK[eb] == ea:
@@ -88,13 +88,13 @@ def compatibility(a_birth: date, a_hour: int, a_minute: int, a_sex: str,
     for r in branch_relation(dba, dbb):
         if "육합" in r or "삼합" in r:
             score += 8
-            plus.append(f"두 일지 {BRANCHES_KR[dba]}·{BRANCHES_KR[dbb]}는 손잡는 합이라 생활 리듬이 맞기 쉬운 흐름")
+            plus.append(f"두 일지 {j(BRANCHES_KR[dba] + '·' + BRANCHES_KR[dbb], '는')} 손잡는 합이라 생활 리듬이 맞기 쉬운 흐름")
         elif "육충" in r:
             score -= 8
-            minus.append(f"두 일지 {BRANCHES_KR[dba]}·{BRANCHES_KR[dbb]}는 정면으로 부딪치는 자리라 부딪힐 땐 쉬어가면 좋은 흐름")
+            minus.append(f"두 일지 {j(BRANCHES_KR[dba] + '·' + BRANCHES_KR[dbb], '는')} 정면으로 부딪치는 자리라 부딪힐 땐 쉬어가면 좋은 흐름")
         else:
             score -= 3
-            minus.append(f"두 일지 {BRANCHES_KR[dba]}·{BRANCHES_KR[dbb]}는 {_rel_text([r])} 관계라 사소한 것은 바로 풀면 좋은 흐름")
+            minus.append(f"두 일지 {j(BRANCHES_KR[dba] + '·' + BRANCHES_KR[dbb], '는')} {_rel_text([r])} 관계라 사소한 것은 바로 풀면 좋은 흐름")
 
     # 3. 띠 궁합
     trio_hit = any(yba in t and ybb in t for t in TRIOS)
@@ -178,11 +178,11 @@ def compatibility(a_birth: date, a_hour: int, a_minute: int, a_sex: str,
                 if aname in ("합", "삼합", "육합") and syn_plus < 2:
                     score += 3
                     syn_plus += 1
-                    syn_lines.append(f"내 {na_}와 상대 {nb_}가 {aname}이라 통하기 쉬운 지점이 있어")
+                    syn_lines.append(f"내 {j(na_, '와')} 상대 {j(nb_, '가')} {j(aname, '이라')} 통하기 쉬운 지점이 있어")
                 elif aname in ("충", "형") and syn_minus < 2:
                     score -= 2
                     syn_minus += 1
-                    syn_lines.append(f"내 {na_}와 상대 {nb_}가 {aname}이라 삐걱일 땐 쉬어가면 좋아")
+                    syn_lines.append(f"내 {j(na_, '와')} 상대 {j(nb_, '가')} {j(aname, '이라')} 삐걱일 땐 쉬어가면 좋아")
                 break
     plus.extend(syn_lines)
 

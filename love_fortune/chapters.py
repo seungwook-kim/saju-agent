@@ -374,6 +374,69 @@ def ground(body: dict, facts_part: dict) -> dict:
     return out
 
 
+# ---------------------------------------------------------------- 용어 풀이 한 번만
+
+_GLOSS = re.compile(r"([가-힣]+)\(([^()]{3,60})\)")
+_SOE = re.compile(r"'쇠'(?!\s*\(| 단계)")
+SOE_GLOSS = "'쇠'(기운이 한풀 꺾이는 단계)"
+
+
+def _known_terms() -> set[str]:
+    from .glossary import TERMS
+    return set(TERMS) | set(DOMAIN_TERMS) | {t[:-1] for t in TERMS if t.endswith("궁") and len(t) > 2}
+
+
+def gloss_once(body: dict) -> dict:
+    """한 장 안에서 같은 용어 풀이 괄호는 처음 한 번만 남긴다 (2026-10 새 디자인).
+
+    화면은 괄호를 옅은 글자로 칠할 뿐이라 같은 풀이가 되풀이되면 문장이 자꾸 끊긴다.
+    - 풀이집에 있는 용어(부처궁·도화 등)는 두 번째부터 괄호를 뗀다.
+    - 그 밖의 말은 같은 말·같은 풀이가 또 나올 때만 뗀다.
+    - 숫자가 든 괄호(오차, 나이)와 두 글자 이하 괄호(간지)는 풀이가 아니라 값이라 그대로 둔다.
+    십이운성 '쇠'는 오행의 쇠(금)와 헷갈려서, 장에서 처음 나올 때 단계라는 풀이를 붙인다.
+    저장된 AI 풀이에도 꺼낼 때마다 적용한다 (저장 키·저장 내용은 그대로).
+    """
+    known = _known_terms()
+    seen_word: set[str] = set()
+    seen_pair: set[tuple[str, str]] = set()
+    soe = [False]
+
+    def fix(s):
+        if not isinstance(s, str) or not s:
+            return s
+        if not soe[0] and _SOE.search(s):
+            s = _SOE.sub(SOE_GLOSS, s, count=1)
+            soe[0] = True
+
+        def one(m):
+            word, inner = m.group(1), m.group(2)
+            if re.search(r"\d", inner):
+                return m.group(0)
+            if (word in known and word in seen_word) or (word, inner) in seen_pair:
+                return word
+            seen_word.add(word)
+            seen_pair.add((word, inner))
+            return m.group(0)
+        return _GLOSS.sub(one, s)
+
+    out = dict(body)
+    out["headline"] = fix(body.get("headline", ""))
+    out["lead"] = fix(body.get("lead", ""))
+    blocks = []
+    for b in body.get("blocks", []):
+        b = dict(b)
+        b["title"] = fix(b.get("title", ""))
+        if "body" in b:
+            b["body"] = fix(b["body"])
+        if "items" in b:
+            b["items"] = [fix(x) if isinstance(x, str) else dict(x, title=fix(x.get("title", "")), body=fix(x.get("body", "")))
+                          for x in b["items"]]
+        blocks.append(b)
+    out["blocks"] = blocks
+    out["closing"] = fix(body.get("closing", ""))
+    return out
+
+
 def normalize(obj: dict) -> dict:
     """AI 답을 화면이 기대하는 모양으로 정리한다. 모양이 틀리면 ValueError."""
     blocks = []
@@ -406,7 +469,7 @@ def normalize(obj: dict) -> dict:
 def rule_chapter(tab: str, chapter: str, facts: dict) -> dict:
     """AI 없이 계산 결과로 쓴 챕터 (같은 블록 모양, 바로 만들어진다)."""
     spec(tab, chapter)
-    body = rule_chapters.build(tab, chapter, facts)
+    body = gloss_once(rule_chapters.build(tab, chapter, facts))
     body["source"] = "rule"
     return body
 
@@ -426,7 +489,7 @@ def generate(tab: str, chapter: str, facts: dict, use_ai: bool = True) -> dict:
     key = cache_key(tab, chapter, part)
     hit = content_store.get_chapter(key)
     if hit:
-        body = ground(hit, part)
+        body = gloss_once(ground(hit, part))
         if len(body["blocks"]) >= 2:
             return body
         return rule_chapter(tab, chapter, facts)
@@ -439,7 +502,7 @@ def generate(tab: str, chapter: str, facts: dict, use_ai: bool = True) -> dict:
                 body = normalize(ai.run_json(SYSTEM, prompt, name="chapter",
                                              meta={"tab": tab, "chapter": chapter, "prompt_version": PROMPT_VERSION}))
                 content_store.put_chapter(key, tab, chapter, "ai", body)
-                body = ground(body, part)
+                body = gloss_once(ground(body, part))
                 if len(body["blocks"]) < 2:
                     raise ValueError("근거 없는 문장을 빼고 나니 남는 게 없어")
                 body["source"] = "ai"

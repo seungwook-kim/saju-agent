@@ -453,7 +453,9 @@ def test_ask_panel_floats_on_the_right():
     css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
     assert 'id="askFab"' in html and 'id="askPanel"' in html and 'id="chatForm"' in html
     assert "chatCard" not in js and "function openAsk" in js and "closeAsk();" in js
-    assert ".ask-fab{position:fixed" in css and "#askPanel{position:fixed" in css
+    assert ".bbar{position:fixed" in css and "#askPanel{position:fixed" in css     # 물어보기는 아래 고정 바에 있다
+    a, b = html.index('class="bbar"'), html.index('</section>', html.index('class="bbar"'))
+    assert 'id="askFab"' in html[a:b] and 'id="btnShare"' in html[a:b]
 
 
 def test_ask_panel_mobile_fit():
@@ -462,7 +464,9 @@ def test_ask_panel_mobile_fit():
     js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
     assert "visualViewport.addEventListener('resize',fitAsk)" in js and "if(!NARROW.matches)" in js
-    assert "82dvh" in css and "safe-area-inset-bottom" in css and "#result #page{padding-bottom:76px}" in css
+    assert "88dvh" in css and "safe-area-inset-bottom" in css
+    assert "#result #page{padding-bottom:calc(var(--bb) + env(safe-area-inset-bottom) + 24px)}" in css   # 아래 바가 내용을 가리지 않게
+    assert "@media (max-height:480px){.bbar{position:static" in css                                    # 낮은 화면에서는 바를 풀어 둔다
 
 
 def test_rate_limit_chat(server, monkeypatch):

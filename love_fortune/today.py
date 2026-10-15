@@ -61,7 +61,8 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
     lines, tags = [], []                     # tags: 줄마다 어느 영역 몫인지 (all = 모든 영역 공통)
     stage = STAGE_NAMES[TWELVE_STAGES[ds].index(tb)]
     pts["all"] += STAGE_POINTS[stage]
-    stage_q = j(f"'{stage}'", "야")          # '절'이야 / '묘'야 (따옴표 안 글자로 받침을 본다)
+    # '절'이야 / '묘'야 (따옴표 안 글자로 받침을 본다). '쇠'는 오행의 쇠(금)와 헷갈려서 단계라는 풀이를 붙인다
+    stage_q = j("'쇠'(기운이 한풀 꺾이는 단계)" if stage == "쇠" else f"'{stage}'", "야")
     lines.append(f"오늘 일진({STEMS_KR[ts]}{BRANCHES_KR[tb]})에서 내 일간 {STEMS_KR[ds]}의 기운 단계"
                  f"(십이운성)는 {stage_q}. {STAGE_TALK[stage]}이라 "
                  + ("힘 있게 움직이기 좋은 날" if STAGE_POINTS[stage] > 0 else
@@ -167,7 +168,7 @@ def _almanac(today: date, birth: date, sex: str, branches: list[int]) -> dict:
     if info["son_eomneun"]:
         extra.append("손 없는 날(이사·개업을 많이 잡는 날)")
     if info["wolgi"]:
-        extra.append("월기일(음력 5·14·23일, 이사·혼례를 꺼리는 날)")
+        extra.append("월기일(이사·혼례를 꺼리는 날)")
     extra.append(f"{info['clash_animal']}띠와 부딪치는 날")
     lines.append("오늘 달력: " + ", ".join(extra) + ".")
     return {"name": "택일", "points": pts, "lines": lines + why[:1], "info": info}
@@ -201,7 +202,7 @@ def layers(birth: date, hour: int | None, minute: int, sex: str, city: str,
     elif bads and not goods:
         agree = f"{', '.join(bads)} 쪽에서 조심 신호가 오고 나머지는 잔잔한 날이야. 그 부분만 한 번 더 살피면 돼."
     elif goods and bads:
-        agree = (f"체계마다 신호가 엇갈리는 날이야 ({', '.join(goods)}는 좋음, {', '.join(bads)}는 조심). "
+        agree = (f"체계마다 신호가 엇갈리는 날이야 ({j(', '.join(goods), '는')} 좋음, {j(', '.join(bads), '는')} 조심). "
                  "좋은 쪽은 살리고 조심할 쪽은 한 번 더 확인하면 좋아.")
     else:
         agree = "세 체계 모두 특별히 치우치지 않은 잔잔한 날이야. 평소 리듬을 지키면 돼."

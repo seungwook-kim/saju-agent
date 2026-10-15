@@ -17,7 +17,7 @@ CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-INSERT INTO meta VALUES ('schema_version', '1');
+INSERT INTO meta VALUES ('schema_version', '2');
 INSERT INTO meta VALUES ('description', '종합 사주 해석 데이터 (택일·생기복덕·점성 트랜짓)');
 
 -- 데이터 출처와 검증 방법
@@ -99,7 +99,7 @@ INSERT INTO saenggi VALUES
  ('천의', 1, '길', '하늘이 돕는 날, 몸을 돌보는 일에 좋다고 본다'),
  ('절체', 2, '보통', '기운이 한풀 꺾이는 날'),
  ('유혼', 3, '보통', '마음이 들떠 떠도는 날'),
- ('화해', 4, '흉', '탈과 해가 끼기 쉬운 날'),
+ ('화해', 4, '흉', '탈과 해(뜻밖의 사고와 손해)가 끼기 쉬운 날'),
  ('복덕', 5, '길', '복과 덕이 따르는 날'),
  ('절명', 6, '흉', '기운이 끊기기 쉬운 날'),
  ('귀혼', 7, '보통', '제자리로 돌아오는 날');

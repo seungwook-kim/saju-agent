@@ -52,6 +52,43 @@ def today_domain(ma: dict, dom: str) -> dict:
             "tips": list(d.get("tips") or []), "avoid": d.get("avoid") or ""}
 
 
+def today_todo(domains: dict, almanac_info: dict) -> dict:
+    """총운에 보여 줄 '오늘 할 일·피할 일' 한 줄씩. 사실표에 이미 있는 문장만 고른다 (지어내지 않는다).
+
+    do: 팁이 있는 영역 중 점수가 가장 높은 영역의 첫 팁. avoid: 피할 것이 있는 영역 중 점수가 가장 낮은 영역의 것,
+    없으면 택일 달력의 조심 신호(생기복덕 꺼리는 날, 내 사주와 충, 월기일) 문구. 같은 점수는 연애·직장·금전 순.
+    없으면 빈 문자열.
+    """
+    order = ("love", "career", "money")
+    with_tips = [k for k in order if domains[k].get("tips")]
+    do_dom = max(with_tips, key=lambda k: (domains[k]["score"], -order.index(k))) if with_tips else ""
+    with_avoid = [k for k in order if domains[k].get("avoid")]
+    if with_avoid:
+        av_dom = min(with_avoid, key=lambda k: (domains[k]["score"], order.index(k)))
+        avoid = domains[av_dom]["avoid"]
+    else:
+        av_dom, avoid = "almanac", _almanac_caution(almanac_info)
+        if not avoid:
+            av_dom = ""
+    return {"do": domains[do_dom]["tips"][0] if do_dom else "", "do_domain": do_dom,
+            "avoid": avoid, "avoid_domain": av_dom}
+
+
+def _almanac_caution(info: dict) -> str:
+    """택일 달력이 그날 조심하라고 한 것 (today._almanac 이 이미 보여 주는 값에서만)."""
+    from . import almanac, store
+    from .josa import j
+    sg = info.get("saenggi")
+    if sg in almanac.SAENGGI_BAD:
+        meaning = store.by_key("saenggi")[sg]["meaning"]
+        return j(meaning, "이야")
+    if info.get("clash_me"):
+        return f"오늘 일진이 내 사주의 {j(', '.join(info['clash_me']), '와')} 정면으로 부딪치는(충) 날이야"
+    if info.get("wolgi"):
+        return "월기일(이사·혼례를 꺼리는 날)이야"
+    return ""
+
+
 def _wheel(birth: date, hour: int | None, minute: int, city: str) -> dict:
     """출생 차트 원 그림용: 행성 황경·역행, 상승점 황경(시간 미상이면 None), 각도 관계."""
     from .astro import ASPECTS, BODY_KR, natal_chart
@@ -210,7 +247,11 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
             "years": [y["line"] for y in ma["lifetime"]["years"]],
         },
     }
-    base["natal"]["day_pillar"] = STEMS_KR[natal["ilgan_stem"]] + BRANCHES_KR[natal["day_branch"]]
+    # 화면 전용 칸 (2026-10 새 디자인). 챕터 AI 의 pick 에 넣지 않는다: 넣으면 저장된 AI 풀이의 키가 바뀐다
+    from .astronomy import season_term
+    base["today"]["term"] = season_term(target)
+    base["today"]["todo"] = today_todo(base["today"]["domains"], ma["today"]["almanac"]["info"])
+    base["natal"]["day_pillar"] =STEMS_KR[natal["ilgan_stem"]] + BRANCHES_KR[natal["day_branch"]]
     from .boundary import check as _boundary
     base["natal"]["boundary"] = _boundary(birth, hour, minute, city)
     from .natal_extra import ilju_card

@@ -5,6 +5,8 @@ iztro 14보조성·37잡성 해설을 토대로 보조별·궁·행성·어스�
 """
 from __future__ import annotations
 
+from .josa import j
+
 
 def _eun(word: str) -> str:
     return "은" if (ord(word[-1]) - 0xAC00) % 28 != 0 else "는"
@@ -195,9 +197,9 @@ def ziwei_puli(ma: dict) -> list[str]:
                f"{ming_seat_text(zw)} "
                f"{STAR_TALK.get(zw['ming_main'], '자기 자리를 지키는 별이야')} "
                f"신궁({zw['shengong']})은 중년 이후 겉모습을 보는 자리야.")
-    peach = f" 여기에 도화성 {', '.join(zw['peach'])}이 함께 있어 설렘이 엮이기 쉬워." \
+    peach = f" 여기에 도화성 {j(', '.join(zw['peach']), '이')} 함께 있어 설렘이 엮이기 쉬워." \
         if zw["peach"] else ""
-    out.append(f"배우자를 보는 부처궁에는 {zw['spouse_main']}이 앉아 있어. "
+    out.append(f"배우자를 보는 부처궁에는 {j(zw['spouse_main'], '이')} 앉아 있어. "
                f"{STAR_TALK.get(zw['spouse_main'], '자기 색이 분명한 별이야')}{peach}")
     for hua, star in (("록", zw["sihua"]["록"]), ("권", zw["sihua"]["권"]),
                       ("과", zw["sihua"]["과"]), ("기", zw["sihua"]["기"])):
@@ -207,13 +209,13 @@ def ziwei_puli(ma: dict) -> list[str]:
     cur = next((p for p in zw["palaces"]
                 if p["daxian"] and p["daxian"][0] <= zw["xusui"] <= p["daxian"][1]), None)
     if cur:
-        seat = (f"이 궁에는 {', '.join(cur['stars'])}이 앉아 있어." if cur["stars"]
+        seat = (f"이 궁에는 {j(', '.join(cur['stars']), '이')} 앉아 있어." if cur["stars"]
                 else "이 궁은 별이 비어 있어서 맞은편 궁의 기운을 빌려 읽는 시기야.")
         out.append(f"지금 {zw['xusui']}세는 {cur['name']} 대운({cur['daxian'][0]}~{cur['daxian'][1]}세) "
                    f"한가운데야. {seat}")
     out.append(f"올해 유년은 {zw['liunian']['branch']} 자리({zw['liunian']['stem']}의 해)에 걸려 있어. "
                f"올해 사화는 록{zw['liunian']['sihua']['록']} 권{zw['liunian']['sihua']['권']} "
-               f"과{zw['liunian']['sihua']['과']} 기{zw['liunian']['sihua']['기']}로 돌아.")
+               f"과{zw['liunian']['sihua']['과']} 기{j(zw['liunian']['sihua']['기'], '로')} 돌아.")
     return out
 
 
@@ -245,13 +247,13 @@ def match_puli(ma: dict) -> list[str]:
     from .match import STAGE_LOVE
     out = [
         f"배우자 자리에는 '{ma['god']}' 기운이 앉아 있어. {GOD_SHORT[ma['god']]}. {ma['side']}",
-        f"태어난 날의 기운 단계는 '{ma['stage']}'이야. {STAGE_LOVE[ma['stage']]}",
+        f"태어난 날의 기운 단계는 {j(chr(39) + ma['stage'] + chr(39), '이야')}. {STAGE_LOVE[ma['stage']]}",
         ("시간 미상이라 부처궁 주성 풀이는 제외."
          if ma.get("hour_unknown") else
-         f"부처궁 주성 {ma['ziwei_main']}은 {STAR_TALK.get(ma['ziwei_main'], '자기 색이 분명한 별이야')}"),
+         f"부처궁 주성 {ma['ziwei_main']}{_eun(ma['ziwei_main'])} {STAR_TALK.get(ma['ziwei_main'], '자기 색이 분명한 별이야')}"),
         f"금성(사랑과 취향)은 {ma['venus']}, 달(감정)은 {ma['moon']}에 머물러. "
         f"{ma['venus_detail']['style']} {ma['moon_need']}",
-        f"만나기 쉬운 자리는 {', '.join(ma['meet_top3'])}이야.",
+        f"만나기 쉬운 자리는 {j(', '.join(ma['meet_top3']), '이야')}.",
     ]
     if ma["dohwa_lines"]:
         out.append("도화 기운으로 " + " 그리고 ".join(ma["dohwa_lines"]))
@@ -335,5 +337,5 @@ def ming_seat_text(zw: dict) -> str:
     """명궁에 앉은 주성을 말로. 무주성이면 맞은편 궁에서 빌려 온 별로 읽는다."""
     if zw.get("ming_borrowed"):
         return (f"나를 보는 명궁({zw['mingong']} 자리)은 주성이 비어 있는 무주성이라, "
-                f"맞은편 천이궁의 {zw['ming_borrowed']}을 빌려 읽어.")
-    return f"나를 보는 명궁({zw['mingong']} 자리)에는 {zw['ming_main']}이 앉아 있어."
+                f"맞은편 천이궁의 {j(zw['ming_borrowed'], '을')} 빌려 읽어.")
+    return f"나를 보는 명궁({zw['mingong']} 자리)에는 {j(zw['ming_main'], '이')} 앉아 있어."

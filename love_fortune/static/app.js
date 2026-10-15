@@ -9,10 +9,20 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 const pad=n=>String(n).padStart(2,'0');
 
 const TAB_ORDER=['today','love','career','money','newyear','life','past','when','match','pick','name'];
-const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',newyear:'신년',life:'평생',past:'되짚기',when:'시간 찾기',match:'궁합',pick:'길일',name:'이름'};
+const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',newyear:'신년',life:'평생',past:'되짚기',when:'시간 찾기',match:'궁합',pick:'길일',name:'이름 풀이'};
+// 탭 네 묶음 (2026-10 디자인 회의): 위 줄은 묶음, 아래 줄은 묶음 안의 탭. 탭 열한 개(TAB_ORDER)는 그대로 둔다.
+const GROUPS=[['오늘',['today','love','career','money']],['흐름',['newyear','life','past']],['둘이서',['match']],['고르기',['when','pick','name']]];
 const EL_STEM={갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'금',신:'금',임:'수',계:'수'};
 const EL_BRANCH={자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'};
+const EL_WORD={목:'나무',화:'불',토:'흙',금:'쇠',수:'물'};
+const EL_THEME={목:'wood',화:'fire',토:'earth',금:'metal',수:'water'};
 const TAG_CLASS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
+const WEEK=['일','월','화','수','목','금','토'];
+const ICON={
+  down:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>',
+  chat:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14v10H10l-4 4v-4H5z"></path></svg>',
+  doc:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5z"></path><path d="M9 9h6M9 13h6M9 17h3"></path></svg>',
+  lock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:3px"><rect x="5" y="11" width="14" height="9" rx="1"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>'};
 
 const S={token:'',facts:null,outline:null,rules:{},ai:false,tab:'today',
   chapters:{},chat:[],queue:[],running:0,inflight:new Set()};
@@ -29,6 +39,7 @@ async function postJSON(url,obj){
 
 // ---------------- 입력 → 결과
 
+const GO_LABEL='나의 네 개의 기둥 펼쳐 보기';
 $('fMain').addEventListener('submit',async e=>{
   e.preventDefault();
   const form=e.target,btn=form.querySelector('.go');
@@ -36,6 +47,7 @@ $('fMain').addEventListener('submit',async e=>{
   const remember=q.remember==='1',nick=String(q.nick||'').trim().slice(0,12)||'나';
   delete q.remember;delete q.nick;                   // 기억용 칸은 서버에 보내지 않는다
   if(!q.birth){$('homeErr').innerHTML='<div class="err">생년월일을 골라 줘.</div>';return;}
+  if(!q.sex){$('homeErr').innerHTML='<div class="err">성별을 골라 줘.</div>';return;}
   btn.disabled=true;btn.textContent='계산하는 중...';$('homeErr').innerHTML='';
   try{
     const j=await postJSON('/api/v2/report',q);
@@ -47,85 +59,226 @@ $('fMain').addEventListener('submit',async e=>{
     showResult();
   }catch(err){
     $('homeErr').innerHTML='<div class="err">'+esc(err.message)+'</div>';
-  }finally{btn.disabled=false;btn.textContent='내 사주 펼쳐 보기';}
+  }finally{btn.disabled=false;btn.textContent=GO_LABEL;}
 });
 $('btnBack').addEventListener('click',()=>{
   S.queue=[];renderPeople();closeAsk();
   $('result').classList.remove('on');$('home').classList.add('on');
-  document.body.dataset.theme='rose';window.scrollTo(0,0);
+  document.body.dataset.theme='ink';window.scrollTo(0,0);
 });
 
-// 상단 묶음 높이 (스크롤해도 붙어 있는 탭 줄 아래로 다른 붙는 요소를 놓기 위해)
-function rheadHeight(){const r=$('rhead');if(r) document.documentElement.style.setProperty('--rhead-h',r.offsetHeight+'px');}
+// 입력 화면 미리 보기: 고른 값을 네 칸에 채운다 (이 화면 메모리에서만, 서버로 보내지 않는다)
+function pvRefresh(){
+  const f=$('fMain');if(!f) return;
+  const v=f.querySelector('[name="birth"]').value,leap=f.querySelector('[name="leap"]').value==='1';
+  const unk=f.querySelector('[name="unknown_time"]').checked,t=f.querySelector('[name="birth_time"]').value;
+  const p=v?v.split('-').map(Number):null;
+  let hour='';
+  if(unk) hour='모름';
+  else if(t&&p){const [h,m]=t.split(':').map(Number);hour=(h<12?'오전 ':'오후 ')+((h%12)||12)+(m?':'+pad(m):'시');}
+  const val={year:p?p[0]+'년':'',month:p?(leap?'윤':'')+p[1]+'월':'',day:p?p[2]+'일':'',hour};
+  document.querySelectorAll('[data-pv]').forEach(c=>{const x=val[c.dataset.pv];c.classList.toggle('on',!!x);c.querySelector('b').textContent=x;});
+}
+function moreRefresh(){
+  const f=$('fMain');if(!f||!$('moreSum')) return;
+  const cal=f.querySelector('[name="calendar"]').value==='lunar'?'음력':'양력';
+  const city=f.querySelector('[name="city"]').value.trim()||'서울';
+  const zi=f.querySelector('[name="zi"]').value==='split'?'밤 11시 넘어도 그날로 보기':'밤 11시 넘으면 다음 날로 보기';
+  $('moreSum').textContent=cal+', '+city+', '+zi;
+}
+$('fMain').addEventListener('input',()=>{pvRefresh();moreRefresh();});
+$('fMain').addEventListener('change',()=>{pvRefresh();moreRefresh();});
+
+// 상단 묶음 높이 (스크롤해도 붙어 있는 탭 줄 아래로 다른 붙는 요소를 놓기 위해). 맨 위 줄은 스크롤하면 사라진다
+function rheadHeight(){
+  const r=$('rhead');if(!r) return;
+  const top=r.querySelector('.topbar');
+  document.documentElement.style.setProperty('--top-h',(top?top.offsetHeight:48)+'px');
+  document.documentElement.style.setProperty('--rhead-h',(r.offsetHeight-(top?top.offsetHeight:0))+'px');
+}
 window.addEventListener('resize',rheadHeight);
+function applyTheme(){document.body.dataset.theme=EL_THEME[(S.facts&&S.facts.natal.ilgan_element)||'']||'ink';}
+function groupOf(tab){return GROUPS.find(g=>g[1].includes(tab))||GROUPS[0];}
 function showResult(){
   $('askFab').hidden=!S.chatOn;if(!S.chatOn) closeAsk();     // 공개 서버에서는 채팅을 잠시 막아 둔다
-  setTimeout(rheadHeight,0);
-  loadGloss().then(()=>{if(S.tab&&S.outline[S.tab]) openTab(S.tab);});
+  askLabel();
   $('home').classList.remove('on');$('result').classList.add('on');
-  $('tabs').innerHTML=TAB_ORDER.map(t=>'<button class="tab" type="button" data-tab="'+t+'">'+TAB_NAME[t]+'</button>').join('');
-  tabEdges();
+  applyTheme();
+  $('groups').innerHTML=GROUPS.map(([g,tabs])=>'<button class="grp" type="button" data-tab="'+tabs[0]+'" data-grp="'+g+'">'+g+'</button>').join('');
   openTab('today');
+  setTimeout(rheadHeight,0);
 }
-// 탭 줄은 가로로 넘긴다. 예전엔 숨은 가로 스크롤이라 PC에서 뒤쪽 탭에 닿을 수 없었다.
-// 그래서 스크롤바를 보이게 두고, 좌우 화살표·마우스 휠·끌기로도 넘기고, 고른 탭은 가운데로 옮긴다.
-function tabEdges(){
-  const t=$('tabs');if(!t) return;
-  $('tabL').classList.toggle('on',t.scrollLeft>4);
-  $('tabR').classList.toggle('on',t.scrollLeft+t.clientWidth<t.scrollWidth-4);
-}
-function centerTab(){
-  const t=$('tabs'),b=t&&t.querySelector('.tab.on');if(!b) return;
-  t.scrollTo({left:b.offsetLeft-t.clientWidth/2+b.offsetWidth/2,behavior:'smooth'});
-  setTimeout(tabEdges,450);            // 부드러운 스크롤이 끝난 뒤 화살표를 다시 맞춘다
-}
-$('tabs').addEventListener('scroll',tabEdges,{passive:true});
-$('tabs').addEventListener('scrollend',tabEdges);
-window.addEventListener('resize',tabEdges);
-$('tabL').addEventListener('click',()=>$('tabs').scrollBy({left:-$('tabs').clientWidth*0.7,behavior:'smooth'}));
-$('tabR').addEventListener('click',()=>$('tabs').scrollBy({left:$('tabs').clientWidth*0.7,behavior:'smooth'}));
-$('tabs').addEventListener('wheel',e=>{            // 세로 휠을 가로 이동으로
+function drawTabs(tab){
+  const [g,tabs]=groupOf(tab);
+  document.querySelectorAll('.grp').forEach(b=>{const on=b.dataset.grp===g;b.classList.toggle('on',on);if(on) b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   const t=$('tabs');
-  if(t.scrollWidth<=t.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY)) return;
-  t.scrollLeft+=e.deltaY;e.preventDefault();
-},{passive:false});
-(function dragScroll(){                               // 마우스로 끌어서 넘기기 (조금 움직이면 클릭은 막는다)
-  const t=$('tabs');let x0=0,s0=0,down=false,moved=false;
-  t.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse') return;down=true;moved=false;x0=e.clientX;s0=t.scrollLeft;});
-  window.addEventListener('pointermove',e=>{if(!down) return;const dx=e.clientX-x0;if(Math.abs(dx)>5){moved=true;t.scrollLeft=s0-dx;}});
-  window.addEventListener('pointerup',()=>{down=false;});
-  t.addEventListener('click',e=>{if(moved){e.stopPropagation();e.preventDefault();moved=false;}},true);
-})();
-$('tabs').addEventListener('click',e=>{
+  t.classList.toggle('one',tabs.length<2);
+  t.innerHTML=tabs.map(x=>'<button class="tab'+(x===tab?' on':'')+'" type="button" role="tab" aria-selected="'+(x===tab)+'" data-tab="'+x+'">'+TAB_NAME[x]+'</button>').join('');
+  setTimeout(rheadHeight,0);
+}
+$('rhead').addEventListener('click',e=>{
   const b=e.target.closest('[data-tab]');if(b) openTab(b.dataset.tab);
 });
 
+// ---------------- 결과 첫머리 (오늘 묶음): 날짜·절기 → 오늘 한 줄 → 해 볼 것/조심할 것 → 도장 → 점수 붓 획 → 명식 띠
+// 받침에 맞는 조사 (받침 있으면 a, 없으면 b)
+function jo(w,a,b){const c=String(w||'').slice(-1).charCodeAt(0);return c>=0xAC00&&c<=0xD7A3&&(c-0xAC00)%28?a:b;}
+function mdDay(iso){const d=new Date(iso+'T00:00:00');return (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WEEK[d.getDay()]+'요일';}
+function termText(t,target){
+  if(!t||!t.name) return '';
+  return t.name+(t.date===target?' 들어옴':' 지나');
+}
+function dateLine(short){
+  const f=S.facts,t=f.today,parts=[mdDay(f.meta.target)];
+  const term=termText(t.term,f.meta.target);
+  const lunar=((t.almanac||[])[0]||'').match(/음력 [^·]+?일/);
+  return parts[0]+(term?', '+term:'')+(lunar&&!short?' · '+lunar[0]:'');
+}
+// 붓 획 점수: 빈 자리 1px, 6px 에서 3px 로 가늘어지는 획, 끝은 자른다. 50 자리에 눈금. 모양은 점수만으로 정해진다
+function brushRow(label,v){
+  const s=Math.max(0,Math.min(100,+v||0));
+  return '<div class="brow"><span>'+esc(label)+'</span><svg aria-hidden="true" width="100%" height="12" viewBox="0 0 100 12" preserveAspectRatio="none">'+
+    '<line x1="0" y1="6" x2="100" y2="6" stroke="#8C857B" stroke-width="1" vector-effect="non-scaling-stroke"></line>'+
+    '<line x1="50" y1="8.5" x2="50" y2="12" stroke="#5E5850" stroke-width="1" vector-effect="non-scaling-stroke"></line>'+
+    (s?'<path d="M1.4,3 L'+s+',4.5 L'+s+',7.5 L1.4,9 Q0,6 1.4,3 Z" fill="#2A2723"></path>':'')+'</svg><span class="v">'+esc(v)+'</span></div>';
+}
+function brush(rows){
+  return '<section class="brush" aria-label="영역별 오늘 점수, 100 중">'+rows.map(([k,v])=>brushRow(k,v)).join('')+
+    '<div class="bscale" aria-hidden="true"><span></span><span><i>보통</i></span><span></span></div></section>';
+}
+function meRow(score,label){
+  const n=S.facts.natal,el=n.ilgan_element,first=String(n.character||'').split('. ')[0];
+  return '<section class="me-row" aria-label="나를 나타내는 글자와 점수"><div class="seal" role="img" aria-label="도장: '+esc(n.ilgan+el)+'">'+esc(n.ilgan+el)+'</div>'+
+    '<div class="who"><small>태어난 날의 글자, '+esc(EL_WORD[el]||'')+' 기운</small><span>'+esc(n.ilgan+el)+', '+esc(first?first.replace(/\.?$/,'.'):'')+'</span></div>'+
+    (score!=null?'<div class="total"><small>'+esc(label)+'</small><span class="n"><i>100 중</i><b>'+esc(score)+'</b></span></div>':'')+'</section>';
+}
+function todoList(doTxt,doDom,avoid){
+  if(!doTxt&&!avoid) return '';
+  return '<dl class="todo">'+(doTxt?'<dt>해 볼 것</dt><dd>'+esc(doTxt)+(doDom?' <span class="dom">· '+esc(DOM_WORD[doDom]||'')+'</span>':'')+'</dd>':'')+
+    (avoid?'<dt class="warn">조심할 것</dt><dd>'+esc(avoid)+'</dd>':'')+'</dl>';
+}
+// 명식 띠: 오른쪽부터 해·달·날·시. 위(하늘)는 천간 먹, 아래(땅)는 지지 흐린 먹, 오행 글자는 제 색
+function band(n,opts){
+  opts=opts||{};
+  const lab={hour:'태어난 시',day:'태어난 날, 나',month:'태어난 달',year:'태어난 해'};
+  const gz=(ch,el,cls)=>'<span class="gz'+cls+'"><b>'+esc(ch)+'</b><i class="el-'+el+'">'+EL_WORD[el]+'</i></span>';
+  const cols=['hour','day','month','year'].map(k=>{
+    const p=n.pillars.find(x=>x.key===k);
+    const body=p?gz(p.stem,EL_STEM[p.stem],'')+gz(p.branch,EL_BRANCH[p.branch],' di'):'<span class="gz"><span class="unk">모름</span></span><span class="gz"></span>';
+    return '<div class="pil'+(k==='day'?' me':'')+'"><small>'+lab[k]+'</small>'+body+'</div>';
+  }).join('');
+  let h='<section class="band hanji" aria-label="나의 네 기둥">'+(opts.head?'<div class="band-h"><h2>나의 네 기둥</h2><span>오른쪽부터 해, 달, 날, 시</span></div>':'')+
+    '<div class="band-g"><div class="band-side" aria-hidden="true"><span>하늘</span><span>땅</span></div>'+cols+'</div>';
+  if(opts.counts){
+    const c=n.elements||{},max=Math.max(...['목','화','토','금','수'].map(e=>c[e]||0));
+    h+='<div class="band-n" aria-label="여덟 글자의 다섯 기운 개수">'+['목','화','토','금','수'].map(e=>'<div'+(max&&c[e]===max?' style="border-bottom-color:currentColor" class="el-'+e+'"':'')+'><span class="el-'+e+'">'+EL_WORD[e]+'</span><b>'+(c[e]||0)+'</b></div>').join('')+'</div>';
+    const most=['목','화','토','금','수'].filter(e=>max&&c[e]===max),none=['목','화','토','금','수'].filter(e=>!c[e]);
+    const mw=most.map(e=>EL_WORD[e]).join('·'),nw=none.map(e=>EL_WORD[e]).join('·');
+    h+='<p class="band-note">여덟 글자 가운데 '+mw+jo(mw,'이','가')+' '+max+'개로 가장 많'+(none.length?'고 '+nw+jo(nw,'은','는')+' 없어':'아')+'.'+
+      (n.strength?' 사주 전체로 보면 '+esc(n.strength)+jo(n.strength,'이야','야')+'.':'')+'</p>';
+  }
+  const bd=(n.boundary||{}).items||[];
+  if(bd.length) h+='<button type="button" class="bd-btn" id="bdChip">경계 출생: 기둥이 바뀔 수 있어</button><div class="card bd-card" id="bdCard" hidden>'+
+    bd.map(i=>'<p>'+esc(i.text)+'</p>').join('')+'<p class="fine">'+esc(n.boundary.note||'')+'</p></div>';
+  return h+'</section>';
+}
+function todayTop(tab){
+  const f=S.facts,t=f.today;
+  let h='<div class="rtop"><section aria-label="오늘의 한 줄" style="display:flex;flex-direction:column;gap:6px"><p class="dateline">'+esc(dateLine())+'</p>';
+  if(tab==='today'){
+    const td=t.todo||{};
+    h+='<h1 class="oneline">'+esc(t.heads.total)+'</h1>'+todoList(td.do,td.do_domain,td.avoid)+'</section>'+
+      meRow(t.scores.total,'오늘 총운')+brush([['연애',t.scores.love],['직장',t.scores.career],['금전',t.scores.money]])+band(f.natal);
+  }else{
+    const d=t.domains[tab]||{};
+    h+='<h1 class="oneline">'+esc(d.head||'')+'</h1>'+todoList((d.tips||[])[0],'',d.avoid)+'</section>'+
+      meRow(d.score,'오늘 '+DOM_WORD[tab]);
+  }
+  return h+'</div>';
+}
+// ---------------- 흐름 · 평생 첫머리: 대운 여덟 걸음 → 앞으로 3년 → 앞으로 12개월
+const TAG_SHORT={'밀고 나갈 때':['밀고 나갈 때','t-push'],'좋은 흐름':['좋은 흐름','t-good'],'무난한 흐름':['무난','t-mid'],'다듬을 때':['다듬을 때','t-trim'],'조심할 때':['조심할 때','t-care']};
+function lifeTop(){
+  const f=S.facts,L=f.life||{};
+  let h='<div class="rtop">';
+  const steps=(L.dayun_narr||[]).map(s=>{const m=s.match(/^(\S{2})운\(([\d.]+)~([\d.]+)세\)/);return m?{gz:m[1],a:Math.floor(+m[2]),b:Math.floor(+m[3]),text:s}:null;}).filter(Boolean);
+  const now=(L.dayun_rel||[]).find(r=>r.now);
+  if(steps.length){
+    h+='<section style="display:flex;flex-direction:column;gap:8px" aria-label="대운"><div class="sec-h"><h2>대운 여덟 걸음</h2><span>10년마다 바뀌는 큰 흐름</span></div>'+
+      '<div class="dstrip" style="grid-template-columns:repeat('+steps.length+',1fr)" aria-label="대운, 왼쪽부터 나이 순">'+steps.map(s=>{const on=now&&now.ganzhi===s.gz;
+        return '<div'+(on?' class="now"':'')+'><b>'+esc(s.gz[0])+'</b><b>'+esc(s.gz[1])+'</b><small>'+(on?'지금':s.a+'세')+'</small></div>';}).join('')+'</div>';
+    const cur=now&&steps.find(s=>s.gz===now.ganzhi);
+    if(cur){
+      const concl=(now.line||'').split('그래서 ').pop();
+      h+='<p class="kv" style="font-size:16px">지금은 '+esc(cur.text.replace(/^(\S+운\([^)]*\)):\s*/,'$1이야. ')).replace(/\(([^()<>]{1,60})\)/g,'<span class="gl">($1)</span>')+
+        (concl&&concl!==now.line?' <span style="color:var(--accent)">'+esc(concl)+'</span>':'')+'</p>';
+    }
+    h+='</section>';
+  }
+  const ys=(f.love||{}).years||[];
+  if(ys.length){
+    const cons=((f.insights||{}).consensus||[]);
+    h+='<section style="display:flex;flex-direction:column;gap:6px" aria-label="앞으로 3년"><div class="sec-h"><h2>앞으로 3년</h2></div><div class="ytbl">'+
+      '<div class="yh"><span></span><span>연애</span><span>일</span><span>돈</span></div>'+ys.map((y,i)=>{
+        const c=cons.find(x=>x.year===y.year);
+        return '<div class="yrow"><span>'+y.year+' <small>'+esc(y.ganzhi)+(c?' · '+c.age+'세':'')+'</small></span>'+['love','career','money'].map(d=>{
+          const r=((f[d]||{}).years||[])[i]||{},t=TAG_SHORT[r.tag]||[r.tag||'',''];return '<span class="'+t[1]+'">'+esc(t[0])+'</span>';}).join('')+'</div>';}).join('')+'</div></section>';
+  }
+  h+='<section style="display:flex;flex-direction:column;gap:6px" aria-label="앞으로 12개월"><div class="sec-h"><h2>앞으로 12개월</h2><span>가운데 선이 무난</span></div>'+
+    '<div class="mdom" role="group" aria-label="영역 고르기">'+['love','career','money'].map(d=>'<button type="button" data-mdom="'+d+'"'+(d===S.mdom?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>'+{love:'연애',career:'일',money:'돈'}[d]+'</button>').join('')+'</div>'+
+    '<div id="mline">'+monthLine(S.mdom)+'</div></section>';
+  return h+'</div>';
+}
+S.mdom='love';
+function monthLine(dom){
+  const f=S.facts,mo=((f[dom]||{}).months)||[];
+  if(!mo.length) return '';
+  const lo=Math.min(-3,...mo.map(m=>m.score)),hi=Math.max(5,...mo.map(m=>m.score)),W=330,H=56;
+  const xs=mo.map((_,i)=>+(8+i*(W-16)/(mo.length-1||1)).toFixed(1));
+  const ys=mo.map(m=>+(H-6-(m.score-lo)*(H-12)/(hi-lo)).toFixed(1)),y0=+(H-6-(0-lo)*(H-12)/(hi-lo)).toFixed(1);
+  let bi=0,wi=0;mo.forEach((m,i)=>{if(m.score>mo[bi].score) bi=i;if(m.score<mo[wi].score) wi=i;});
+  const jan=mo.findIndex(m=>/-01$/.test(m.ym));
+  const pct=x=>(x/W*100).toFixed(2)+'%';
+  let h='<div class="mline">'+(jan>0?'<span class="myr" style="left:'+pct(xs[jan]+3)+'">'+mo[jan].ym.slice(0,4)+'</span>':'')+
+    '<svg role="img" aria-label="앞으로 12개월 흐름. 가장 높은 때 '+esc(mo[bi].ym.slice(0,4)+'년 '+mo[bi].label)+', 가장 낮은 때 '+esc(mo[wi].ym.slice(0,4)+'년 '+mo[wi].label)+'" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+
+    '<line x1="0" y1="'+y0+'" x2="'+W+'" y2="'+y0+'" stroke="#8C857B" stroke-width="1" vector-effect="non-scaling-stroke"></line>'+
+    (jan>0?'<line x1="'+(xs[jan]-2)+'" y1="0" x2="'+(xs[jan]-2)+'" y2="'+H+'" stroke="#8C857B" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></line>':'')+
+    '<polyline points="'+xs.map((x,i)=>x+','+ys[i]).join(' ')+'" fill="none" stroke="#2A2723" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>'+
+    xs.map((x,i)=>'<circle cx="'+x+'" cy="'+ys[i]+'" r="'+(i===bi||i===wi?4.5:2.5)+'" fill="'+(i===bi?'#A8322D':'#2A2723')+'"></circle>').join('')+'</svg>'+
+    '<div class="mlab" aria-hidden="true">'+mo.map((m,i)=>'<span'+(i===bi||i===wi?' class="on"':'')+' style="left:'+pct(xs[i])+'">'+esc(m.label.replace('월',''))+'</span>').join('')+'</div></div>';
+  const best=((f[dom]||{}).best||[])[0];
+  h+='<p class="kv"><i class="warn">힘이 실리는 달</i>'+esc(best||mo[bi].ym.slice(0,4)+'년 '+mo[bi].label+'('+mo[bi].ganzhi+')')+'</p>';
+  if(mo[wi].score<0) h+='<p class="kv"><i>다듬을 달</i>'+esc(mo[wi].ym.slice(0,4)+'년 '+mo[wi].label+'('+mo[wi].ganzhi+')')+'</p>';
+  return h;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-mdom]');if(!b) return;
+  S.mdom=b.dataset.mdom;
+  document.querySelectorAll('[data-mdom]').forEach(x=>{const on=x.dataset.mdom===S.mdom;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on);});
+  $('mline').innerHTML=monthLine(S.mdom);
+});
+
+function chapterHTML(tab,c,i){
+  const pre=c.widgets.filter(w=>w!=='systems'&&w.split(':')[0]!=='gauge').map(w=>widget(w)).join('');
+  const post=c.widgets.filter(w=>w==='systems'||w.split(':')[0]==='gauge').map(w=>widget(w)).join('');
+  return '<details class="chapter" id="ch-'+c.id+'"'+(i<2?' open':'')+'><summary><span class="ch-no">'+(i+1)+'장</span><span class="ch-title">'+esc(c.title)+'</span></summary>'+
+    '<div class="ch-in">'+pre+'<div class="ch-body" data-body="'+c.id+'"></div>'+post+
+    (c.pick&&c.pick.length?'<details class="evid" data-pick="'+esc(JSON.stringify(c.pick))+'"><summary>'+ICON.doc+'계산 근거 보기</summary><div class="evid-body"></div></details>':'')+
+    (S.chatOn?'<button type="button" class="ask-ch" data-askch="'+esc(c.title)+'">'+ICON.chat+'이 장 물어보기</button>':'')+
+    '</div></details>';
+}
 function openTab(tab){
   if(TOOLS[tab]) return openTool(tab);
   S.tab=tab;S.queue=[];
   const o=S.outline[tab],f=S.facts;
-  document.body.dataset.theme=o.theme;
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
-  centerTab();
-  const chips=['일주 '+f.natal.day_pillar,'만 '+f.meta.age+'세',f.meta.sex,'오늘 '+f.meta.target];
-  if(!f.meta.hour_known) chips.push('시간 모름: 시주 제외');
-  const bd=(f.natal.boundary||{}).items||[];
-  let h='<div class="tab-hero">'+heroArt(tab)+'<div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
-    '<p class="hero-sub">'+esc(o.sub)+'</p><div class="meta-chips">'+
-    chips.map((c,i)=>'<span class="chip'+(i===0?' a':'')+'">'+esc(c)+'</span>').join('')+
-    (bd.length?'<button type="button" class="chip warn" id="bdChip">경계 출생: 기둥이 바뀔 수 있어</button>':'')+'</div></div>'+
-    (bd.length?'<div class="card bd-card" id="bdCard" hidden>'+bd.map(i=>'<p>'+esc(i.text)+'</p>').join('')+
-      '<p class="fine">'+esc(f.natal.boundary.note||'')+'</p></div>':'');
-  o.chapters.forEach((c,i)=>{
-    h+='<section class="chapter" id="ch-'+c.id+'">'+
-      '<div class="ch-label">CHAPTER · '+pad(i+1)+'</div>'+
-      '<div class="ch-head"><div class="ch-emoji" aria-hidden="true">'+c.emoji+'</div><div class="ch-title">'+esc(c.title)+'</div></div>'+
-      c.widgets.map(w=>widget(w)).join('')+
-      '<div class="ch-body" data-body="'+c.id+'"></div>'+
-      (c.pick&&c.pick.length?'<details class="evid" data-pick="'+esc(JSON.stringify(c.pick))+'"><summary>근거 보기: 이 챕터가 본 계산값</summary><div class="evid-body"></div></details>':'')+
-      '</section>';
-  });
-  if(tab==='love') h+=sokSection();
+  applyTheme();drawTabs(tab);
+  let h='';
+  if(['today','love','career','money'].includes(tab)) h+=todayTop(tab);
+  else if(tab==='life') h+='<div class="tab-hero"><h1 class="hero-title">'+esc(o.title)+'</h1><p class="hero-sub">'+esc(o.sub)+'</p></div>'+lifeTop()+band(f.natal,{head:true,counts:true});
+  else h+='<div class="tab-hero"><h1 class="hero-title">'+esc(o.title)+'</h1><p class="hero-sub">'+esc(o.sub)+'</p></div>';
+  h+='<div class="chlist"><p>'+esc(TAB_NAME[tab])+' 풀이, '+o.chapters.length+'장</p>'+o.chapters.map((c,i)=>chapterHTML(tab,c,i)).join('');
+  if(tab==='love') h+=sokSection(o.chapters.length);
+  h+='</div>';
   $('page').innerHTML=h;
   window.scrollTo(0,0);
   animate($('page'));
@@ -167,10 +320,21 @@ function fillChapter(tab,ch,b,pending){
   if(!el) return;
   const swap=el.dataset.src==='rule'&&b.source==='ai';
   let h='';const used=new Set();
-  if(b.headline) h+='<div class="headline">'+esc(b.headline)+'</div>';
-  if(b.lead) h+='<p class="lead">'+linkTerms(esc(b.lead),used)+'</p>';
-  (b.blocks||[]).forEach(x=>{h+=block(x,used);});
-  if(b.closing) h+='<div class="closing">'+esc(b.closing)+'</div>';
+  // 결론 한 줄: 맨 위 '오늘 한 줄'과 같은 말이면 되풀이하지 않고 첫 문장(lead)을 결론으로 올린다
+  const t=S.facts&&S.facts.today,dup=t&&b.headline&&(b.headline===t.heads.total||b.headline===((t.domains[tab]||{}).head));
+  if(b.headline&&!dup) h+='<p class="headline">'+esc(b.headline)+'</p>';
+  if(b.lead) h+=dup?'<p class="headline">'+soft(esc(b.lead))+'</p>':'<p class="lead">'+soft(linkTerms(esc(b.lead),used))+'</p>';
+  // 사주·자미두수·점성술 각각의 풀이는 접어 둔다. 같은 장에 세 체계 부품이 이미 있으면 겹치지 않게 뺀다
+  const box=el.closest('.ch-in'),hasSys=!!(box&&box.querySelector('.sysfold[data-sys]'));
+  const sysRe=/^(사주|자미두수|점성술)\s*[:：]?\s*(.*)$/,sys=[];
+  (b.blocks||[]).forEach(x=>{
+    const m=x.type==='text'&&x.title&&x.title.match(sysRe);
+    if(m){if(!hasSys) sys.push([m[1],m[2],x]);return;}
+    h+=block(x,used);
+  });
+  if(sys.length) h+='<div class="sysfold">'+sys.map(([n,sig,x])=>'<details><summary><span>'+esc(n)+'로 보면</span><i'+(sig==='좋음'?' class="good"':'')+'>'+esc(sig)+'</i>'+ICON.down+
+    '</summary><div class="prose">'+prose(x.body,t=>linkTerms(esc(t),used))+'</div></details>').join('')+'</div>';
+  if(b.closing) h+='<p class="closing">'+esc(b.closing)+'</p>';
   h+='<div class="src">'+(b.source==='ai'?'계산 결과를 근거로 쓴 AI 풀이':
     '계산 결과로 쓴 기본 풀이'+(pending?' · <span class="pending">AI가 더 자세한 풀이를 쓰는 중</span>':''))+'</div>';
   el.innerHTML=h;
@@ -234,7 +398,7 @@ function widget(w){
     case 'systems': return systems(f.today);
     case 'almanac': return almanac(f.today);
     case 'animals': return animals(f.love.animals);
-    case 'calendar': return calendar(f[arg].months,arg)+'<button type="button" class="ghost ics-btn" data-ics="'+arg+'">📅 좋은 달·조심할 달을 캘린더 앱에 넣기</button><div id="ics-'+arg+'"></div>';
+    case 'calendar': return calendar(f[arg].months,arg)+'<button type="button" class="ghost ics-btn" data-ics="'+arg+'">좋은 달·조심할 달을 캘린더 앱에 넣기</button><div id="ics-'+arg+'"></div>';
     case 'consensus': return consensus((f.insights||{}).consensus,arg);
     case 'years': return years(f[arg].years,arg);
     case 'decades': return decades(f.life,f.meta.age);
@@ -273,13 +437,7 @@ function wonguk(n){
   return card(h);
 }
 function gauge(t){
-  const s=t.scores;
-  const bars=[['연애',s.love],['직장',s.career],['금전',s.money]];
-  return card('<div class="gauge"><div class="ring" style="--v:'+s.total+'"><span>'+s.total+'</span></div>'+
-    '<div><div style="font-weight:800;margin-bottom:.4rem">'+esc(t.heads.total)+'</div><div class="bars">'+
-    bars.map(([k,v])=>'<div class="bar"><span>'+k+'</span><div class="t"><i data-w="'+v+'"></i></div><b>'+v+'</b></div>').join('')+
-    '</div></div></div><p class="fine" style="margin:.7rem 0 0">총운 = 연애·직장·금전 점수의 평균 + 오늘 공통 기운</p>'+
-    '<p style="margin:.5rem 0 0">'+esc(t.agreement)+' '+esc(t.focus)+'</p>');
+  return '<p class="fine">총운 = 연애·직장·금전 점수의 평균 + 오늘 공통 기운</p>';
 }
 // 토정비결 괘 카드
 function tjCard(t){
@@ -318,10 +476,8 @@ function nyCal(ny){
 const DOM_WORD={love:'연애',career:'직장',money:'금전'};
 function sign(p){return p>0?'+'+p:String(p);}
 function dgauge(d,dom){
-  return card('<div class="gauge"><div class="ring" style="--v:'+d.score+'"><span>'+d.score+'</span></div>'+
-    '<div><div style="font-weight:800;margin-bottom:.5rem">'+esc(d.head)+'</div><div class="chips" style="margin:0">'+
-    d.systems.map(s=>'<span class="chip'+(s.points>0?' a':'')+'">'+esc(s.name)+' '+sign(s.points)+'</span>').join('')+
-    '</div><p class="fine" style="margin:.5rem 0 0">오늘 '+DOM_WORD[dom]+' 점수 · 칩은 체계별 가감 신호</p></div></div>');
+  return '<div class="chips" style="margin:0">'+d.systems.map(s=>'<span class="chip'+(s.points>0?' a':'')+'">'+esc(s.name)+' '+sign(s.points)+'</span>').join('')+
+    '</div><p class="fine" style="margin-top:6px">오늘 '+DOM_WORD[dom]+' 점수에 체계별로 더하고 뺀 신호</p>';
 }
 function dsys(d,dom){
   const up=d.systems.filter(s=>s.points>0).length,dn=d.systems.filter(s=>s.points<0).length,n=d.systems.length;
@@ -336,10 +492,8 @@ function dsys(d,dom){
   }).join('');
 }
 function systems(t){
-  const cls={좋음:'good',보통:'mid',조심:'bad',나쁨:'bad'};
-  return t.systems.map(x=>'<div class="sys"><div class="sys-h">'+esc(x.name)+
-    '<span class="sig '+(cls[x.signal]||'mid')+'">'+esc(x.signal)+'</span></div><ul>'+
-    x.lines.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ul></div>').join('');
+  return '<div class="sysfold" data-sys="1">'+t.systems.map(x=>'<details><summary><span>'+esc(x.name)+'로 보면</span><i'+(x.signal==='좋음'?' class="good"':'')+'>'+esc(x.signal)+'</i>'+ICON.down+
+    '</summary><div><ul style="margin:0;padding-left:1.1rem">'+x.lines.map(l=>'<li>'+soft(esc(l))+'</li>').join('')+'</ul></div></details>').join('')+'</div>';
 }
 function almanac(t){
   return card('<ul style="margin:0;padding-left:1.1rem">'+t.almanac.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ul>','오늘 달력 (택일)');
@@ -373,7 +527,7 @@ function years(rows,dom){
 function decades(life,age){
   return '<div class="timeline">'+life.decades.map(d=>{
     const now=age>=d.range[0]&&age<=d.range[1];
-    return '<div class="row"'+(now?' style="outline:2px solid var(--accent2)"':'')+'><b>'+d.range[0]+'~'+d.range[1]+'세'+(now?' · 지금':'')+'</b><br>'+
+    return '<div class="row'+(now?' now':'')+'"><b>'+d.range[0]+'~'+d.range[1]+'세'+(now?' · 지금':'')+'</b><br>'+
       esc(d.parts[1]||d.parts[0]||'')+'</div>';
   }).join('')+'</div>';
 }
@@ -425,8 +579,27 @@ function renderChat(){
   $('chatMsgs').innerHTML=ASK_HINT+S.chat.map(m=>m.role==='user'?'<div class="msg me">'+esc(m.content)+'</div>':
     '<div class="msg bot rich">'+fmtMsg(m.content)+'</div>').join('');
 }
+function askLabel(){
+  const l=S.left;
+  $('askLabel').textContent='물어보기'+(typeof l==='number'&&l>=0?' · '+l+'번 남음':'');
+  $('askLeft').textContent=typeof l==='number'&&l>=0?'오늘 남은 질문 '+l+'번':'하루 10번까지';
+}
+function askCtx(){
+  const f=S.facts;if(!f) return '';
+  const n=f.natal,t=f.today,d=t.domains[S.tab];
+  const sc=S.tab==='today'?'총운 '+t.scores.total+'점':d?DOM_WORD[S.tab]+' '+d.score+'점':'';
+  return '보던 곳: '+(sc?'오늘 '+sc:TAB_NAME[S.tab])+' · '+n.ilgan+n.ilgan_element+'('+(EL_WORD[n.ilgan_element]||'')+' 기운)';
+}
+function chatCount(){$('chatN').textContent=$('chatIn').value.length+'/300';}
+$('chatIn').addEventListener('input',chatCount);
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-askch]');if(!b) return;
+  openAsk();
+  $('chatIn').value=b.dataset.askch+' 장 풀이를 더 쉽게 풀어 줘';chatCount();
+});
 function openAsk(){
   renderChat();
+  $('askCtx').textContent=askCtx();askLabel();
   $('askPanel').classList.add('on');$('askScrim').classList.add('on');
   $('askPanel').setAttribute('aria-hidden','false');$('askFab').setAttribute('aria-expanded','true');
   document.body.classList.add('ask-open');
@@ -460,13 +633,13 @@ document.addEventListener('submit',async e=>{
   e.preventDefault();
   const input=$('chatIn'),box=$('chatMsgs'),msg=input.value.trim();
   if(!msg) return;
-  input.value='';
+  input.value='';chatCount();
   box.insertAdjacentHTML('beforeend','<div class="msg me">'+esc(msg)+'</div><div class="msg bot" data-tmp="1">생각 중...</div>');
   box.scrollTop=box.scrollHeight;
   try{
     const j=await postJSON('/api/chat',{token:S.token,message:msg,history:S.chat.slice(-10)});
     box.querySelector('[data-tmp]').outerHTML='<div class="msg bot rich">'+fmtMsg(j.reply)+'<small>'+esc(j.model||'')+'</small></div>';
-    if(typeof j.left==='number'&&j.left>=0) $('chatLeft').textContent='오늘 남은 질문 '+j.left+'번. ';
+    if(typeof j.left==='number'&&j.left>=0){$('chatLeft').textContent='오늘 남은 질문 '+j.left+'번. ';S.left=j.left;askLabel();}
     S.chat.push({role:'user',content:msg},{role:'assistant',content:j.reply,sig:j.sig||''});   // 서버가 서명한 답만 다음 질문 때 기록으로 믿는다
   }catch(err){
     box.querySelector('[data-tmp]').outerHTML='<div class="msg bot">'+esc(err.message)+'</div>';
@@ -477,24 +650,21 @@ document.addEventListener('submit',async e=>{
 
 // ---------------- 궁합·길일 (계산만, AI 없음)
 const TOOLS={
-  past:{title:'지나온 해 되짚기',hand:'Look back',theme:'lilac',sub:'계산이 가리킨 신호를 네 기억과 맞춰 봐'},
-  when:{title:'태어난 시간 찾기',hand:'Birth time',theme:'sky',sub:'기억나는 큰일로 12시진 후보를 좁혀 봐'},
-  match:{title:'두 사람 궁합',hand:'Match',theme:'rose',sub:'사주·자미두수·점성술로 본 두 사람의 결'},
-  pick:{title:'길일 고르기',hand:'Lucky day',theme:'mint',sub:'기간 안에서 나에게 좋은 날 순서'},
-  name:{title:'이름 풀이',hand:'Name',theme:'sky',sub:'소리·획수·내 사주로 이름을 봐'},
+  past:{title:'지나온 해 되짚기',sub:'계산이 가리킨 신호를 네 기억과 맞춰 봐'},
+  when:{title:'태어난 시간 찾기',sub:'기억나는 큰일로 12시진 후보를 좁혀 봐'},
+  match:{title:'두 사람 궁합',sub:'사주·자미두수·점성술로 본 두 사람의 결'},
+  pick:{title:'길일 고르기',sub:'기간 안에서 나에게 좋은 날 순서'},
+  name:{title:'이름 풀이',sub:'소리·획수·내 사주로 이름을 봐'},
 };
 S.tools={};
-function toolHero(o,tab){
-  return '<div class="tab-hero">'+heroArt(tab)+'<div class="hero-title">'+esc(o.title)+' <span class="hand">'+esc(o.hand)+'</span></div>'+
-    '<p class="hero-sub">'+esc(o.sub)+'</p></div>';
+function toolHero(o){
+  return '<div class="tab-hero"><h1 class="hero-title">'+esc(o.title)+'</h1><p class="hero-sub">'+esc(o.sub)+'</p></div>';
 }
 function openTool(tab){
   S.tab=tab;S.queue=[];
   const o=TOOLS[tab];
-  document.body.dataset.theme=o.theme;
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
-  centerTab();
-  let h=toolHero(o,tab);
+  applyTheme();drawTabs(tab);
+  let h=toolHero(o);
   if(tab==='past'){
     $('page').innerHTML=h+pastView(S.facts.past);
     window.scrollTo(0,0);pastTally();
@@ -513,10 +683,10 @@ function openTool(tab){
   if(tab==='match'){
     const sex2=S.person&&S.person.sex==='female'?'male':'female';
     const pl=people();
-    h+='<form class="card form" id="fMatch" autocomplete="off"><h4 style="margin:0">상대의 정보</h4>'+
+    h+='<form class="card form" id="fMatch" autocomplete="off"><div class="sec-h"><h2 style="font-size:17px">상대의 정보</h2><span>계산에만 쓰고 저장하지 않아</span></div>'+
       (pl.length?'<div class="ppl-pick"><span>저장한 사람 불러오기</span>'+
         pl.map((x,i)=>'<button type="button" class="chip" data-p2="'+i+'">'+esc(x.nick)+'</button>').join('')+'</div>':'')+
-      '<div class="row2"><div class="f"><span>생년월일</span><button type="button" class="datebtn" data-dp="birth2">눌러서 선택</button>'+
+      '<div class="row2"><div class="f"><span>태어난 날</span><button type="button" class="datebtn" data-dp="birth2">눌러서 선택</button>'+
       '<input type="hidden" name="birth2" value=""><input type="hidden" name="leap2" value=""></div>'+
       '<label class="f"><span>달력</span><select name="calendar2" data-cal="birth2"><option value="solar">양력</option><option value="lunar">음력</option></select></label></div>'+
       '<div class="row2"><label class="f"><span>태어난 시간</span><input name="birth2_time" type="time" value="12:00"></label>'+
@@ -525,15 +695,17 @@ function openTool(tab){
       '<option value="female"'+(sex2==='female'?' selected':'')+'>여자</option></select></label>'+
       '<label class="f"><span>태어난 도시</span><input name="city2" value="서울"></label></div>'+
       '<button class="go" type="submit">궁합 보기</button>'+
-      '<p class="fine">상대의 생년월일은 계산에만 쓰고 저장하지 않아.</p></form><div id="toolOut"></div>';
+      '<p class="fine">상대의 생년월일은 계산에만 쓰고 저장하지 않아.</p></form>'+
+      '<p class="lockline">'+ICON.lock+'속궁합은 따로 탭이 아니야. 성인 확인을 켠 사람에게만 연애 안과 이 궁합 결과 아래에 보여.</p><div id="toolOut"></div>';
   }else{
     const d0=new Date(),d1=new Date(Date.now()+30*864e5);
     const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-    h+='<form class="card form" id="fPick" autocomplete="off">'+
+    h+='<form class="form" id="fPick" autocomplete="off">'+
       '<div class="row2"><label class="f"><span>시작 날짜</span><input name="from_date" type="date" value="'+iso(d0)+'"></label>'+
       '<label class="f"><span>끝 날짜</span><input name="to_date" type="date" value="'+iso(d1)+'"></label></div>'+
-      '<label class="f"><span>무엇을 위한 날</span><select name="domain"><option value="total">전체</option><option value="love">연애·만남</option>'+
-      '<option value="career">일·면접·계약</option><option value="money">돈·거래</option></select></label>'+
+      '<fieldset class="f"><legend>무엇을 위한 날</legend><div class="tabs" role="radiogroup" style="margin-top:0">'+
+      [['total','전체'],['love','연애·만남'],['career','일·계약'],['money','돈·거래']].map(([v,t],i)=>
+        '<label class="tab pick-dom'+(i?'':' on')+'"><input class="sr" type="radio" name="domain" value="'+v+'"'+(i?'':' checked')+'>'+t+'</label>').join('')+'</div></fieldset>'+
       '<button class="go" type="submit">좋은 날 찾기</button></form><div id="toolOut"></div>';
   }
   $('page').innerHTML=h;
@@ -541,6 +713,10 @@ function openTool(tab){
   if(S.tools[tab]) $('toolOut').innerHTML=S.tools[tab];
   animate($('page'));
 }
+document.addEventListener('change',e=>{
+  const r=e.target.closest('.pick-dom input');if(!r) return;
+  document.querySelectorAll('.pick-dom').forEach(l=>l.classList.toggle('on',l.querySelector('input').checked));
+});
 document.addEventListener('submit',async e=>{
   const id=e.target.id;
   if(id!=='fMatch'&&id!=='fPick') return;
@@ -563,46 +739,77 @@ document.addEventListener('submit',async e=>{
   }catch(err){$('toolOut').innerHTML='<div class="err">'+esc(err.message)+'</div>';}
   finally{btn.disabled=false;btn.textContent=label;}
 });
-function section(n,emoji,title,inner){
-  return '<section class="chapter"><div class="ch-label">CHAPTER · '+pad(n)+'</div><div class="ch-head">'+
-    '<div class="ch-emoji" aria-hidden="true">'+emoji+'</div><div class="ch-title">'+esc(title)+'</div></div>'+inner+'</section>';
+function section(n,_mark,title,inner,closed){
+  return '<details class="chapter"'+(closed?'':' open')+'><summary><span class="ch-no">'+n+'장</span><span class="ch-title">'+esc(title)+'</span></summary><div class="ch-in">'+inner+'</div></details>';
+}
+function dayChip(r,tense){
+  return '<span class="day'+(tense?' tense':'')+'">'+esc(r.label)+'<small>'+esc(r.ganzhi)+'일</small></span>';
 }
 function matchView(d){
+  const a=d.a||{},b=d.b||{},me=S.facts.natal;
+  const sealA=a.ilgan?a.ilgan+(EL_STEM[a.ilgan]||''):'',sealB=b.ilgan?b.ilgan+(EL_STEM[b.ilgan]||''):'';
+  const good=(d.strengths||[])[0],care=(d.cautions||[])[0];
+  let h='<section class="pair-top" aria-label="궁합 결과 첫머리"><div class="pair-seals">'+
+    '<div><span class="seal" role="img" aria-label="도장: '+esc(sealA)+'">'+esc(sealA)+'</span>나</div>'+
+    '<div><span class="seal ink" role="img" aria-label="도장: '+esc(sealB)+'">'+esc(sealB)+'</span>상대</div>'+
+    '<div class="total" style="margin-left:auto"><small>두 사람</small><span class="n"><i>100 중</i><b>'+esc(d.score)+'</b></span></div></div>'+
+    '<h2 class="oneline">'+esc(d.head)+'</h2>'+
+    ((good||care)?'<dl class="todo" style="grid-template-columns:76px 1fr;line-height:1.6;row-gap:6px">'+(good?'<dt>잘 맞는 점</dt><dd>'+soft(esc(good))+'</dd>':'')+
+      (care?'<dt class="warn">맞춰 갈 점</dt><dd>'+soft(esc(care))+'</dd>':'')+'</dl>':'');
+  if(d.dates){
+    h+='<div class="sec-h"><span style="font-size:15px;color:var(--ink)">둘 다 연애 흐름이 괜찮은 날</span><span>앞으로 '+d.dates.days+'일</span></div>'+
+      '<div class="days">'+d.dates.good.slice(0,4).map(r=>dayChip(r)).join('')+'</div>';
+    if(d.dates.tense.length) h+='<div class="days" style="align-items:center"><span style="font-size:14px;color:var(--muted);width:96px;line-height:1.4">둘 다 예민하기 쉬운 날</span>'+
+      d.dates.tense.map(r=>dayChip(r,true)).join('')+'</div>';
+  }
+  h+='</section><div class="chlist">';
   const who=(x,t)=>'<div class="c"><b>'+t+'</b><p>일간 '+esc(x.ilgan)+' · '+esc(x.animal)+'띠 · 태양 '+esc(x.sun)+'</p></div>';
-  let h=section(1,'💞','두 사람 점수',card('<div class="gauge"><div class="ring" style="--v:'+d.score+'"><span>'+d.score+'</span></div>'+
-    '<div><div style="font-weight:800">'+esc(d.head)+'</div><p class="fine" style="margin:.5rem 0 0">점수는 출발점일 뿐, 맞춰 가는 방향을 보는 참고값이야.</p></div></div>'));
-  h+=section(2,'🔍','둘의 결',card('<div class="cards">'+who(d.a,'나')+who(d.b,'상대')+'</div>')+
-    d.story.map(x=>'<p class="blk">'+esc(x)+'</p>').join(''));
-  if(d.strengths.length) h+=section(3,'🤝','잘 맞는 점','<div class="blk checklist"><ul>'+d.strengths.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>');
-  if(d.cautions.length) h+=section(4,'🧭','맞춰 갈 점','<div class="blk checklist"><ul>'+d.cautions.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>');
+  h+=section(1,'','둘의 결','<div class="cards">'+who(a,'나')+who(b,'상대')+'</div><div class="prose">'+(d.story||[]).map(x=>'<p>'+soft(esc(x))+'</p>').join('')+'</div>');
+  if(d.strengths.length) h+=section(2,'','잘 맞는 점','<div class="blk checklist"><ul>'+d.strengths.map(x=>'<li>'+soft(esc(x))+'</li>').join('')+'</ul></div>');
+  if(d.cautions.length) h+=section(3,'','맞춰 갈 점','<div class="blk checklist"><ul>'+d.cautions.map(x=>'<li>'+soft(esc(x))+'</li>').join('')+'</ul></div>',true);
   if(d.dates){
     const row=r=>'<div class="duo"><b>'+esc(r.label)+' <small>'+esc(r.ganzhi)+'</small></b>'+
       '<div class="bar"><span>나</span><div class="t"><i data-w="'+r.me+'"></i></div><b>'+r.me+'</b></div>'+
       '<div class="bar"><span>상대</span><div class="t"><i data-w="'+r.you+'"></i></div><b>'+r.you+'</b></div></div>';
-    h+=section(5,'🗓️','둘이 만나기 좋은 날 (앞으로 '+d.dates.days+'일)',card(d.dates.good.map(row).join(''),'둘 다 연애 흐름이 괜찮은 날')+
-      card(d.dates.tense.map(row).join('')+'<p class="fine" style="margin:.4rem 0 0">이런 날은 큰 이야기보다 가볍게 보내면 좋아.</p>','둘 다 예민하기 쉬운 날'));
+    h+=section(4,'','둘이 만나기 좋은 날 (앞으로 '+d.dates.days+'일)','<h4>둘 다 연애 흐름이 괜찮은 날</h4>'+d.dates.good.map(row).join('')+
+      '<h4>둘 다 예민하기 쉬운 날</h4>'+d.dates.tense.map(row).join('')+'<p class="fine">이런 날은 큰 이야기보다 가볍게 보내면 좋아.</p>',true);
   }
-  if(d.info.length) h+=section(6,'📎','참고',card('<ul style="margin:0;padding-left:1.1rem">'+d.info.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'));
+  if(d.info.length) h+=section(5,'','참고','<ul style="margin:0;padding-left:1.1rem">'+d.info.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>',true);
   if(d.sok) h+=sokPairView(d.sok);
-  return h;
+  return h+'</div>';
 }
+// 길일: 서버가 날마다 화면에 그릴 점수(score)를 같이 준다. 옛 응답엔 없어서 연애·직장·금전 평균으로 대신한다
+function pickVal(r,key){return r.score??(key?r[key]:Math.round((r.love+r.career+r.money)/3));}
 function pickView(d){
   const key=d.domain==='total'?null:d.domain;
-  const val=r=>key?r[key]:Math.round((r.love+r.career+r.money)/3);
-  const top=d.rows.slice(0,5);
-  let h=section(1,'🗓️',d.dom_name+' 좋은 날 순서',d.story.map(x=>'<p class="blk">'+esc(x)+'</p>').join(''));
-  h+=section(2,'🏅','상위 다섯 날',card('<div class="bars">'+top.map(r=>'<div class="bar" style="grid-template-columns:110px 1fr 34px">'+
-    '<span>'+r.rank+'위 '+esc(r.label)+'</span><div class="t"><i data-w="'+val(r)+'"></i></div><b>'+val(r)+'</b></div>').join('')+'</div>'+
-    '<p class="fine" style="margin:.6rem 0 0">'+top.map(r=>esc(r.label)+' '+esc(r.ganzhi)+'일 ('+esc(r.god)+')').join(' · ')+'</p>'));
-  h+=section(3,'📋','기간 전체',card('<div class="cal">'+d.rows.slice().sort((a,b)=>a.rank-b.rank).map(r=>
-    '<div class="'+(r.rank<=5?'t4':r.rank<=10?'t2':'')+'">'+
-    '<b style="display:block">'+esc(r.label)+'</b><small>'+esc(r.ganzhi)+' · '+val(r)+'점</small></div>').join('')+'</div>'));
+  const rows=d.rows.slice().sort((a,b)=>a.rank-b.rank);
+  const top=rows.slice(0,5),low=rows.slice(-3);
+  const md=s=>{const p=String(s).split('(')[0].split('/');return +p[0]+'/'+(+p[1]);};
+  const topMap={},lowSet=new Set(low.map(r=>md(r.label)));top.forEach(r=>{topMap[md(r.label)]=r.rank;});
+  const start=new Date(d.start+'T00:00:00'),end=new Date(d.end+'T00:00:00'),today=S.facts.meta.target;
+  const jie=new Set(((S.facts.love||{}).months||[]).map(m=>m.from));
+  let cal='<div class="pcal-wk" aria-hidden="true">'+WEEK.map(w=>'<span>'+w+'</span>').join('')+'</div><div class="pcal">';
+  const first=new Date(start);first.setDate(first.getDate()-first.getDay());
+  for(let x=new Date(first);x<=end;x.setDate(x.getDate()+1)){
+    const k=(x.getMonth()+1)+'/'+x.getDate(),iso=x.getFullYear()+'-'+pad(x.getMonth()+1)+'-'+pad(x.getDate());
+    if(x<start){cal+='<span></span>';continue;}
+    if(topMap[k]) cal+='<span class="top" aria-label="'+(x.getMonth()+1)+'월 '+x.getDate()+'일, '+topMap[k]+'위">'+x.getDate()+'<small>'+topMap[k]+'위</small></span>';
+    else if(lowSet.has(k)) cal+='<span class="low" aria-label="'+(x.getMonth()+1)+'월 '+x.getDate()+'일, 흐름이 약한 날">'+x.getDate()+'</span>';
+    else cal+='<span class="in'+(iso===today?' today':'')+(jie.has(iso)?' jie':'')+'">'+x.getDate()+(iso===today?'<small>오늘</small>':jie.has(iso)?'<small>절기</small>':'')+'</span>';
+  }
+  cal+='</div><div class="plegend"><span><i style="background:var(--accent)"></i>좋은 날 다섯</span><span><i style="border:1px solid var(--ink);background:repeating-linear-gradient(135deg,transparent 0 3px,rgba(42,39,35,.3) 3px 4px)"></i>피하면 좋은 날 셋</span></div>';
+  let h='<h2 class="oneline" style="margin-top:14px">'+esc(String(d.story[0]||'').replace(/^기간 \S+\s+/,''))+'</h2>'+cal;
+  h+='<div style="margin-top:12px">'+top.slice(0,3).map(r=>'<div class="prank"><b>'+r.rank+'</b><span>'+esc(r.label)+' '+esc(r.ganzhi)+'일<small>들어오는 기운 '+esc(r.god)+'</small></span><em>'+pickVal(r,key)+'</em></div>').join('')+'</div>';
+  h+='<div class="chlist">'+section(1,'',d.dom_name+' 좋은 날 순서','<div class="prose">'+d.story.map(x=>'<p>'+soft(esc(x))+'</p>').join('')+'</div>')+
+    section(2,'','상위 다섯 날','<div class="bars">'+top.map(r=>'<div class="bar" style="grid-template-columns:110px 1fr 34px"><span>'+r.rank+'위 '+esc(r.label)+'</span><div class="t"><i data-w="'+pickVal(r,key)+'"></i></div><b>'+pickVal(r,key)+'</b></div>').join('')+'</div>'+
+      '<p class="fine" style="margin-top:6px">'+top.map(r=>esc(r.label)+' '+esc(r.ganzhi)+'일 ('+esc(r.god)+')').join(' · ')+'</p>')+
+    section(3,'','기간 전체','<div class="cal">'+rows.map(r=>
+      '<div class="'+(r.rank<=5?'t4':r.rank<=10?'t2':'')+'">'+
+      '<b style="display:block">'+esc(r.label)+'</b><small>'+esc(r.ganzhi)+' · '+pickVal(r,key)+'점</small></div>').join('')+'</div>',true)+'</div>';
   return h;
 }
 
-
 // ---------------- 지나온 해 되짚기: 계산이 가리킨 신호를 사용자가 기억과 맞춰 본다 (답은 이 화면 메모리에만)
-const MARK_ICON={gyowun:'🔄',daxian:'🧭',saturn:'🪐',jupiter:'✨'};
 const PAST_SYS={gyowun:'사주',daxian:'자미두수',saturn:'점성술',jupiter:'점성술'};
 S.pastKind={};
 S.pastAns=S.pastAns||{};
@@ -621,7 +828,7 @@ function pastView(p){
     h+='<div class="yr-card"><div class="yr-head"><b>'+r.year+'</b><span>만 '+r.age+'세 · '+esc(r.ganzhi)+'년</span></div>';
     r.marks.forEach((m,i)=>{
       S.pastKind[r.year+'m'+i]=PAST_SYS[m.kind]||'사주';
-      h+='<div class="claim mark"><div><span class="ico">'+(MARK_ICON[m.kind]||'•')+'</span>'+esc(m.text)+
+      h+='<div class="claim mark"><div><span class="ico">'+esc(PAST_SYS[m.kind]||'사주')+'</span>'+esc(m.text)+
         '<small>'+(m.kind==='jupiter'?'이 해에 새 기회가 오거나 넓어진 일이 있었어?':'이 해에 일·관계·사는 곳 같은 큰 변화가 있었어?')+'</small></div>'+ansBtns(r.year+'m'+i)+'</div>';
     });
     r.signals.forEach(sg=>{
@@ -639,8 +846,8 @@ function pastTally(){
   const box=$('pastTally');if(!box) return;
   const v=Object.values(S.pastAns),yes=v.filter(x=>x==='yes').length,no=v.filter(x=>x==='no').length,n=yes+no;
   const total=document.querySelectorAll('.ans').length;
-  box.innerHTML='<div class="gauge"><div class="ring" style="--v:'+(n?Math.round(yes/n*100):0)+'"><span>'+(n?Math.round(yes/n*100)+'%':'-')+'</span></div>'+
-    '<div><div style="font-weight:800">내 기억과 겹친 정도</div><p class="fine" style="margin:.3rem 0 0">맞았어 '+yes+' · 아니야 '+no+
+  box.innerHTML='<div class="me-row"><b class="big">'+(n?Math.round(yes/n*100)+'%':'-')+'</b>'+
+    '<div><h3 style="margin:0;font-size:17px">내 기억과 겹친 정도</h3><p class="fine" style="margin:.3rem 0 0">맞았어 '+yes+' · 아니야 '+no+
     ' · 답한 것 '+v.length+' / '+total+'</p><p class="fine" style="margin:.3rem 0 0">'+
     (n>=5?(yes/n>=0.6?'꽤 많이 겹쳤어. 앞으로의 흐름도 같은 계산으로 봤으니 참고해 봐.':'겹친 게 많지 않아. 사주는 경향일 뿐이라 그럴 수 있어.'):'다섯 개 넘게 고르면 겹친 정도를 알려 줄게.')+
     '</p></div></div>'+pastBySystem();
@@ -699,14 +906,14 @@ function nameView(d){
   const chain=s=>'<div class="nm-chain">'+d.name.split('').map((c,i)=>'<span class="nm-syl"><b>'+esc(c)+'</b><i class="'+EL_CLS[s.elements[i]]+'">'+s.elements[i]+'</i></span>'+
     (i<s.relations.length?'<span class="nm-rel '+s.relations[i]+'">'+REL_TXT[s.relations[i]]+'</span>':'')).join('')+'</div>';
   const mj=d.sound.major,mn=d.sound.minor;
-  let h=section(1,'🔊','소리로 본 이름 (발음오행)',card(chain(mj)+'<p style="margin:.5rem 0 0">'+esc(mj.school)+'로 보면 소리 흐름이 <b>'+esc(mj.verdict)+'</b>이야. '+
+  let h=section(1,'','소리로 본 이름 (발음오행)',card(chain(mj)+'<p style="margin:.5rem 0 0">'+esc(mj.school)+'로 보면 소리 흐름이 <b>'+esc(mj.verdict)+'</b>이야. '+
     (mj.relations.includes('ke')?'상극(서로 누르는 사이)이 있어 부를 때 기운이 부딪친다고 보는 쪽이야.':'글자끼리 같은 기운이거나 서로 살리는 흐름이야.')+'</p>')+
     card(chain(mn)+'<p style="margin:.5rem 0 0">'+esc(mn.school)+'로 보면 <b>'+esc(mn.verdict)+'</b>이야. 두 학설은 ㅇㅎ과 ㅁㅂㅍ을 거꾸로 봐서 결과가 다를 수 있어.</p>','다른 학설로 보면'));
-  h+=section(2,'☯️','모음의 음양',card('<div class="chips">'+d.name.split('').map((c,i)=>'<span class="chip'+(d.vowel.marks[i]==='양'?' a':'')+'">'+esc(c)+' '+d.vowel.marks[i]+'</span>').join('')+'</div>'+
+  h+=section(2,'','모음의 음양',card('<div class="chips">'+d.name.split('').map((c,i)=>'<span class="chip'+(d.vowel.marks[i]==='양'?' a':'')+'">'+esc(c)+' '+d.vowel.marks[i]+'</span>').join('')+'</div>'+
     '<p style="margin:.5rem 0 0">'+(d.vowel.balanced?'밝은 모음(양)과 어두운 모음(음)이 섞여 소리의 균형이 좋은 편이야.':'모음이 한쪽('+d.vowel.marks[0]+')으로만 모여 있어. 작명에서는 둘이 섞이는 쪽을 더 좋게 봐.')+'</p>'));
   if(d.suri){
     const s=d.suri,cls={good:'up',bad:'down',half:'',split:''};
-    h+=section(3,'🔢','획수로 본 이름 (원형이정 81수리)',
+    h+=section(3,'','획수로 본 이름 (원형이정 81수리)',
       '<div class="cards">'+['won','hyeong','i','jeong'].map(k=>{const g=s.ge[k];return '<div class="c"><b>'+g.label+' '+g.num+'수 <span class="pill '+cls[g.tag]+'">'+g.tag_kr+'</span></b>'+
         '<p><small>'+esc(g.period)+' · '+esc(g.name)+'</small><br>'+esc(g.mean)+'</p></div>';}).join('')+'</div>'+
       card('<p style="margin:0">글자별 원획: '+d.name.split('').map((c,i)=>esc(c)+' '+s.strokes[i]+'획('+s.yinyang[i]+')').join(' · ')+'</p>'+
@@ -714,11 +921,11 @@ function nameView(d){
         (s.note?'<p class="fine" style="margin:.4rem 0 0">'+esc(s.note)+'</p>':'')+
         '<p class="fine" style="margin:.4rem 0 0">81수리 길흉은 네 곳의 작명 자료를 대조해 다수결로 정했고, 둘로 갈린 수는 엇갈림으로 적었어.</p>'));
   }else{
-    h+=section(3,'🔢','획수로 본 이름',card('<p style="margin:0">한자를 모두 고르면 원형이정 네 격과 81수리 길흉까지 볼 수 있어.</p>'));
+    h+=section(3,'','획수로 본 이름',card('<p style="margin:0">한자를 모두 고르면 원형이정 네 격과 81수리 길흉까지 볼 수 있어.</p>'));
   }
   if(d.saju){
     const m=d.saju.missing,f=d.saju.filled;
-    h+=section(4,'🧩','내 사주와 함께',card('<p style="margin:0">'+(m.length?'내 원국(여덟 글자)에는 '+m.join('·')+' 기운이 비어 있어. '+
+    h+=section(4,'','내 사주와 함께',card('<p style="margin:0">'+(m.length?'내 원국(여덟 글자)에는 '+m.join('·')+' 기운이 비어 있어. '+
       (f.length?'이름 소리(다수설)가 '+f.join('·')+' 기운을 보태 줘서 빈자리를 채우는 쪽이야.':'이름 소리에는 이 기운이 없어. 작명에서는 빈 기운을 이름으로 보태는 방법을 쓰기도 해.'):
       '내 원국에는 다섯 기운이 다 있어서, 이름 소리로 따로 채울 빈자리는 없어.')+'</p>'));
   }
@@ -743,29 +950,8 @@ document.addEventListener('submit',async e=>{
 
 document.addEventListener('click',e=>{if(e.target.id==='bdChip'){const c=$('bdCard');if(c) c.hidden=!c.hidden;}});
 
-// ---------------- 용어 눌러서 뜻 보기 (용어 풀이집 /api/glossary)
-const TERM_SKIP=new Set(['사주','태양','금성','수성','화성','목성','토성','음력','기질','궁합','타로','주역','오미쿠지','생명수','달','양']);
-let TERM_RE=null;
-async function loadGloss(){
-  if(S.gloss) return;
-  try{S.gloss=await fetch('/api/glossary').then(r=>r.json());}catch(_){S.gloss={};return;}
-  const keys=Object.keys(S.gloss).filter(k=>k.length>=2&&!TERM_SKIP.has(k)).sort((a,b)=>b.length-a.length);
-  TERM_RE=keys.length?new RegExp('('+keys.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','g'):null;
-}
-function linkTerms(escaped,used){
-  if(!TERM_RE) return escaped;
-  return escaped.replace(TERM_RE,m=>{if(used.has(m)) return m;used.add(m);return '<button type="button" class="term" data-t="'+m+'">'+m+'</button>';});
-}
-document.addEventListener('click',e=>{
-  const b=e.target.closest('.term'),tip=$('termTip');
-  if(!b){if(tip&&!e.target.closest('#termTip')) tip.classList.remove('on');return;}
-  const r=b.getBoundingClientRect();
-  tip.innerHTML='<b>'+esc(b.dataset.t)+'</b>'+esc((S.gloss||{})[b.dataset.t]||'');
-  tip.style.left=Math.max(8,Math.min(window.innerWidth-296,r.left+window.scrollX-20))+'px';
-  tip.style.top=(r.bottom+window.scrollY+6)+'px';
-  tip.classList.add('on');
-});
-
+// ---------------- 용어: 팝업 없이, 서버 풀이 문장 안 괄호 풀이를 흐린 글자로 보인다 (soft)
+function linkTerms(escaped){return escaped;}
 
 // ---------------- 근거 보기: 챕터가 본 계산값 (AI 풀이도 이 값만 받아서 쓴다)
 const PATH_LABEL={
@@ -960,7 +1146,7 @@ function adultGate(){
   return card('<p style="margin:0 0 8px">속궁합은 성인용 풀이라 솔직한 표현이 들어가. 만 19세 이상만 켜 줘.</p>'+
     '<label class="check" style="padding-top:0"><input type="checkbox" class="adult-ok"> 만 19세 이상이고, 속궁합을 솔직한 말로 볼게</label>');
 }
-function sokSection(){
+function sokSection(n){
   const s=S.facts.sok;if(!s) return '';
   let inner;
   if(!isAdult()) inner=adultGate();
@@ -973,21 +1159,20 @@ function sokSection(){
       '<tr><td class="l">상대 태어난 날 글자</td><td class="l">'+esc(s.day_branch.good.join(' · '))+'</td><td class="l">'+esc(s.day_branch.hard.join(' · '))+'</td></tr>'+
       '</table></div><p class="fine" style="margin-top:6px">궁합 탭에서 상대 생일을 넣으면 두 사람 속궁합도 같이 나와.</p>','이런 상대랑 불붙어')+
     '<p style="text-align:right;margin:4px 0 0"><button type="button" class="linkbtn adult-off">19 모드 끄기</button></p>';
-  return '<section class="chapter" id="ch-sok"><div class="ch-label">CHAPTER · 19</div><div class="ch-head"><div class="ch-emoji" aria-hidden="true">🔞</div>'+
-    '<div class="ch-title">속궁합 (19)</div></div>'+inner+
-    '<div class="src">여러 별자리 해설과 사주 궁합 해설이 공통으로 말하는 결만 모았어. 재미로 봐 줘.</div></section>';
+  return '<details class="chapter" id="ch-sok"><summary><span class="ch-no">'+((n||0)+1)+'장</span><span class="ch-title">속궁합 (19)</span></summary><div class="ch-in">'+inner+
+    '<p class="src">여러 별자리 해설과 사주 궁합 해설이 공통으로 말하는 결만 모았어. 재미로 봐 줘.</p></div></details>';
 }
 function sokPairView(sp){
   const b=t=>({good:'<span class="pill p-good">불붙음</span>',warn:'<span class="pill p-warn">삐걱 주의</span>',mid:'<span class="pill p-mid">무난</span>'}[t]);
-  if(!isAdult()) return section(7,'🔞','속궁합 (19)',adultGate());
-  return section(7,'🔞','속궁합 (19)',card('<div class="tbl"><table class="xt">'+sp.rows.map(r=>'<tr><td class="l">'+esc(r.label)+' ('+esc(r.aspect)+')</td><td>'+b(r.tone)+
+  if(!isAdult()) return section(6,'','속궁합 (19)',adultGate(),true);
+  return section(6,'','속궁합 (19)',card('<div class="tbl"><table class="xt">'+sp.rows.map(r=>'<tr><td class="l">'+esc(r.label)+' ('+esc(r.aspect)+')</td><td>'+b(r.tone)+
     '</td><td class="l">'+esc(r.text)+'</td></tr>').join('')+'<tr><td class="l">태어난 날 글자</td><td>'+b(sp.day.tone)+'</td><td class="l">'+esc(sp.day.text)+'</td></tr></table></div>'+
     '<p class="fine" style="margin-top:6px">나: 화성 '+esc(sp.a.mars)+' · 금성 '+esc(sp.a.venus)+' / 상대: 화성 '+esc(sp.b.mars)+' · 금성 '+esc(sp.b.venus)+'. 불붙는 조합 '+sp.good+'/'+sp.total+'.</p>')+
     '<p style="text-align:right;margin:4px 0 0"><button type="button" class="linkbtn adult-off">19 모드 끄기</button></p>');
 }
 function rerenderAdult(){
   if(S.tab==='match'&&S.matchData){S.tools.match=matchView(S.matchData);$('toolOut').innerHTML=S.tools.match;animate($('toolOut'));}
-  else if(S.tab==='love'){const y=window.scrollY;openTab('love');window.scrollTo(0,y);}
+  else if(S.tab==='love'){const y=window.scrollY;openTab('love');const c=$('ch-sok');if(c) c.open=true;window.scrollTo(0,y);}
 }
 document.addEventListener('change',e=>{if(e.target.classList&&e.target.classList.contains('adult-ok')&&e.target.checked){setAdult(true);rerenderAdult();}});
 document.addEventListener('click',e=>{if(e.target.closest('.adult-off')){setAdult(false);rerenderAdult();}});
@@ -997,8 +1182,7 @@ function goldenInfo(){
   const g=(S.facts.insights||{}).golden;if(!g||!g.month) return null;
   const m=g.month,lines=[m.from.replace(/-/g,'.')+' ~ '+m.to.replace(/-/g,'.')+' · '+m.ganzhi+'월',(m.parts||[]).join(' · ')];
   if(g.year) lines.push('세 체계가 가장 많이 겹치는 해: '+g.year.year+'년 (만 '+g.year.age+'살, '+g.year.n+'개 중 '+g.year.up+'개 좋음)');
-  return {title:'나의 연애 골든타임',hand:'Golden Time',score:null,big:m.year+'.'+pad(m.month),head:'앞으로 24개월 중 연애 신호가 가장 센 달',lines,
-    chips:['일주 '+S.facts.natal.day_pillar,'신호 세기 '+m.power]};
+  return {kicker:dateLine(true),me:cardMe(),label:'나의 연애 골든타임',big:m.year+'.'+pad(m.month),head:'앞으로 24개월 중 연애 신호가 가장 센 달',lines};
 }
 
 // ---------------- 생년월일 캘린더 선택기
@@ -1022,6 +1206,7 @@ function dpText(cal,v,leap,ym){
 function dpRefresh(form,name){
   const f=dpF(form,name);
   f.btn.textContent=dpText(f.cal.value,f.val.value,f.leap.value==='1',f.val.dataset.ym);
+  if(name==='birth') pvRefresh();
 }
 async function lunarMonths(y){
   if(!DP.cache[y]){
@@ -1219,7 +1404,7 @@ function peopleSave(nick,q){
 function renderPeople(){
   const box=$('people');
   if(isLocked()&&!S.pcache){                        // 잠겨 있고 아직 안 연 상태: PIN 칸만 보인다
-    box.innerHTML='<div class="card"><h4 class="ppl-h">내 사주 바로 보기 🔒</h4>'+
+    box.innerHTML='<div class="ppl-box"><h4 class="ppl-h">내 사주 바로 보기 (잠김)</h4>'+
       (canLock?'<div class="pin-row"><input type="password" id="pinIn" inputmode="numeric" maxlength="8" placeholder="PIN" aria-label="PIN" autocomplete="off">'+
         '<button type="button" class="go" id="pinOpen">열기</button></div><div id="pinMsg" class="fine"></div>':
         '<p class="fine">잠긴 목록은 https 주소나 이 컴퓨터(localhost)에서 열었을 때만 풀 수 있어.</p>')+
@@ -1229,9 +1414,9 @@ function renderPeople(){
   const l=people();
   if(!l.length&&!isLocked()){box.innerHTML='';return;}
   const act=isLocked()?'<button type="button" class="linkbtn" id="lockClose">다시 잠그기</button> · <button type="button" class="linkbtn" id="lockOff">잠금 풀기</button>':
-    canLock?'<button type="button" class="linkbtn" id="lockStart">🔒 PIN 잠금 걸기</button>':
+    canLock?'<button type="button" class="linkbtn" id="lockStart">PIN 잠금 걸기</button>':
     '<span>잠금은 https 주소나 이 컴퓨터(localhost)에서 열었을 때만 걸 수 있어.</span>';
-  box.innerHTML='<div class="card"><h4 class="ppl-h">내 사주 바로 보기'+(isLocked()?' 🔓':'')+'</h4><div class="ppl">'+
+  box.innerHTML='<div class="ppl-box"><h4 class="ppl-h">내 사주 바로 보기'+(isLocked()?' (열림)':'')+'</h4><div class="ppl">'+
     l.map((x,i)=>'<div class="ppl-row"><button type="button" class="ppl-go" data-pi="'+i+'"><b>'+esc(x.nick)+'</b>'+
       '<small>눌러서 바로 보기</small></button>'+
       '<button type="button" class="ppl-del" data-pdel="'+i+'" aria-label="'+esc(x.nick)+' 지우기">지우기</button></div>').join('')+
@@ -1259,7 +1444,12 @@ async function pinLock(){
 }
 // 저장한 값으로 입력칸을 채운다. n: 나는 '', 궁합 상대는 '2'
 function fillForm(form,q,n){
-  const set=(name,v)=>{const el=form.querySelector('[name="'+name+'"]');if(el&&v!=null) el.value=v;};
+  const set=(name,v)=>{
+    if(v==null) return;
+    const els=form.querySelectorAll('[name="'+name+'"]');
+    if(els.length&&els[0].type==='radio') els.forEach(r=>{r.checked=r.value===v;});
+    else if(els[0]) els[0].value=v;
+  };
   const tname=n?'birth2_time':'birth_time';
   set('birth'+n,q.birth);set('leap'+n,q.leap||'');set('calendar'+n,q.calendar||'solar');
   set(tname,q.birth_time||'12:00');set('sex'+n,q.sex||'male');set('city'+n,q.city||'서울');
@@ -1268,6 +1458,7 @@ function fillForm(form,q,n){
   if(u){u.checked=!!q.unknown_time;if(t) t.disabled=u.checked;}
   const b=form.querySelector('[name="birth'+n+'"]');if(b) delete b.dataset.ym;
   dpRefresh(form,'birth'+n);
+  if(!n){pvRefresh();moreRefresh();}
 }
 function toggleNick(){
   const f=$('fMain'),rm=f.querySelector('[name="remember"]');
@@ -1338,32 +1529,33 @@ $('shLink').addEventListener('click',async()=>{
   }catch(e){$('shLinkOut').innerHTML='<div class="err">'+esc(e.message)+'</div>';}
   finally{b.disabled=false;}
 });
+function cardMe(){
+  const n=S.facts.natal,el=n.ilgan_element;
+  return {seal:n.ilgan+el,el,word:EL_WORD[el]||'',first:String(n.character||'').split('. ')[0].replace(/\.?$/,'.')};
+}
 function cardInfo(){
-  const f=S.facts,t=f.today,tab=S.tab,o=S.outline[tab]||TOOLS[tab]||{title:'종합 사주',hand:''};
-  const chips=['일주 '+f.natal.day_pillar,...(t.keywords||[]).slice(0,2)];
-  if(tab==='today') return {title:o.title,hand:o.hand,score:t.scores.total,head:t.heads.total,
-    lines:['연애 '+t.scores.love+' · 직장 '+t.scores.career+' · 금전 '+t.scores.money,t.focus],chips};
-  if(t.domains[tab]){const d=t.domains[tab];return {title:o.title,hand:o.hand,score:d.score,head:d.head,lines:d.reasons.slice(0,2),chips};}
-  if(tab==='life'){const c=f.natal.ilju;return {title:c.pillar+' 일주',hand:c.title,score:null,head:f.natal.character.split('. ')[0]+'.',
-    lines:[f.natal.geguk_mean,'요즘 부르는 말: '+c.modern],chips:['십이운성 '+c.stage,f.natal.strength,...c.marks.map(m=>m.name)].slice(0,4)};}
-  if(tab==='newyear'){const ny=f.newyear;return {title:ny.year+' '+ny.ganzhi+'년',hand:'New Year',score:null,head:ny.rel,
-    lines:['연애 '+ny.signals.love.tag+' · 일 '+ny.signals.career.tag+' · 돈 '+ny.signals.money.tag],chips:['만 '+ny.age+'세','나에게 '+ny.god.split('(')[0]]};}
-  const r=$('toolOut')&&$('toolOut').querySelector('.ring span');
-  return {title:o.title,hand:o.hand,score:r?+r.textContent:null,
-    head:($('toolOut')&&$('toolOut').querySelector('.gauge b, .gauge div div'))?.textContent||o.sub||'',lines:[],chips};
+  const f=S.facts,t=f.today,tab=S.tab,o=S.outline[tab]||TOOLS[tab]||{title:'종합 사주'};
+  const base={kicker:dateLine(true),me:cardMe()};
+  if(tab==='today') return {...base,label:'오늘의 한 줄',head:t.heads.total};
+  if(t.domains[tab]) return {...base,label:'오늘의 '+DOM_WORD[tab],head:t.domains[tab].head};
+  if(tab==='life'){const c=f.natal.ilju;return {...base,label:'나의 일주',head:c.pillar+' 일주, '+c.title};}
+  if(tab==='newyear'){const ny=f.newyear;return {...base,label:ny.year+' '+ny.ganzhi+'년',head:ny.rel};}
+  const one=$('toolOut')&&$('toolOut').querySelector('.oneline');
+  return {...base,label:o.title,head:one?one.textContent:o.sub};
 }
 function openSheetGold(){const g=$('shGold');if(g) g.hidden=!goldenInfo();}
 $('btnShare').addEventListener('click',openSheetGold);
-$('shGold').addEventListener('click',()=>{
+$('shGold').addEventListener('click',async()=>{
   const info=goldenInfo();if(!info) return;
-  shareCard(info).toBlob(blob=>{
+  const c=await shareCard(info);
+  c.toBlob(blob=>{
     const url=URL.createObjectURL(blob);
     $('shCardOut').innerHTML='<img class="card-preview" src="'+url+'" alt="골든타임 카드 미리보기">'+
       '<a class="go dl" href="'+url+'" download="saju-golden-time.png">이미지 내려받기</a>';
   },'image/png');
 });
-$('shCard').addEventListener('click',()=>{
-  const c=shareCard(cardInfo());
+$('shCard').addEventListener('click',async()=>{
+  const c=await shareCard(cardInfo());
   c.toBlob(async blob=>{
     const file=new File([blob],'saju-'+S.tab+'.png',{type:'image/png'});
     if(navigator.canShare&&navigator.canShare({files:[file]})){

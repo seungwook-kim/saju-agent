@@ -352,7 +352,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         career_extra = [
             _du_line_c,
             _du_land_c,
-            f"올해 유년 {BRANCHES_KR[_lyb]}와 관록궁은 "
+            f"올해 유년 {j(BRANCHES_KR[_lyb], '와')} 관록궁은 "
             f"{_rs(branch_relation(_lyb, _guanlu_b))}야.",
             f"태어날 때 토성(책임과 과제)은 {_pos['saturn']['sign']} {_hou['토성']}번 하우스 칸에 있어, "
             "평생 그 영역에서 책임을 다잡게 하는 별이야.",
@@ -360,7 +360,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         ]
         money_extra = [
             _du_line_n,
-            f"올해 유년 {BRANCHES_KR[_lyb]}와 재백궁은 "
+            f"올해 유년 {j(BRANCHES_KR[_lyb], '와')} 재백궁은 "
             f"{_rs(branch_relation(_lyb, _caibo_b))}야.",
             f"지금 대운 지지 {j(_cur['ganzhi'][1], '와')} 재백궁은 "
             f"{_rs(branch_relation(_dub, _caibo_b))}야. 10년 돈의 그릇이 이렇게 놓여 있어.",
@@ -368,7 +368,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
             f"태어날 때 목성(확장과 기회)은 {_pos['jupiter']['sign']} {_hou['목성']}번 하우스 칸에 있어 그쪽에서 기회를 넓히기 쉬워.",
         ]
         love_extra = [
-            f"올해 유년 {BRANCHES_KR[_lyb]}와 부처궁은 "
+            f"올해 유년 {j(BRANCHES_KR[_lyb], '와')} 부처궁은 "
             f"{_rs(branch_relation(_lyb, _spouse_b))}야.",
         ]
 
