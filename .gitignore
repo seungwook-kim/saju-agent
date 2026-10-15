@@ -17,8 +17,8 @@ tools/.cache/
 .env.*
 !.env.example
 
-# 실행할 때 db/init.sql 로 만드는 DB
-data/
+# 실행할 때 db/init.sql 로 만드는 DB (저장소 맨 위 data/ 만. tests/data 의 기준값 파일은 올린다)
+/data/
 
 # Vercel 연결 정보 (로컬 전용)
 .vercel
