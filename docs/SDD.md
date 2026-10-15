@@ -332,7 +332,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 
 ## 12. 시험
 
-- `tests/` 아래 33개 파일, 시험 705개 (2026-10-14). 실행: `uv run --no-project --with pytest python -m pytest -q`.
+- `tests/` 아래 35개 파일, 시험 763개 (2026-10-15). 실행: `uv run --no-project --with pytest python -m pytest -q`.
 - 시험은 AI 없이(`SAJU_AI=0`), `.env` 없이(`SAJU_DOTENV=0`), Supabase 키 없이 돈다 (`tests/conftest.py`).
 - 외부 기준 대조:
 

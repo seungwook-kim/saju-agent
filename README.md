@@ -6,9 +6,9 @@ AI는 계산된 사실표만 받고, 사실표에 없는 숫자나 단정하는 
 [![CI](https://github.com/seungwook-kim/saju-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/seungwook-kim/saju-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
-![tests](https://img.shields.io/badge/tests-705%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-763%20passed-brightgreen)
 
-| 첫 화면 | 오늘 탭 | 평생 탭 (대운 x 원국) |
+| 첫 화면 | 오늘 · 총운 | 흐름 · 평생 (대운 여덟 걸음) |
 |---|---|---|
 | ![첫 화면](docs/images/home.jpg) | ![오늘 탭](docs/images/today.jpg) | ![평생 탭](docs/images/life.jpg) |
 
@@ -17,7 +17,8 @@ AI는 계산된 사실표만 받고, 사실표에 없는 숫자나 단정하는 
 ## 무엇을 하나
 
 - **정통 계산:** 네 기둥(사주), 대운, 신살, 자미두수 명반 12궁과 사화, 출생 차트(행성·상승궁·하우스), 오늘의 트랜짓, 택일(생기복덕·황도·건제)
-- **탭 11개:** 총운 · 연애 · 직장 · 금전(오늘 하루) · 신년 · 평생 · 되짚기(지난 20년을 기억과 대조) · 시간 찾기 · 궁합 · 길일 · 이름 풀이
+- **탭 11개, 네 묶음:** 오늘(총운 · 연애 · 직장 · 금전) · 흐름(신년 · 평생 · 되짚기: 지난 20년을 기억과 대조) · 둘이서(궁합) · 고르기(시간 찾기 · 길일 · 이름 풀이)
+- **사주에 맞춘 화면:** 한지 바탕에 먹과 인주, 그 사람 일간의 오행 색 하나. 오늘 탭은 오늘 한 줄, 해 볼 것과 조심할 것, 일간 도장과 총운, 붓 획 점수, 하늘과 땅으로 나눈 네 기둥 띠 순서로 보여 줍니다. 오행은 색과 함께 "나무 불 흙 쇠 물" 글자로 적어 색약이어도 구분됩니다. 글꼴(Gowun Batang·Dodum)은 부분 글꼴로 직접 줍니다.
 - **근거 보기:** 챕터마다 그 풀이가 본 계산값을 펼쳐 볼 수 있습니다 (AI 풀이도 이 값만 받습니다).
 - **세 체계 합의도:** 앞으로 10년, 해마다 사주·자미두수·점성술이 같은 쪽을 가리키는지 표로 보여 줍니다.
 - **태어난 시간 찾기:** 기억나는 인생 사건으로 12시진 후보에 점수를 매깁니다 (점성술 출생시간 보정 방식).
@@ -80,7 +81,7 @@ flowchart LR
 |---|---|
 | `love_fortune/` | 계산 엔진, 웹 서버, 풀이 생성 (파이썬 파일 52개) |
 | `love_fortune/static/` | 화면 (바닐라 JS, 빌드 도구 없음) |
-| `tests/` | 시험 705개. 외부 기준값 파일은 `tests/data/` |
+| `tests/` | 시험 763개. 외부 기준값 파일은 `tests/data/` |
 | `tools/` | 기준값·데이터 생성 도구 (개발할 때만 외부 패키지 사용) |
 | `db/` | 해석 데이터·AI 풀이 저장소의 표 만들기 스크립트 (SQLite, Supabase) |
 | `docs/GUIDE.md` | 자세한 실행법, 운세 체계, 데이터 출처 |
