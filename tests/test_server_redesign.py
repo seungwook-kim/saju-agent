@@ -69,15 +69,15 @@ def test_fact_todo_from_facts_only(sheet):
     doms = t["domains"]
     assert set(todo) >= {"do", "do_domain", "avoid"}
     # do: 팁이 있는 영역 중 점수가 가장 높은 영역의 첫 팁 (지어내지 않는다)
-    tipped = [k for k in ("love", "career", "money") if doms[k]["tips"]]
+    tipped = [k for k in ("love", "career", "money", "study") if doms[k]["tips"]]
     best = max(tipped, key=lambda k: doms[k]["score"])
     assert todo["do_domain"] == best and todo["do"] == doms[best]["tips"][0]
     # avoid: 피할 것이 있는 영역 중 점수가 가장 낮은 영역의 것
-    avoided = [k for k in ("love", "career", "money") if doms[k]["avoid"]]
+    avoided = [k for k in ("love", "career", "money", "study") if doms[k]["avoid"]]
     worst = min(avoided, key=lambda k: doms[k]["score"])
     assert todo["avoid"] == doms[worst]["avoid"]
-    assert todo == {"do": "저축 자동이체 점검하기", "do_domain": "money",
-                    "avoid": "메신저 장문 논쟁", "avoid_domain": "career"}
+    assert todo == {"do": "충동구매는 24시간 미뤄보기", "do_domain": "money",          # 팁은 날짜 해시로 고른다
+                    "avoid": "충동적인 사직·이직 언급", "avoid_domain": "career"}
 
 
 def test_todo_falls_back_to_almanac_then_empty():

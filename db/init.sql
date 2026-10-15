@@ -17,7 +17,7 @@ CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-INSERT INTO meta VALUES ('schema_version', '2');
+INSERT INTO meta VALUES ('schema_version', '3');
 INSERT INTO meta VALUES ('description', '종합 사주 해석 데이터 (택일·생기복덕·점성 트랜짓)');
 
 -- 데이터 출처와 검증 방법
@@ -42,7 +42,19 @@ INSERT INTO source VALUES
  ('saju_sites', '사주만세 계산 원리, 정해 만세력 강의', 'https://sajumanse.com/calculation/',
   '진태양시·서머타임·야자시 처리 방식', '야자시는 사이트마다 달라 선택 옵션으로 둠'),
  ('transit_orbs', 'Astrodienst Astrowiki 외 트랜짓 오브 해설', 'https://www.astro.com/astrowiki/en/Transit',
-  '트랜짓 허용 오차(orb)', '여러 출처가 1~3도를 권함, 달은 조금 넓게');
+  '트랜짓 허용 오차(orb)', '여러 출처가 1~3도를 권함, 달은 조금 넓게'),
+ ('study_sina', '필명 도문감찰사, 정인 십신 상세 풀이 (시나 뉴스, 2026-07-02)', 'https://sina.cn/news/detail/5316146074229521.html',
+  '학업: 정인(인성이 좋으면 학업이 높다), 식신(말로 풀고 가르침), 식상 운이 지나친 인성의 학업 부진을 덜어 줌', '2026-10-15 원문 확인'),
+ ('study_mseanchan', 'Master Sean Chan, The Ten Gods in BaZi / Academic Star', 'https://www.masterseanchan.com/blog/ten-gods-bazi-profile-how-its-done/',
+  '학업: 인성은 education, 정인 academic, 편인 unconventional knowledge. 문창귀인 일간별 지지표', '2026-10-15 원문 확인, 문창표는 natal_extra.MUNCHANG 과 10칸 일치'),
+ ('study_devcomma', '계산기 & 툴, 학당귀인 계산기', 'https://tools.devcomma.com/calculators/hakdang-gwiin',
+  '학업: 학당귀인(일간의 장생 지지)은 배움·학문·교육, 문창귀인은 글·문서·정리. 합격을 직접 예측하지 않는다고 밝힘', '2026-10-15 원문 확인, 학당 정의가 natal_extra.hakdang 과 같음'),
+ ('study_udn', '필명 프로메테우스, 자미 명반으로 본 평생의 학습력 (UDN 연합신문망, 2025-12-18)', 'https://udn.com/news/story/7268/9208905',
+  '학업: 문창·문곡·천괴·천월·화과는 공부·시험의 문성, 문창 화기는 학업에 불리, 공부하는 시기의 관록궁은 배우는 자리이고 관록궁 화기는 학습 환경의 시비', '2026-10-15 원문 확인'),
+ ('study_wiki_planets', 'Wikipedia, Planets in astrology', 'https://en.wikipedia.org/wiki/Planets_in_astrology',
+  '학업: 수성은 schooling and education, 목성은 higher education·teacher', '2026-10-15 원문 확인 (문서에 출처 보강 요청 표시가 있어 다른 해설과 같은 방향만 씀)'),
+ ('study_wiki_houses', 'Wikipedia, House (astrology)', 'https://en.wikipedia.org/wiki/House_(astrology)',
+  '학업: 3하우스는 일상의 배움, 9하우스는 고등 교육 (오늘 달이 지나는 칸 설명에만 쓰고 점수에는 넣지 않음)', '2026-10-15 원문 확인');
 
 -- 건제12신 (월건과 일지로 정하는 그날의 성격). 길흉은 한국 자료 기준 6길 6흉
 CREATE TABLE officer (
@@ -124,16 +136,17 @@ CREATE TABLE planet (
     w_love    REAL NOT NULL,
     w_career  REAL NOT NULL,
     w_money   REAL NOT NULL,
+    w_study   REAL NOT NULL,         -- 학업: 수성(schooling)·목성(higher education)만, 나머지는 근거가 없어 0 (source study_wiki_planets)
     orb       REAL NOT NULL          -- 트랜짓 허용 오차(도), 지나가는 행성 기준
 );
 INSERT INTO planet VALUES
- ('sun',     '태양', '나 자신, 활력, 인정받기',     0,  0.5, 1.0, 0.3, 3.0),
- ('moon',    '달',   '감정, 몸 상태, 가족',         0,  0.8, 0.3, 0.3, 5.0),
- ('mercury', '수성', '말, 생각, 연락, 문서',        0,  0.4, 0.8, 0.6, 3.0),
- ('venus',   '금성', '사랑, 즐거움, 돈 감각',       1,  1.0, 0.3, 0.8, 3.0),
- ('mars',    '화성', '의욕, 행동, 다툼',           -1,  0.6, 0.8, 0.4, 3.0),
- ('jupiter', '목성', '확장, 기회, 행운',            1,  0.6, 0.8, 1.0, 2.0),
- ('saturn',  '토성', '책임, 제약, 인내',           -1,  0.5, 1.0, 0.7, 2.0);
+ ('sun',     '태양', '나 자신, 활력, 인정받기',     0,  0.5, 1.0, 0.3, 0.0, 3.0),
+ ('moon',    '달',   '감정, 몸 상태, 가족',         0,  0.8, 0.3, 0.3, 0.0, 5.0),
+ ('mercury', '수성', '말, 생각, 연락, 문서',        0,  0.4, 0.8, 0.6, 1.0, 3.0),
+ ('venus',   '금성', '사랑, 즐거움, 돈 감각',       1,  1.0, 0.3, 0.8, 0.0, 3.0),
+ ('mars',    '화성', '의욕, 행동, 다툼',           -1,  0.6, 0.8, 0.4, 0.0, 3.0),
+ ('jupiter', '목성', '확장, 기회, 행운',            1,  0.6, 0.8, 1.0, 0.8, 2.0),
+ ('saturn',  '토성', '책임, 제약, 인내',           -1,  0.5, 1.0, 0.7, 0.0, 2.0);
 
 -- 점성술 각도. harmony: 1 = 부드러움, -1 = 긴장, 0 = 행성 성격을 따름(합)
 CREATE TABLE aspect (

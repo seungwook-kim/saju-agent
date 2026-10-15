@@ -2,7 +2,8 @@
 
 예전 오늘 운세는 사주 일진과 원국의 합충·십신만 보고, 자미두수는 올해(유년)까지,
 점성술은 '내 금성 원소 대 오늘 태양 원소' 한 줄뿐이었다. 여기서 체계마다 '오늘'에
-해당하는 층을 계산해 영역별(연애·직장·금전) 점수 가감과 근거 문장을 만든다.
+해당하는 층을 계산해 영역별(연애·직장·금전·학업) 점수 가감과 근거 문장을 만든다.
+학업 신호(문창귀인·학당귀인, 자미 문성·관록궁, 수성·목성)는 근거를 조사해 넣었다 (db/init.sql source 의 study_*).
 
 - 사주: 오늘 일진에서 내 일간의 십이운성, 오늘 들어온 신살(천을귀인·도화·역마·공망),
         억부 용신 기준으로 오늘 기운이 도움이 되는지
@@ -24,7 +25,7 @@ from .match import DOHWA_MAP, STAGE_NAMES, TWELVE_STAGES
 from .narrate import GOD_SHORT, PALACE_TALK
 from .rules import ten_god
 
-DOMAINS = ("love", "career", "money")
+DOMAINS = ("love", "career", "money", "study")
 
 # 십이운성 기운 세기 (전통 분류: 제왕·건록이 가장 왕성, 병·사·절이 가장 약함)
 STAGE_POINTS = {"제왕": 2, "건록": 2, "장생": 1, "관대": 1, "목욕": 0, "양": 0,
@@ -38,15 +39,19 @@ STAGE_TALK = {"장생": "새로 태어나 자라는 기운", "목욕": "씻고 �
 GOD_GROUP = {"비견": "비겁", "겁재": "비겁", "정인": "인성", "편인": "인성",
              "식신": "식상", "상관": "식상", "정재": "재성", "편재": "재성",
              "정관": "관성", "편관": "관성"}
-# 자미두수 궁 → 영역
+# 자미두수 궁 → 영역. 관록궁은 공부하는 시기에는 배우는 자리로도 본다 (source study_udn).
+# 학업에 세는 것은 유일이 관록궁에 걸린 것과 관록궁 화기뿐이다 (좋은 사화를 학업에 넓혀 쓰지 않는다)
 PALACE_DOMAIN = {"부처(배우자)": "love", "자녀": "love", "복덕": "love",
                  "관록": "career", "천이": "career", "노복": "career", "형제": "career",
                  "재백": "money", "전택": "money"}
+PALACE_DOMAINS = {**{k: (v,) for k, v in PALACE_DOMAIN.items()}, "관록": ("career", "study")}
+# 공부·시험을 보는 문성(글의 별). 문창·문곡·천괴·천월 (source study_udn, 문창은 iztro 해설도 학문·문서)
+WEN_STARS = ("문창", "문곡", "천괴", "천월")
 HUA_POINTS = {"록": 3, "권": 2, "과": 1, "기": -3}
 HUA_TALK = {"록": "복이 붙는", "권": "힘이 실리는", "과": "이름이 나는", "기": "막힘이 걸리는"}
 HUA_RESULT = {"록": "풀리기 쉬운 흐름이야.", "권": "힘을 받아 밀고 나가기 쉬운 흐름이야.",
               "과": "좋은 평을 듣기 쉬운 흐름이야.", "기": "막히기 쉬우니 서두르지 않는 게 좋아."}
-DOMAIN_KR = {"love": "연애", "career": "직장", "money": "금전"}
+DOMAIN_KR = {"love": "연애", "career": "직장", "money": "금전", "study": "학업"}
 
 
 def _signal(x: float) -> str:
@@ -57,8 +62,8 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
     ds, db = natal["ilgan_stem"], natal["day_branch"]
     yb = natal["pillars"]["year"][1]
     ts, tb = day_pillar(today)
-    pts = {"all": 0, "love": 0, "career": 0, "money": 0}
-    lines, tags = [], []                     # tags: 줄마다 어느 영역 몫인지 (all = 모든 영역 공통)
+    pts = {"all": 0, "love": 0, "career": 0, "money": 0, "study": 0}
+    lines, tags = [], []                     # tags: 줄마다 어느 영역 몫인지 (all = 모든 영역 공통, 튜플이면 여러 영역)
     stage = STAGE_NAMES[TWELVE_STAGES[ds].index(tb)]
     pts["all"] += STAGE_POINTS[stage]
     # '절'이야 / '묘'야 (따옴표 안 글자로 받침을 본다). '쇠'는 오행의 쇠(금)와 헷갈려서 단계라는 풀이를 붙인다
@@ -83,6 +88,16 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
         pts["career"] += 1
         lines.append("오늘은 역마(움직이고 옮겨 다니는 별)가 드는 날이라 외근·이동이 많은 일에 맞아.")
         tags.append("career")
+    # 학업: 오늘 일진이 내 문창귀인·학당귀인 자리에 들면 (source study_mseanchan·study_devcomma, 표는 natal_extra)
+    from .natal_extra import MUNCHANG, hakdang
+    if tb == MUNCHANG[ds]:
+        pts["study"] += 2
+        lines.append("오늘은 내 문창귀인(배우고 글로 풀어내는 재주의 별)이 드는 날이라 읽고 쓰고 정리하는 공부가 손에 붙기 쉬워.")
+        tags.append("study")
+    if tb == hakdang(ds):
+        pts["study"] += 2
+        lines.append("오늘은 내 학당귀인(공부와 가르침에 강한 별)이 드는 날이라 배우고 익히는 일에 마음이 가기 쉬워.")
+        tags.append("study")
     idx60 = next(n for n in range(60) if n % 10 == ds and n % 12 == db)
     if tb in KONGWANG[idx60 // 10]:
         pts["all"] -= 1
@@ -104,7 +119,7 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
                          f"{j(f'{god}({GOD_SHORT[god]})', '은')} 그 균형을 {'더 키우는' if strong else '더 흔드는'} "
                          "쪽이라 과하지 않게 쓰면 좋은 흐름이야.")
             tags.append("all")
-    total = pts["all"] * 3 + pts["love"] + pts["career"] + pts["money"]
+    total = pts["all"] * 3 + pts["love"] + pts["career"] + pts["money"] + pts["study"]
     return {"name": "사주", "points": pts, "lines": lines, "tags": tags, "signal": _signal(total / 2),
             "stage": stage}
 
@@ -112,30 +127,58 @@ def _saju(natal: dict, today: date, strong: bool | None) -> dict:
 def _ziwei(zw: dict | None) -> dict | None:
     if zw is None:
         return None
-    pts = {"all": 0, "love": 0, "career": 0, "money": 0}
+    pts = {"all": 0, "love": 0, "career": 0, "money": 0, "study": 0}
     lines, tags = [], []
     ld = zw["liuri"]
     lines.append(f"자미두수로 오늘(유일)은 내 {ld['palace']} 자리({ld['branch']})에 걸려, "
                  f"{PALACE_TALK.get(ld['palace'], '그 자리')}에 일이 모이기 쉬운 날이야.")
-    dom = PALACE_DOMAIN.get(ld["palace"])
-    tags.append(dom)                         # 영역이 없는 궁이면 None (점수에 안 들어가는 참고 줄)
-    if dom:
+    doms = PALACE_DOMAINS.get(ld["palace"])
+    tags.append(doms)                        # 영역이 없는 궁이면 None (점수에 안 들어가는 참고 줄)
+    for dom in doms or ():
         pts[dom] += 1
+    day_pal = next((p for p in zw["palaces"] if p["name"] == ld["palace"]), None)
+    wen = [s for s in (day_pal["stars"] if day_pal else []) if s in WEN_STARS]
+    if wen:
+        pts["study"] += 1
+        lines.append(f"오늘 걸린 그 자리에는 공부와 시험을 보는 글의 별(문성) {j('·'.join(wen), '이')} 있어 "
+                     "배우는 일에 힘이 실리기 쉬워.")
+        tags.append("study")
     star_palace = {s: p["name"] for p in zw["palaces"] for s in p["stars"]}
     for hua, star in ld["sihua"].items():
         pal = star_palace.get(star)
         if pal is None:
             continue
-        d = PALACE_DOMAIN.get(pal, "all")
-        pts[d] += HUA_POINTS[hua] if d != "all" else HUA_POINTS[hua] // 2
+        ds_ = PALACE_DOMAINS.get(pal)
+        if ds_ and "study" in ds_ and hua != "기":
+            # 학업은 직접 근거만 (2026-10-15 사용자 결정): 관록궁에서는 화기(학습 환경의 시비)만 학업에 센다
+            ds_ = tuple(d for d in ds_ if d != "study")
+        if ds_:
+            for d in ds_:
+                pts[d] += HUA_POINTS[hua]
+        else:
+            pts["all"] += HUA_POINTS[hua] // 2
         # 점수에 들어가는 사화는 모두 근거 줄을 남긴다 (예전엔 권·과는 점수만 더하고 줄이 없었다)
         lines.append(f"오늘 일진이 {star}에 {j(f'화{hua}({HUA_TALK[hua]} 기운)', '을')} 붙여 내 {pal} 쪽이 "
                      + HUA_RESULT[hua])
-        tags.append(d)
+        tags.append(ds_ if ds_ else "all")
+    # 학업: 화과는 문성의 하나, 문창·문곡에 붙은 화기는 공부에 막힘 (source study_udn).
+    # 문창·문곡 화기는 그 별이 관록궁에 있으면 위에서 관록궁 화기로 이미 셌으니 다시 세지 않는다
+    def _study_seen(star: str) -> bool:
+        return "study" in (PALACE_DOMAINS.get(star_palace.get(star, "")) or ())
+    if ld["sihua"].get("과") in star_palace:
+        pts["study"] += 1
+        lines.append("화과(이름이 나는 기운)는 공부와 시험을 보는 글의 별로도 쳐서 오늘은 배우는 일에 힘이 조금 더 실려.")
+        tags.append("study")
+    ji = ld["sihua"].get("기")
+    if ji in ("문창", "문곡") and ji in star_palace and not _study_seen(ji):
+        pts["study"] -= 3
+        lines.append(f"오늘은 {j(ld['sihua']['기'], '에')} 화기가 붙는 날이라 공부 흐름이 막히기 쉬워. "
+                     "진도를 욕심내지 말고 아는 걸 다지는 게 좋아.")
+        tags.append("study")
     lm = zw["liuyue"]
     lines.append(f"이번 달(유월)은 {lm['palace']} 자리에 걸려 한 달의 무게가 그쪽에 실려 있어.")
     tags.append(None)
-    total = pts["all"] * 2 + pts["love"] + pts["career"] + pts["money"]
+    total = pts["all"] * 2 + pts["love"] + pts["career"] + pts["money"] + pts["study"]
     return {"name": "자미두수", "points": pts, "lines": lines, "tags": tags, "signal": _signal(total)}
 
 
@@ -188,7 +231,7 @@ def layers(birth: date, hour: int | None, minute: int, sex: str, city: str,
         v = sum(s["points"].get("all", 0) + s["points"].get(k, 0) for s in systems)
         v += alm["points"] // 2
         adj[k] = max(-15, min(15, v))
-    adj["total"] = max(-15, min(15, round(sum(adj[k] for k in DOMAINS) / 3) + alm["points"] // 2))
+    adj["total"] = max(-15, min(15, round(sum(adj[k] for k in DOMAINS) / len(DOMAINS)) + alm["points"] // 2))
     sig = {s["name"]: s["signal"] for s in systems}
     goods = [n for n, v in sig.items() if v == "좋음"]
     bads = [n for n, v in sig.items() if v == "조심"]

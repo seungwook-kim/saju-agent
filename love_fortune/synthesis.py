@@ -22,8 +22,8 @@ from .ziwei import ziwei_chart
 from .astro import astro_chart
 from .lifetime import lifetime_reading
 from .story import build_stories
-from .domains import (career_score, money_score, total_score, band_headline,
-                      CAREER_TIPS, CAREER_AVOID, MONEY_TIPS, MONEY_AVOID,
+from .domains import (career_score, money_score, study_score, total_score, band_headline,
+                      CAREER_TIPS, CAREER_AVOID, MONEY_TIPS, MONEY_AVOID, STUDY_TIPS, STUDY_AVOID,
                       CAREER_STAR, MONEY_STAR, _pick, _element_reasons)
 
 
@@ -35,6 +35,63 @@ def _rs(rels) -> str:
 
 def _stage(day_stem: int, day_branch: int) -> str:
     return STAGE_NAMES[TWELVE_STAGES[day_stem].index(day_branch)]
+
+
+def day_reading(birth: date, hour: int | None, minute: int, sex: str, city: str,
+                day: date, natal: dict, zw: dict | None, strong: bool | None) -> dict:
+    """하루(오늘·내일) 영역 점수: 연애·직장·금전·학업·총운과 세 체계 층(today.layers).
+
+    zw 는 그날 기준 명반(유일·유월·유년이 그날 것)이어야 한다. 시간 미상이면 None.
+    총운 = 연애·직장·금전·학업 네 영역 평균 + 그날 공통 기운 (2026-10-15 사용자 결정).
+    팁·피할 것은 그날 날짜와 영역으로 해시해 고른다 (2026-10-15: 예전엔 태어난 날로만 골라 날마다 같은 줄이 나왔다).
+    """
+    ds = natal["ilgan_stem"]
+    branches = [natal["pillars"][k][1] for k in ("year", "month", "day", "hour")
+                if natal["pillars"][k][1] is not None]
+    ts, tb = day_pillar(day)
+    seed = f"{birth.isoformat()}|{day.isoformat()}|tips"
+    love_sc, love_reasons, elem = love_score(ds, branches, ts, tb, day.isoformat(), sex)
+    career_sc, career_reasons, _e2 = career_score(ds, branches, ts, tb, day.isoformat())
+    money_sc, money_reasons, _e3 = money_score(ds, branches, ts, tb, day.isoformat())
+    study_sc, study_reasons, _e5 = study_score(ds, branches, ts, tb, day.isoformat())
+    from .today import layers as _today_layers
+    view = _today_layers(birth, hour, minute, sex, city, day, natal, zw, strong)
+
+    def _clamp(v):
+        return max(1, min(100, v))
+    love_sc = _clamp(love_sc + view["adj"]["love"])
+    career_sc = _clamp(career_sc + view["adj"]["career"])
+    money_sc = _clamp(money_sc + view["adj"]["money"])
+    study_sc = _clamp(study_sc + view["adj"]["study"])
+    if zw is None:
+        daxian_hua, liunian_branch = [], year_pillar(datetime(day.year, day.month, day.day, 12, 0))[1]
+    else:
+        cur = next((p for p in zw["palaces"]
+                    if p["daxian"] and p["daxian"][0] <= zw["xusui"] <= p["daxian"][1]), None)
+        daxian_hua = list(cur["hua"].values()) if cur else []
+        liunian_branch = BRANCHES_KR.index(zw["liunian"]["branch"])
+    total_sc, total_reasons, _e4, keywords = total_score(
+        ds, branches, ts, tb, love_sc, career_sc, money_sc,
+        daxian_hua, liunian_branch, day.isoformat(), study=study_sc)
+    doms = ("love", "career", "money", "study")
+    total_sc = max(1, min(100, total_sc + view["adj"]["total"] - round(
+        sum(view["adj"][k] for k in doms) / len(doms))))
+    return {
+        "today": view, "today_elem": elem,
+        "love": {"score": love_sc, "head": headline(love_sc), "reasons": love_reasons},
+        "career": {"score": career_sc, "head": band_headline(career_sc, "career"), "reasons": career_reasons,
+                   "tips": _pick(seed + "|career", CAREER_TIPS, 3),
+                   "avoid": _pick(seed + "|career-avoid", CAREER_AVOID, 1)[0]},
+        "money": {"score": money_sc, "head": band_headline(money_sc, "money"), "reasons": money_reasons,
+                  "tips": _pick(seed + "|money", MONEY_TIPS, 3),
+                  "avoid": _pick(seed + "|money-avoid", MONEY_AVOID, 1)[0]},
+        "study": {"score": study_sc, "head": band_headline(study_sc, "study"), "reasons": study_reasons,
+                  "tips": _pick(seed + "|study", STUDY_TIPS, 3),
+                  "avoid": _pick(seed + "|study-avoid", STUDY_AVOID, 1)[0]},
+        "total": {"score": total_sc, "head": band_headline(total_sc, "total"),
+                  "reasons": total_reasons, "keywords": keywords,
+                  "love": love_sc, "career": career_sc, "money": money_sc, "study": study_sc},
+    }
 
 
 def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
@@ -201,23 +258,12 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
                    key=lambda i: hashlib.sha256(f"{seed}|{i}".encode()).hexdigest())
     meet_top3 = [cands[i] for i in order[:3]]
 
-    # 9. 영역별 오늘 운세 (연애·직장·금전·총운)
-    ts, tb = day_pillar(today)
-    love_sc, love_reasons, _elem = love_score(ds, branches, ts, tb, today.isoformat(), sex)
-    love_head = headline(love_sc)
-    career_sc, career_reasons, _e2 = career_score(ds, branches, ts, tb, today.isoformat())
-    money_sc, money_reasons, _e3 = money_score(ds, branches, ts, tb, today.isoformat())
-
-    # 9-1. 오늘을 세 체계(사주 층·자미 유일·점성 트랜짓)와 택일로 함께 본다 (today.py)
-    from .today import layers as _today_layers
+    # 9. 영역별 오늘 운세 (연애·직장·금전·학업·총운). 세 체계 층(today.py)까지 day_reading 이 함께 본다
     from .yongsin import analyze as _ys_analyze
     _strong = _ys_analyze(ds, stems, branches, BRANCH_BONQI, mb)["strong"]
-    today_view = _today_layers(birth, hour, minute, sex, city, today, natal, zw, _strong)
-    _clamp = lambda v: max(1, min(100, v))
-    love_sc = _clamp(love_sc + today_view["adj"]["love"])
-    career_sc = _clamp(career_sc + today_view["adj"]["career"])
-    money_sc = _clamp(money_sc + today_view["adj"]["money"])
-    love_head = headline(love_sc)
+    _day = day_reading(birth, hour, minute, sex, city, today, natal, zw, _strong)
+    today_view, _elem = _day["today"], _day["today_elem"]
+    love_sc, love_reasons, love_head = _day["love"]["score"], _day["love"]["reasons"], _day["love"]["head"]
 
     def _palace_slice(palace_name: str) -> list[str]:
         if zw is None:
@@ -269,36 +315,14 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
     cai_line2 = ("원국 재성(돈 기운)이 " + (", ".join(cai_spots) + "에 보여 돈의 기회가 엮이기 쉬운 구조"
                  if cai_spots else "숨어 있어 운에서 들어올 때 돈이 움직이기 쉬운 구조"))
 
-    if zw is None:
-        cur_du_pal = None
-        liunian_branch = tyb
-    else:
-        cur_du_pal = next((p for p in zw["palaces"]
-                           if p["daxian"] and p["daxian"][0] <= zw["xusui"] <= p["daxian"][1]),
-                          None)
-        liunian_branch = BRANCHES_KR.index(zw["liunian"]["branch"])
-    daxian_hua = list(cur_du_pal["hua"].values()) if cur_du_pal else []
-    total_sc, total_reasons, _e4, keywords = total_score(
-        ds, branches, ts, tb, love_sc, career_sc, money_sc,
-        daxian_hua, liunian_branch, today.isoformat())
-    total_sc = max(1, min(100, total_sc + today_view["adj"]["total"] - round(
-        sum(today_view["adj"][k] for k in ("love", "career", "money")) / 3)))
-
-    career = {"score": career_sc, "head": band_headline(career_sc, "career"),
-              "reasons": career_reasons,
-              "tips": _pick(seed + "|career", CAREER_TIPS, 3),
-              "avoid": _pick(seed + "|career-avoid", CAREER_AVOID, 1)[0],
+    career = {**_day["career"],
               "guanlu_main": guanlu_main, "guanlu_line": guanlu_line,
               "guan_line": guan_line2, "palaces": career_palaces}
-    money = {"score": money_sc, "head": band_headline(money_sc, "money"),
-             "reasons": money_reasons,
-             "tips": _pick(seed + "|money", MONEY_TIPS, 3),
-             "avoid": _pick(seed + "|money-avoid", MONEY_AVOID, 1)[0],
+    money = {**_day["money"],
              "caibo_main": caibo_main, "caibo_line": caibo_line,
              "cai_line": cai_line2, "palaces": money_palaces}
-    total = {"score": total_sc, "head": band_headline(total_sc, "total"),
-             "reasons": total_reasons, "keywords": keywords,
-             "love": love_sc, "career": career_sc, "money": money_sc}
+    study = _day["study"]
+    total = _day["total"]
 
     # 10. 영역별 심화 (원국 분포·대운 테마·유년 관계·행성)
     dist_elements = {"목": 0, "화": 0, "토": 0, "금": 0, "수": 0}
@@ -495,7 +519,7 @@ def detailed_reading(birth: date, hour: int | None, minute: int, sex: str,
         "today": today_view,
         "today_elem": _elem,
         "love": {"score": love_sc, "head": love_head, "reasons": love_reasons},
-        "career": career, "money": money, "total": total,
+        "career": career, "money": money, "study": study, "total": total,
         "dist": dist_lines,
         "career_extra": career_extra, "money_extra": money_extra,
         "love_extra": love_extra, "monthly": monthly,

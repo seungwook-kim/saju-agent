@@ -21,7 +21,7 @@ from .glossary import TERMS
 DISCLAIMER = ("[정통 계산] 사주·자미두수·점성술의 전통 공식 그대로 계산한 상세 해석입니다. "
               "생년월일 등 개인정보는 파일에 저장하지 않고 메모리에만 둡니다.")
 
-DOMAINS = ("total", "love", "career", "money", "all")
+DOMAINS = ("total", "love", "career", "money", "study", "all")
 
 
 def parse_args(argv=None):
@@ -47,7 +47,7 @@ def parse_args(argv=None):
     p.add_argument("--no-save", action="store_true", help="md 파일 저장 안 함")
     p.add_argument("--interactive", action="store_true", help="대화형 입력 모드")
     p.add_argument("--domain", default="all", choices=DOMAINS,
-                   help="출력 영역: total(총운)·love(연애)·career(직장)·money(금전)·all(전체)")
+                   help="출력 영역: total(총운)·love(연애)·career(직장)·money(금전)·study(학업)·all(전체)")
     p.add_argument("--lifetime", action="store_true",
                    help="평생 운세 타임라인(연대별·연도별) 추가")
     sub = p.add_subparsers(dest="cmd")
@@ -81,7 +81,7 @@ def parse_args(argv=None):
     pk.add_argument("--city", default="서울")
     pk.add_argument("--from", dest="from_date", required=True, help="시작일 YYYY-MM-DD")
     pk.add_argument("--to", dest="to_date", required=True, help="끝일 YYYY-MM-DD (최대 62일)")
-    pk.add_argument("--domain", default="total", choices=("total", "love", "career", "money"),
+    pk.add_argument("--domain", default="total", choices=("total", "love", "career", "money", "study"),
                     help="목적별 정렬")
     pk.add_argument("--top", type=int, default=5, help="상위 몇 개 상세 표시")
     pk.add_argument("--no-save", action="store_true")
@@ -127,7 +127,7 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
                  lifetime: bool = False) -> tuple[str, str]:
     """(터미널 텍스트, md 텍스트) 반환. PII(생년월일·시간·성별·도시)는 포함하지 않음.
 
-    순서: 사주 4기둥 → 오늘 세 체계 종합 → 오늘 총운·연애·직장·금전(오늘만)
+    순서: 사주 4기둥 → 오늘 세 체계 종합 → 오늘 총운·연애·직장·금전·학업(오늘만)
     → 타고난 명식(원국·명반·출생 차트·인연) → 이번 달·올해 흐름 → 재미로 보는 점괘
     → 평생 운세 → 용어 풀이. 예전엔 오늘 운세 안에 30일·12개월 표와 출생 차트가 섞여 있었다.
     """
@@ -177,13 +177,13 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
     # ---------------- 오늘 총운
     if show("total"):
         L.append(f"\n[오늘 총운] {t_all['score']}점 / 100점 "
-                 f"(연애 {t_all['love']}·직장 {t_all['career']}·금전 {t_all['money']})")
+                 f"(연애 {t_all['love']}·직장 {t_all['career']}·금전 {t_all['money']}·학업 {t_all['study']})")
         L.append(f"  한 줄 총평: {t_all['head']}")
         M.append("## 오늘 총운")
         if ma["hour_unknown"]:
             M.append(f"- 안내: {ma['time_notice']}")
         M.append(f"- 오늘 총운: **{t_all['score']}점 / 100점** (연애 {t_all['love']}·직장 {t_all['career']}"
-                 f"·금전 {t_all['money']}), {t_all['head']}")
+                 f"·금전 {t_all['money']}·학업 {t_all['study']}), {t_all['head']}")
         for p in ma["stories"]["total"]:
             L.append(f"  {p}")
             M.append(f"- [이야기] {p}")
@@ -289,6 +289,24 @@ def build_report(birth: date, hour: int | None, minute: int, sex: str,
         L.append(f"  · 오늘 피할 것 1: {m['avoid']}")
         M.append(f"- 돈의 팁: {'; '.join(m['tips'])}")
         M.append(f"- 피할 것: {m['avoid']}")
+        M.append("")
+
+    # ---------------- 오늘 학업운 (2026-10-15 추가)
+    if show("study"):
+        st = ma["study"]
+        L.append(f"\n[오늘 학업운] {st['score']}점 / 100점")
+        L.append(f"  한 줄 총평: {st['head']}")
+        M.append(f"## 오늘 학업운 ({st['score']}점)")
+        M.append(f"- 한 줄 총평: {st['head']}")
+        for r in st["reasons"]:
+            L.append(f"  · {r}")
+            M.append(f"- {r}")
+        L.append("  · 공부 팁 3:")
+        for x in st["tips"]:
+            L.append(f"    - {x}")
+        L.append(f"  · 오늘 피할 것 1: {st['avoid']}")
+        M.append(f"- 공부 팁: {'; '.join(st['tips'])}")
+        M.append(f"- 피할 것: {st['avoid']}")
         M.append("")
 
     # ---------------- 타고난 명식 (오늘과 무관하게 평생 같은 것)
@@ -541,7 +559,7 @@ def build_pick_report(birth: date, hour: int, minute: int, sex: str,
     from .taekil import pick_dates
     if r is None:
         r = pick_dates(birth, hour, minute, sex, city, start, end, domain)
-    dom_name = {"total": "총운", "love": "연애", "career": "직장", "money": "금전"}[domain]
+    dom_name = {"total": "총운", "love": "연애", "career": "직장", "money": "금전", "study": "학업"}[domain]
     L = []
     L.append("=" * 46)
     L.append(f"  길일 고르기 ({r['start']}~{r['end']}, {dom_name} 기준)")

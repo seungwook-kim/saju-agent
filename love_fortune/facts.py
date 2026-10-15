@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from .manseryuk import BRANCHES_KR, STEMS_KR, four_pillars
 from .natal_extra import animal_compat, natal_sinsal, pillars_detail
@@ -26,11 +26,19 @@ DOMAIN_WORDS = {
     "career": ("직장", "업무", "관록", "천이", "노복", "형제", "역마", "천을귀인", "10번", "6번",
                "화성", "수성", "토성"),
     "money": ("금전", "재물", "돈", "재백", "전택", "2번", "8번", "목성", "금성"),
+    # 학업: 수성(배움)·목성(고등 교육), 3번(일상의 배움)·9번(고등 교육) 칸 (db/init.sql source study_wiki_*)
+    "study": ("공부", "학업", "배움", "시험", "문창", "학당", "문성", "수성", "목성", "3번", "9번"),
 }
+DAY_DOMAINS = ("love", "career", "money", "study")
+
+
+def _tag_has(t, dom: str) -> bool:
+    """today.py 가 줄마다 적어 둔 영역 표시 (한 영역 이름, 여러 영역 튜플, 'all', None)."""
+    return t == dom or (isinstance(t, (tuple, list)) and dom in t)
 
 
 def today_domain(ma: dict, dom: str) -> dict:
-    """오늘 하루 한 영역(연애·직장·금전)의 계산 결과: 점수·근거·세 체계 가감·관련 문장·팁.
+    """하루 한 영역(연애·직장·금전·학업)의 계산 결과: 점수·근거·세 체계 가감·관련 문장·팁.
 
     체계별 가감(points)은 점수 계산(today.today_layers 의 adj)과 같게 '모든 영역 공통 몫 + 이 영역 몫'이다.
     예전엔 이 영역 몫만 보여 줘서, 사주처럼 공통 몫(십이운성·귀인·용신·공망)이 큰 체계가
@@ -40,7 +48,7 @@ def today_domain(ma: dict, dom: str) -> dict:
     systems = []
     for s in ma["today"]["systems"]:
         if s.get("tags"):                    # 사주·자미두수: 계산할 때 줄마다 영역을 적어 둔다
-            lines = [x for x, t in zip(s["lines"], s["tags"]) if t == dom]
+            lines = [x for x, t in zip(s["lines"], s["tags"]) if _tag_has(t, dom)]
             common = [x for x, t in zip(s["lines"], s["tags"]) if t == "all"]
         else:                                # 점성술: 영역별 점수만 있어 낱말로 관련 줄을 고른다
             lines = [x for x in s["lines"] if any(w in x for w in DOMAIN_WORDS[dom])]
@@ -56,10 +64,10 @@ def today_todo(domains: dict, almanac_info: dict) -> dict:
     """총운에 보여 줄 '오늘 할 일·피할 일' 한 줄씩. 사실표에 이미 있는 문장만 고른다 (지어내지 않는다).
 
     do: 팁이 있는 영역 중 점수가 가장 높은 영역의 첫 팁. avoid: 피할 것이 있는 영역 중 점수가 가장 낮은 영역의 것,
-    없으면 택일 달력의 조심 신호(생기복덕 꺼리는 날, 내 사주와 충, 월기일) 문구. 같은 점수는 연애·직장·금전 순.
+    없으면 택일 달력의 조심 신호(생기복덕 꺼리는 날, 내 사주와 충, 월기일) 문구. 같은 점수는 연애·직장·금전·학업 순.
     없으면 빈 문자열.
     """
-    order = ("love", "career", "money")
+    order = tuple(k for k in DAY_DOMAINS if k in domains)
     with_tips = [k for k in order if domains[k].get("tips")]
     do_dom = max(with_tips, key=lambda k: (domains[k]["score"], -order.index(k))) if with_tips else ""
     with_avoid = [k for k in order if domains[k].get("avoid")]
@@ -87,6 +95,60 @@ def _almanac_caution(info: dict) -> str:
     if info.get("wolgi"):
         return "월기일(이사·혼례를 꺼리는 날)이야"
     return ""
+
+
+def day_section(dr: dict, target: date) -> dict:
+    """하루(오늘·내일)의 사실표 칸. dr 은 synthesis.day_reading 결과(또는 같은 키를 가진 detailed_reading)."""
+    from .astronomy import season_term
+    doms = {d: today_domain(dr, d) for d in DAY_DOMAINS}
+    out = {
+        "agreement": dr["today"]["agreement"], "focus": dr["today"]["focus"],
+        "systems": [{"name": s["name"], "signal": s["signal"], "lines": list(s["lines"])}
+                    for s in dr["today"]["systems"]],
+        "almanac": list(dr["today"]["almanac"]["lines"]),
+        "scores": {"total": dr["total"]["score"],
+                   **{d: dr[d]["score"] for d in DAY_DOMAINS},
+                   # 총운의 출발점 (연애·직장·금전·학업 평균). AI 가 스스로 셈한 평균이 거름망에 걸리지 않게 넣어 둔다
+                   "domain_avg": round(sum(dr[d]["score"] for d in DAY_DOMAINS) / len(DAY_DOMAINS))},
+        "heads": {"total": dr["total"]["head"], **{d: dr[d]["head"] for d in DAY_DOMAINS}},
+        "keywords": list(dr["total"]["keywords"]),
+        "element": dr["today_elem"],
+        "total_reasons": list(dr["total"]["reasons"]),
+        "domains": doms,
+    }
+    # 화면 전용 칸 (2026-10 새 디자인). 챕터 AI 의 pick 에 넣지 않는다: 넣으면 저장된 AI 풀이의 키가 바뀐다
+    out["term"] = season_term(target)
+    out["todo"] = today_todo(doms, dr["today"]["almanac"]["info"])
+    return out
+
+
+# 내일 칸의 문장은 오늘 칸과 같은 계산을 쓰므로 '오늘'을 '내일'로 바꾼다 (내일 탭에 다른 날 이야기를 섞지 않게).
+# 원래 '내일'이 든 말(팁의 '내일로 미루기' 등)은 먼저 '다음 날'로 바꿔 겹치지 않게 한다.
+_TOMORROW_WORDS = (("내일", "다음 날"), ("오늘 들어온", "내일 들어오는"), ("오늘", "내일"))
+
+
+def as_tomorrow(obj):
+    if isinstance(obj, str):
+        for a, b in _TOMORROW_WORDS:
+            obj = obj.replace(a, b)
+        return obj
+    if isinstance(obj, dict):
+        return {k: as_tomorrow(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [as_tomorrow(v) for v in obj]
+    return obj
+
+
+def tomorrow_section(birth: date, hour: int | None, minute: int, sex: str, city: str,
+                     target: date, natal: dict, strong: bool | None) -> dict:
+    """내일(target 다음 날) 칸. 오늘 칸과 같은 모양 + date."""
+    from .synthesis import day_reading
+    from .ziwei import ziwei_chart
+    day = target + timedelta(days=1)
+    zw = ziwei_chart(birth, hour, minute, sex, city, day)
+    out = as_tomorrow(day_section(day_reading(birth, hour, minute, sex, city, day, natal, zw, strong), day))
+    out["date"] = day.isoformat()
+    return out
 
 
 def _wheel(birth: date, hour: int | None, minute: int, city: str) -> dict:
@@ -189,23 +251,7 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
                       "aspects": list(ast["aspects"])[:8],
                       "wheel": _wheel(birth, hour, minute, city)},
         },
-        "today": {
-            "agreement": ma["today"]["agreement"], "focus": ma["today"]["focus"],
-            "systems": [{"name": s["name"], "signal": s["signal"], "lines": list(s["lines"])}
-                        for s in ma["today"]["systems"]],
-            "almanac": list(ma["today"]["almanac"]["lines"]),
-            "scores": {"total": ma["total"]["score"], "love": ma["love"]["score"],
-                       "career": ma["career"]["score"], "money": ma["money"]["score"],
-                       # 총운의 출발점 (연애·직장·금전 평균). AI 가 스스로 셈한 평균이 거름망에 걸리지 않게 넣어 둔다
-                       "domain_avg": round((ma["love"]["score"] + ma["career"]["score"]
-                                            + ma["money"]["score"]) / 3)},
-            "heads": {"total": ma["total"]["head"], "love": ma["love"]["head"],
-                      "career": ma["career"]["head"], "money": ma["money"]["head"]},
-            "keywords": list(ma["total"]["keywords"]),
-            "element": ma["today_elem"],
-            "total_reasons": list(ma["total"]["reasons"]),
-            "domains": {d: today_domain(ma, d) for d in ("love", "career", "money")},
-        },
+        "today": day_section(ma, target),
         "love": {
             "spouse_star": ma["star_line"],
             "spouse_seat": (f"배우자 자리(태어난 날의 땅 글자)에는 {ma['god']}({GOD_SHORT[ma['god']]}) 기운이 앉아 있어. "
@@ -247,10 +293,8 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
             "years": [y["line"] for y in ma["lifetime"]["years"]],
         },
     }
-    # 화면 전용 칸 (2026-10 새 디자인). 챕터 AI 의 pick 에 넣지 않는다: 넣으면 저장된 AI 풀이의 키가 바뀐다
-    from .astronomy import season_term
-    base["today"]["term"] = season_term(target)
-    base["today"]["todo"] = today_todo(base["today"]["domains"], ma["today"]["almanac"]["info"])
+    # 내일 묶음 (2026-10-15 사용자 결정). 오늘 칸과 같은 모양, 날짜만 다음 날
+    base["tomorrow"] = tomorrow_section(birth, hour, minute, sex, city, target, natal, ya["strong"])
     base["natal"]["day_pillar"] =STEMS_KR[natal["ilgan_stem"]] + BRANCHES_KR[natal["day_branch"]]
     from .boundary import check as _boundary
     base["natal"]["boundary"] = _boundary(birth, hour, minute, city)

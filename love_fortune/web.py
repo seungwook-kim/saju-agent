@@ -333,6 +333,7 @@ def agent_context(birth: date, hour: int | None, minute: int, sex: str,
         f"직장운 근거 {'; '.join(ma['career']['reasons'])} / "
         f"{ma['career']['guanlu_line']} / {ma['career']['guan_line']} / "
         f"금전운 근거 {'; '.join(ma['money']['reasons'])} / "
+        f"학업운 근거 {'; '.join(ma['study']['reasons'])} / "
         f"{ma['money']['caibo_line']} / {ma['money']['cai_line']} / "
         f"총운 근거 {'; '.join(ma['total']['reasons'])} / "
         f"부처궁 {ma['ziwei_main']}(인상 {zd['look']} / 성격 {zd['mind']} / "
@@ -344,6 +345,7 @@ def agent_context(birth: date, hour: int | None, minute: int, sex: str,
         f"총운 {ma['total']['score']}점({ma['total']['head']}) / "
         f"직장운 {ma['career']['score']}점({ma['career']['head']}) / "
         f"금전운 {ma['money']['score']}점({ma['money']['head']}) / "
+        f"학업운 {ma['study']['score']}점({ma['study']['head']}) / "
         f"평생흐름 {'; '.join(p['line'] for p in ma['lifetime']['phases'])} / "
         f"현재연대 {ma['lifetime']['current']['short']} / "
         f"타고난기질 {ma['yongsin']['ilgang']} / "
@@ -688,12 +690,12 @@ def cli_chat(summary: str, history: list[dict], message: str) -> str:
 
 # ---------------- 채팅 요약 (궁합·택일) ----------------
 
-DOM_NAME = {"total": "총운", "love": "연애", "career": "직장", "money": "금전"}
+DOM_NAME = {"total": "총운", "love": "연애", "career": "직장", "money": "금전", "study": "학업"}
 
 
 def pick_summary(r: dict) -> str:
     """택일 결과를 채팅 상담용 한 줄 요약으로. 개인정보 없음."""
-    top = [f"{x['label']} {x['ganzhi']} 연애{x['love']} 직장{x['career']} 금전{x['money']}"
+    top = [f"{x['label']} {x['ganzhi']} 연애{x['love']} 직장{x['career']} 금전{x['money']} 학업{x.get('study', '')}"
            for x in r["rows"][:5]]
     return (f"택일 {r['start']}~{r['end']}({DOM_NAME[r['domain']]} 기준) / "
             f"상위 {'; '.join(top)} / "
@@ -752,7 +754,7 @@ def api_pick_data(r: dict) -> dict:
             "dom_name": dom_name, "story": list(r["story"]),
             "rows": [{"rank": x["rank"], "label": x["label"],
                       "ganzhi": x["ganzhi"], "love": x["love"],
-                      "career": x["career"], "money": x["money"],
+                      "career": x["career"], "money": x["money"], "study": x.get("study"),
                       "god": x["god"], "score": x.get("score")} for x in r["rows"]]}
 
 
@@ -936,7 +938,7 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             raise ValueError("기간은 YYYY-MM-DD 형식으로 입력해 줘") from None
         domain = q.get("domain", "total") or "total"
-        if domain not in ("total", "love", "career", "money"):
+        if domain not in ("total", "love", "career", "money", "study"):
             domain = "total"
         return start, end, domain
 
@@ -1154,7 +1156,7 @@ class Handler(BaseHTTPRequestHandler):
         from . import chapters
         ctx = self._v2_ctx(q)
         tab, ch = str(q.get("tab", "")), str(q.get("chapter", ""))
-        if tab not in chapters.TABS:
+        if tab not in chapters.TABS or not chapters.available(tab, ctx["facts"]):
             raise ValueError("없는 탭")
         chapters.spec(tab, ch)
         body = None

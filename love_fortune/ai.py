@@ -34,8 +34,8 @@ _SLOTS = threading.BoundedSemaphore(PARALLEL)
 
 
 # 한 시간에 실제로 부르는 AI 횟수 상한 (공개 서버에서 요금 폭탄을 막는다). 0 이면 제한 없음.
-# OpenRouter(유료)는 기본 300번, 로컬 구독 CLI 는 기본 제한 없음. 넘으면 부르는 쪽이 계산 풀이로 대신한다.
-PER_HOUR = int(os.environ.get("SAJU_AI_PER_HOUR", "300" if BACKEND == "openrouter" else "0"))
+# OpenRouter(유료)는 기본 600번(2026-10-15 사용자 결정, 전에는 300번), 로컬 구독 CLI 는 기본 제한 없음. 넘으면 부르는 쪽이 계산 풀이로 대신한다.
+PER_HOUR = int(os.environ.get("SAJU_AI_PER_HOUR", "600" if BACKEND == "openrouter" else "0"))
 _CALLS: list[float] = []
 _CALLS_LOCK = threading.Lock()
 

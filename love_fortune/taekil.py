@@ -1,7 +1,8 @@
 """taekil.py, 길일 고르기 (로컬·결정적).
 
 기간 내 매일 일진으로 영역 점수를 매겨 순위를 매긴다.
-목적(total·love·career·money)별 정렬, 같은 점수는 빠른 날짜 우선.
+목적(total·love·career·money·study)별 정렬, 같은 점수는 빠른 날짜 우선.
+총운은 연애·직장·금전·학업 네 영역 평균에서 출발한다 (2026-10-15 사용자 결정).
 서술은 전통 해석에 근거한 경향·흐름체.
 """
 from __future__ import annotations
@@ -12,7 +13,7 @@ from datetime import date, datetime, timedelta
 
 from .manseryuk import four_pillars, day_pillar, ganzhi_str, year_pillar
 from .rules import ten_god, love_score
-from .domains import career_score, money_score, total_score
+from .domains import career_score, money_score, study_score, total_score
 from .narrate import GOD_SHORT
 
 WEEKDAY = ["월", "화", "수", "목", "금", "토", "일"]
@@ -22,8 +23,8 @@ MAX_DAYS = 62
 def pick_dates(birth: date, hour: int | None, minute: int, sex: str, city: str,
                start: date, end: date, domain: str = "total") -> dict:
     """기간 내 일자별 점수 + 순위. domain 중 하나 기준 정렬. 시간 미상도 받는다."""
-    if domain not in ("total", "love", "career", "money"):
-        raise ValueError("domain은 total·love·career·money 중 하나")
+    if domain not in ("total", "love", "career", "money", "study"):
+        raise ValueError("domain은 total·love·career·money·study 중 하나")
     if end < start:
         raise ValueError("끝 날짜가 시작 날짜보다 빠르다")
     if (end - start).days + 1 > MAX_DAYS:
@@ -47,15 +48,16 @@ def pick_dates(birth: date, hour: int | None, minute: int, sex: str, city: str,
         ls, _, _ = love_score(ds, branches, ts, tb, seed, sex)
         cs, _, _ = career_score(ds, branches, ts, tb, seed)
         ns, _, _ = money_score(ds, branches, ts, tb, seed)
+        ss, _, _ = study_score(ds, branches, ts, tb, seed)
         ln_branch = year_pillar(datetime(d.year, d.month, d.day, 12, 0))[1]
         tot, _, _, _ = total_score(ds, branches, ts, tb, ls, cs, ns,
-                                  daxian_hua, ln_branch, seed)
+                                  daxian_hua, ln_branch, seed, study=ss)
         god = ten_god(ds, ts)
         rows.append({
             "date": d.isoformat(),
             "label": f"{d.month}/{d.day}({WEEKDAY[d.weekday()]})",
             "ganzhi": ganzhi_str(ts, tb),
-            "love": ls, "career": cs, "money": ns, "total": tot,
+            "love": ls, "career": cs, "money": ns, "study": ss, "total": tot,
             "god": god, "god_mean": GOD_SHORT[god],
         })
         d += timedelta(days=1)
@@ -68,7 +70,7 @@ def pick_dates(birth: date, hour: int | None, minute: int, sex: str, city: str,
     for i, r in enumerate(rows, 1):
         r["rank"] = i
     _dn = {"total": "총운", "love": "연애",
-           "career": "직장", "money": "금전"}[domain]
+           "career": "직장", "money": "금전", "study": "학업"}[domain]
     _top1 = rows[0]
     _avg = sum(r["score"] for r in rows) // len(rows)
     _spread = rows[0]["score"] - rows[-1]["score"]

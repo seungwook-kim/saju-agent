@@ -108,7 +108,7 @@ erDiagram
 | `id` | bigserial PK | |
 | `ts` | double | 부른 시각 |
 
-- 색인 `ai_call_ts (ts)`. 최근 1시간 줄 수로 시간당 상한(운영 300)을 센다.
+- 색인 `ai_call_ts (ts)`. 최근 1시간 줄 수로 시간당 상한(운영 600)을 센다.
 - 상한이 있을 때만 적는다 (OpenRouter 방식). 로컬 CLI는 상한이 없어 적지 않는다.
 
 ### 2.5 `chat_use` · 상담 사용

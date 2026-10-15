@@ -58,57 +58,81 @@ BLOCK_TYPES = {"text", "quote", "checklist", "steps", "cards", "callout"}
 
 # ---------------------------------------------------------------- 탭 설계
 
-# 탭 구성 (2026-09-25 사용자 결정)
-# - 총운·연애·직장·금전은 '오늘 하루'만 본다. 총운 = 연애·직장·금전 평균 + 오늘 공통 기운.
+# 탭 구성 (2026-09-25 사용자 결정, 2026-10-15 학업·내일 추가)
+# - 오늘 묶음(총운·연애·직장·금전·학업)은 '오늘 하루'만, 내일 묶음은 '내일 하루'만 본다.
+#   총운 = 연애·직장·금전·학업 네 영역 평균 + 그날 공통 기운. 다른 날 이야기를 섞지 않는다.
 # - 타고난 결(원국·배우자·일·돈)과 앞으로의 흐름(12개월·3년·대운)은 평생 탭에 모은다.
+DAY_WORD = {"today": "오늘", "tomorrow": "내일"}
+DAY_DOMAINS = ("love", "career", "money", "study")
 
 
-def _today_domain_tab(dom: str, word: str, title: str, hand: str, theme: str, emoji: str) -> dict:
-    d = f"today.domains.{dom}"
-    howto_pick = [d, "today.almanac"] + (["love.spouse_seat", "love.venus", "love.meet_paths"]
-                                         if dom == "love" else [])
+def _day_domain_tab(day: str, dom: str, word: str, title: str, hand: str, theme: str, emoji: str) -> dict:
+    W = DAY_WORD[day]
+    d = f"{day}.domains.{dom}"
+    extra = [f"{day}.date"] if day != "today" else []          # 내일 장은 그 날짜를 함께 넘긴다
+    howto_pick = [d, f"{day}.almanac"] + (["love.spouse_seat", "love.venus", "love.meet_paths"]
+                                          if dom == "love" else [])
     return {
-        "title": title, "hand": hand, "theme": theme,
-        "sub": f"오늘 하루, {word}에 닿는 기운만 모았어",
+        "title": f"{W}의 {title}", "hand": hand, "theme": theme,
+        "sub": f"{W} 하루, {word}에 닿는 기운만 모았어",
         "chapters": [
-            {"id": "score", "emoji": emoji, "title": f"오늘의 {word} 점수",
-             "widgets": [f"gauge:{dom}"], "pick": [d],
-             "ask": f"오늘 {word} 점수가 이렇게 나온 근거(reasons)와 세 체계가 더하고 뺀 몫(systems.points)을 풀어 줘. 오늘 하루 이야기만 한다."},
-            {"id": "systems", "emoji": "🔮", "title": f"세 체계로 본 오늘 {word}",
-             "widgets": [f"dsys:{dom}"], "pick": [d, "today.agreement"],
-             "ask": f"사주·자미두수·점성술이 오늘 {word}을(를) 각각 어떻게 보는지, 서로 맞는 점과 엇갈리는 점을 풀어 줘. 오늘 하루 이야기만 한다."},
-            {"id": "howto", "emoji": "💫", "title": "오늘 이렇게 해 봐",
-             "widgets": [], "pick": howto_pick,
-             "ask": f"오늘 {word}에서 해 보면 좋은 것(체크리스트)과 피할 것, 오늘 건넬 말 한마디를 사실표 근거로 알려 줘. 오늘 하루 이야기만 한다."},
-            {"id": "final", "emoji": "✨", "title": f"오늘 {word} 한마디",
-             "widgets": [], "pick": [d, "today.heads"],
-             "ask": f"오늘 {word}을(를) 한 문단으로 정리하고, 오늘 딱 하나만 한다면 무엇을 하면 좋을지 말해 줘."},
+            {"id": "score", "emoji": emoji, "title": f"{W}의 {word} 점수",
+             "widgets": [f"gauge:{dom}"], "pick": [d] + extra,
+             "ask": f"{W} {word} 점수가 이렇게 나온 근거(reasons)와 세 체계가 더하고 뺀 몫(systems.points)을 풀어 줘. {W} 하루 이야기만 한다."},
+            {"id": "systems", "emoji": "🔮", "title": f"세 체계로 본 {W} {word}",
+             "widgets": [f"dsys:{dom}"], "pick": [d, f"{day}.agreement"] + extra,
+             "ask": f"사주·자미두수·점성술이 {W} {word}을(를) 각각 어떻게 보는지, 서로 맞는 점과 엇갈리는 점을 풀어 줘. {W} 하루 이야기만 한다."},
+            {"id": "howto", "emoji": "💫", "title": f"{W} 이렇게 해 봐",
+             "widgets": [], "pick": howto_pick + extra,
+             "ask": f"{W} {word}에서 해 보면 좋은 것(체크리스트)과 피할 것, {W} 건넬 말 한마디를 사실표 근거로 알려 줘. {W} 하루 이야기만 한다."},
+            {"id": "final", "emoji": "✨", "title": f"{W} {word} 한마디",
+             "widgets": [], "pick": [d, f"{day}.heads"] + extra,
+             "ask": f"{W} {word}을(를) 한 문단으로 정리하고, {W} 딱 하나만 한다면 무엇을 하면 좋을지 말해 줘."},
         ]}
 
 
-TABS = {
-    "today": {
-        "title": "오늘의 총운", "hand": "Today", "theme": "peach",
-        "sub": "연애·직장·금전을 합친 오늘 하루",
+def _today_domain_tab(dom: str, word: str, title: str, hand: str, theme: str, emoji: str) -> dict:
+    return _day_domain_tab("today", dom, word, title, hand, theme, emoji)
+
+
+def _day_total_tab(day: str) -> dict:
+    W = DAY_WORD[day]
+    extra = [f"{day}.date"] if day != "today" else []
+    return {
+        "title": f"{W}의 총운", "hand": "Today" if day == "today" else "Tomorrow", "theme": "peach",
+        "sub": f"연애·직장·금전·학업을 합친 {W} 하루",
         "chapters": [
-            {"id": "today", "emoji": "☀️", "title": "세 체계가 본 오늘",
+            {"id": "today", "emoji": "☀️", "title": f"세 체계가 본 {W}",
              "widgets": ["gauge:today", "systems"],
-             "pick": ["today.agreement", "today.focus", "today.systems", "today.scores", "today.heads",
-                      "today.total_reasons"],
-             "ask": "오늘 총운이 연애·직장·금전 점수의 평균에 오늘 공통 기운을 더한 값이라는 점을 짚고, 세 체계(사주·자미두수·점성술)가 오늘을 어떻게 보는지, 서로 맞는 점과 엇갈리는 점, 가장 힘이 실린 영역과 쉬어 갈 영역을 풀어 줘."},
-            {"id": "me", "emoji": "🪞", "title": "오늘의 나",
-             "widgets": [], "pick": ["today.systems", "today.heads", "today.keywords", "natal.character", "natal.ilgan"],
-             "ask": "오늘 내 기운의 결(십이운성·일진과의 관계)을 바탕으로 오늘 어떤 모습으로 지내면 좋은지 그려 줘."},
-            {"id": "todo", "emoji": "✅", "title": "오늘 할 일과 피할 일",
-             "widgets": ["almanac"], "pick": ["today.almanac", "today.heads", "today.domains"],
-             "ask": "오늘 택일(생기복덕·건제·황도흑도·손 없는 날)과 영역별 팁을 근거로, 오늘 하면 좋은 일 체크리스트와 피할 일을 정리해 줘."},
-            {"id": "final", "emoji": "✨", "title": "오늘의 한마디",
-             "widgets": [], "pick": ["today.agreement", "today.focus", "today.heads", "today.keywords"],
-             "ask": "오늘을 한 문단으로 정리하고, 오늘 딱 하나만 한다면 무엇을 하면 좋을지 말해 줘."},
-        ]},
-    "love": _today_domain_tab("love", "연애", "오늘의 연애", "Love", "rose", "💗"),
-    "career": _today_domain_tab("career", "직장", "오늘의 직장운", "Career", "sky", "💼"),
-    "money": _today_domain_tab("money", "금전", "오늘의 금전운", "Money", "mint", "💰"),
+             "pick": [f"{day}.agreement", f"{day}.focus", f"{day}.systems", f"{day}.scores", f"{day}.heads",
+                      f"{day}.total_reasons"] + extra,
+             "ask": f"{W} 총운이 연애·직장·금전·학업 네 점수의 평균에 {W} 공통 기운을 더한 값이라는 점을 짚고, 세 체계(사주·자미두수·점성술)가 {W}을 어떻게 보는지, 서로 맞는 점과 엇갈리는 점, 가장 힘이 실린 영역과 쉬어 갈 영역을 풀어 줘. {W} 하루 이야기만 한다."},
+            {"id": "me", "emoji": "🪞", "title": f"{W}의 나",
+             "widgets": [], "pick": [f"{day}.systems", f"{day}.heads", f"{day}.keywords", "natal.character", "natal.ilgan"] + extra,
+             "ask": f"{W} 내 기운의 결(십이운성·일진과의 관계)을 바탕으로 {W} 어떤 모습으로 지내면 좋은지 그려 줘."},
+            {"id": "todo", "emoji": "✅", "title": f"{W} 할 일과 피할 일",
+             "widgets": ["almanac"], "pick": [f"{day}.almanac", f"{day}.heads", f"{day}.domains"] + extra,
+             "ask": f"{W} 택일(생기복덕·건제·황도흑도·손 없는 날)과 영역별 팁을 근거로, {W} 하면 좋은 일 체크리스트와 피할 일을 정리해 줘."},
+            {"id": "final", "emoji": "✨", "title": f"{W}의 한마디",
+             "widgets": [], "pick": [f"{day}.agreement", f"{day}.focus", f"{day}.heads", f"{day}.keywords"] + extra,
+             "ask": f"{W}을 한 문단으로 정리하고, {W} 딱 하나만 한다면 무엇을 하면 좋을지 말해 줘."},
+        ]}
+
+
+# 영역 탭 이름표: (영역, 말, 탭 제목 뒷말, 손글씨, 색, 이모지)
+_DOMAIN_TABS = (("love", "연애", "연애", "Love", "rose", "💗"),
+                ("career", "직장", "직장운", "Career", "sky", "💼"),
+                ("money", "금전", "금전운", "Money", "mint", "💰"),
+                ("study", "학업", "학업운", "Study", "lilac", "📚"))
+
+TABS = {
+    "today": _day_total_tab("today"),
+    **{dom: _day_domain_tab("today", dom, word, title, hand, theme, emoji)
+       for dom, word, title, hand, theme, emoji in _DOMAIN_TABS},
+    # 내일 묶음 (2026-10-15 사용자 결정). 오늘 장보다 뒤 순서라 미리 만들기(prefetch)도 오늘 뒤에 돈다
+    "tomorrow": _day_total_tab("tomorrow"),
+    **{f"tomorrow_{dom}": _day_domain_tab("tomorrow", dom, word, title, hand, theme, emoji)
+       for dom, word, title, hand, theme, emoji in _DOMAIN_TABS},
     "newyear": {
         "title": "신년운세", "hand": "New Year", "theme": "peach",
         "sub": "다가올 한 해를 사주·자미두수·점성술로 미리 봐",
@@ -203,6 +227,18 @@ def pick(facts: dict, paths: list[str]) -> dict:
         if v is not None:
             out[p] = v
     return out
+
+
+def available(tab: str, facts: dict) -> bool:
+    """이 사실표로 이 탭을 만들 수 있나. 옛 공유 링크의 사실표에는 학업·내일 칸이 없다."""
+    if tab.startswith("tomorrow"):
+        if not facts.get("tomorrow"):
+            return False
+        dom = tab.partition("_")[2]
+        return not dom or dom in facts["tomorrow"].get("domains", {})
+    if tab == "study":
+        return "study" in facts.get("today", {}).get("domains", {})
+    return True
 
 
 def spec(tab: str, chapter: str) -> dict:
@@ -476,7 +512,8 @@ def rule_chapter(tab: str, chapter: str, facts: dict) -> dict:
 
 def rule_all(facts: dict) -> dict:
     """모든 탭·챕터의 계산 풀이 {tab: {chapter: body}}. 화면이 처음에 바로 보여 준다."""
-    return {t: {c["id"]: rule_chapter(t, c["id"], facts) for c in v["chapters"]} for t, v in TABS.items()}
+    return {t: {c["id"]: rule_chapter(t, c["id"], facts) for c in v["chapters"]}
+            for t, v in TABS.items() if available(t, facts)}
 
 
 # ---------------------------------------------------------------- 생성

@@ -70,9 +70,11 @@ def submit(tab: str, chapter: str, facts: dict, prio: int) -> Job:
 
 
 def submit_all(facts: dict) -> int:
-    """모든 탭의 챕터를 탭 순서(총운 먼저), 챕터 순서대로 넣는다."""
+    """모든 탭의 챕터를 탭 순서(오늘 총운 먼저, 내일은 오늘 뒤), 챕터 순서대로 넣는다."""
     n = 0
     for ti, (tab, t) in enumerate(chapters.TABS.items()):
+        if not chapters.available(tab, facts):
+            continue
         for ci, ch in enumerate(t["chapters"]):
             submit(tab, ch["id"], facts, ti * 100 + ci)
             n += 1

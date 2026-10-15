@@ -101,13 +101,47 @@ console.log(JSON.stringify([termText(null,'2026-10-15'),termText({name:'한로',
     assert "해 볼 것" in out[5] and "금전" in out[5] and "조심할 것" in out[5] and "메신저 장문 논쟁" in out[5]
 
 
-def test_four_groups_keep_every_tab():
-    m = re.search(r"const GROUPS=(\[.*?\]);\n", JS).group(1)
-    tabs = re.findall(r"'([a-z]+)'", m)
-    order = re.findall(r"'([a-z]+)'", re.search(r"const TAB_ORDER=(\[.*?\]);", JS).group(1))
-    assert sorted(tabs) == sorted(order) and len(order) == 11
-    for g in ("오늘", "흐름", "둘이서", "고르기"):
-        assert "'" + g + "'" in m
+def test_groups_keep_every_tab():
+    # 2026-10-15: 오늘 묶음에 학업, 오늘 옆에 내일 묶음 (다섯 묶음, 탭 17개)
+    m = re.search(r"const GROUPS=(\[.*?\]);\n", JS, re.S).group(1)
+    tabs = re.findall(r"'([a-z_]+)'", m)
+    order = re.findall(r"'([a-z_]+)'", re.search(r"const TAB_ORDER=(\[.*?\]);", JS, re.S).group(1))
+    assert sorted(tabs) == sorted(order) and len(order) == 17
+    assert [g for g in ("오늘", "내일", "흐름", "둘이서", "고르기") if "'" + g + "'" in m] == ["오늘", "내일", "흐름", "둘이서", "고르기"]
+    for t in ("study", "tomorrow", "tomorrow_love", "tomorrow_career", "tomorrow_money", "tomorrow_study"):
+        assert t in order
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node 없음")
+def test_study_and_tomorrow_hidden_without_new_facts():
+    # 옛 공유 링크처럼 사실표에 학업·내일 칸이 없으면 그 탭과 내일 묶음은 숨기고, 있으면 보인다
+    grab = lambda pat: re.search(pat, JS, re.S).group(0)
+    src = ("const TOOLS={past:1,when:1,match:1,pick:1,name:1};const pad=n=>String(n).padStart(2,'0');let S={};"
+           + grab(r"const GROUPS=\[.*?\]\];\n") + grab(r"const TAB_DAY=\{.*?\};\n")
+           + grab(r"function dayKey\(tab\).*?\nfunction groupOf\(tab\)\{.*?\}\n") + """
+const outline={};['today','love','career','money','study','tomorrow','tomorrow_love','tomorrow_career','tomorrow_money','tomorrow_study',
+  'newyear','life'].forEach(t=>outline[t]={chapters:[]});
+const day=(study)=>({heads:{total:'h'},scores:{total:50,love:50,career:50,money:50},domains:Object.assign({love:{},career:{},money:{}},study?{study:{}}:{})});
+const out=[];
+S={outline:{today:{},love:{},career:{},money:{},newyear:{},life:{}},facts:{meta:{target:'2026-10-15'},today:day(false)}};
+out.push(groupsOK().map(g=>g[0]+':'+g[1].length).join(','));
+S={outline,facts:{meta:{target:'2026-10-15'},today:day(true),tomorrow:day(true)}};
+out.push(groupsOK().map(g=>g[0]+':'+g[1].length).join(','));
+out.push(dayDate('tomorrow'),dayDate('love'));
+S.facts.tomorrow.date='2026-10-16';out.push(dayDate('tomorrow_study'));
+console.log(JSON.stringify(out));""")
+    out = json.loads(subprocess.run(["node", "-e", src], capture_output=True, text=True, encoding="utf-8").stdout)
+    assert out[0] == "오늘:4,흐름:3,둘이서:1,고르기:3"            # 학업·내일 없음
+    assert out[1] == "오늘:5,내일:5,흐름:3,둘이서:1,고르기:3"
+    assert out[2:] == ["2026-10-16", "2026-10-15", "2026-10-16"]
+
+
+def test_five_groups_fit_phone_width():
+    # 위 묶음 줄 다섯 칸이 390 폭(좌우 여백 포함 전체 폭)에 들어가고, 누르는 칸은 높이 48 이상
+    assert ".groups{display:grid;grid-template-columns:repeat(4,1fr);height:48px;margin:0 -20px" in CSS   # 칸 수는 화면이 정한다
+    assert "$('groups').style.gridTemplateColumns='repeat('+gs.length+',1fr)'" in JS
+    assert re.search(r"\.grp\{[^}]*min-height:48px", CSS)
+    assert 390 / 5 >= 44
 
 
 def test_design_rules_in_screen_code():
@@ -138,3 +172,73 @@ def test_chat_limit_is_ten_per_day_everywhere():
     assert '"SAJU_CHAT_PER_DAY", "10"' in src
     assert "하루 10번" in HTML and "하루 10번" in JS
     assert "하루 5번" not in HTML + JS
+
+
+# ---------------------------------------------------------------- 학업·내일 (사실표 새 칸이 있을 때)
+
+@pytest.fixture(scope="module")
+def sheet_v3():
+    from love_fortune import chapters, facts
+    f = facts.build(date(1990, 5, 5), 14, 30, "female", "서울", date(2026, 10, 15))
+    return f, chapters.outline()
+
+
+def test_contract_fields_for_study_and_tomorrow(sheet_v3):
+    f, outline = sheet_v3
+    for day in ("today", "tomorrow"):
+        t = f[day]
+        assert t["scores"]["study"] is not None and "study" in t["domains"] and "study" in t["heads"]
+    assert f["tomorrow"]["date"] == "2026-10-16"
+    for tab in ("study", "tomorrow", "tomorrow_love", "tomorrow_career", "tomorrow_money", "tomorrow_study"):
+        assert tab in outline and outline[tab]["chapters"], tab
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node 없음")
+def test_screen_draws_study_and_tomorrow(sheet_v3):
+    # 계약 칸이 있으면: 다섯 묶음이 다 보이고, 오늘·내일 총운은 붓 획 네 줄, 내일 날짜·공유 카드 문구는 내일 기준
+    f, outline = sheet_v3
+    grab = lambda pat: re.search(pat, JS, re.S).group(0)
+    fn = lambda name: grab(r"function " + name + r"\(.*?\n\}\n")
+    src = ("const esc=s=>String(s==null?'':s);const pad=n=>String(n).padStart(2,'0');const TOOLS={past:1,when:1,match:1,pick:1,name:1};"
+           + grab(r"const GROUPS=\[.*?\]\];\n") + grab(r"const TAB_DAY=\{.*?\};\n") + grab(r"const DAY_WORD=\{.*?\};\n")
+           + grab(r"const DOM_WORD=\{.*?\};\n") + grab(r"const WEEK=\[.*?\];\n")
+           + grab(r"function dayKey\(tab\).*?\nfunction groupOf\(tab\)\{.*?\}\n")
+           + fn("mdDay") + fn("termText") + fn("dateLine") + """
+const S=JSON.parse(require('fs').readFileSync(0,'utf8'));S.tab='today';
+const rows=d=>['love','career','money','study'].filter(k=>S.facts[d].scores[k]!=null).map(k=>DOM_WORD[k]);
+console.log(JSON.stringify([groupsOK().map(g=>g[0]+':'+g[1].join('|')),rows('today'),rows('tomorrow'),
+  dateLine(true,'tomorrow'),dateLine(true,'today'),dayFacts('tomorrow_study').scores.study]));""")
+    arg = json.dumps({"facts": f, "outline": outline}, ensure_ascii=False)
+    r = subprocess.run(["node", "-e", src], input=arg, capture_output=True, text=True, encoding="utf-8")   # 사실표가 커서 표준 입력으로
+    out = json.loads(r.stdout or "null") if r.stdout else None
+    assert out, r.stderr
+    assert out[0][:2] == ["오늘:today|love|career|money|study", "내일:tomorrow|tomorrow_love|tomorrow_career|tomorrow_money|tomorrow_study"]
+    assert [g.split(":")[0] for g in out[0]] == ["오늘", "내일", "흐름", "둘이서", "고르기"]
+    assert out[1] == out[2] == ["연애", "직장", "금전", "학업"]
+    assert out[3].startswith("10월 16일 금요일") and out[4].startswith("10월 15일 목요일")
+    assert out[5] == f["tomorrow"]["scores"]["study"]
+    assert "label:W+'의 한 줄'" in JS and "const td=TAB_DAY[tab];" in JS     # 공유 카드는 보는 날 기준
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node 없음")
+def test_prefetch_order_today_then_tomorrow():
+    # 화면 미리 받기: 지금 연 탭 먼저, 이어서 오늘 묶음 → 내일 묶음 (서버 outline 순서), 동시 3개, 서버에 없는 탭은 건너뛴다
+    grab = lambda pat: re.search(pat, JS, re.S).group(0)
+    src = ("const pad=n=>String(n).padStart(2,'0');const TOOLS={};"
+           + grab(r"const TAB_DAY=\{.*?\};\n") + grab(r"function dayKey\(tab\).*?\nfunction groupOf\(tab\)\{.*?\}\n")
+           + grab(r"function bgList\(\)\{.*?\n\}\nfunction pump\(\)\{.*?\n\}\n") + """
+const outline={newyear:{chapters:[{id:'x'}]},today:{chapters:[{id:'a'},{id:'b'}]},tomorrow:{chapters:[{id:'a'}]},love:{chapters:[{id:'c'}]},
+  tomorrow_love:{chapters:[{id:'c'}]}};
+const day={heads:{total:'h'},scores:{},domains:{love:{}}};
+const S={ai:true,outline,facts:{meta:{target:'2026-10-15'},today:day,tomorrow:day},token:'t',tab:'love',chapters:{},rules:{},
+  queue:[['love','c']],bg:[],running:0,inflight:new Set()};
+const calls=[];let peak=0;
+function fillChapter(){}
+function postJSON(url,q){calls.push(q.tab+'/'+q.chapter);peak=Math.max(peak,S.running);
+  return new Promise((ok,no)=>setTimeout(()=>q.tab==='tomorrow_love'?no(new Error('없는 탭')):ok({source:'ai'}),5));}
+S.bg=bgList();pump();
+setTimeout(()=>console.log(JSON.stringify({calls,peak,left:S.bg.length+S.queue.length,running:S.running})),300);""")
+    r = subprocess.run(["node", "-e", src], capture_output=True, text=True, encoding="utf-8")
+    out = json.loads(r.stdout)
+    assert out["calls"] == ["love/c", "today/a", "today/b", "tomorrow/a", "tomorrow_love/c"]
+    assert out["peak"] == 3 and out["left"] == 0 and out["running"] == 0

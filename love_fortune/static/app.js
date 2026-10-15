@@ -8,10 +8,17 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
   .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const pad=n=>String(n).padStart(2,'0');
 
-const TAB_ORDER=['today','love','career','money','newyear','life','past','when','match','pick','name'];
-const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',newyear:'신년',life:'평생',past:'되짚기',when:'시간 찾기',match:'궁합',pick:'길일',name:'이름 풀이'};
+const TAB_ORDER=['today','love','career','money','study','tomorrow','tomorrow_love','tomorrow_career','tomorrow_money','tomorrow_study',
+  'newyear','life','past','when','match','pick','name'];
+const TAB_NAME={today:'총운',love:'연애',career:'직장',money:'금전',study:'학업',tomorrow:'총운',tomorrow_love:'연애',tomorrow_career:'직장',tomorrow_money:'금전',tomorrow_study:'학업',newyear:'신년',life:'평생',past:'되짚기',when:'시간 찾기',match:'궁합',pick:'길일',name:'이름 풀이'};
 // 탭 네 묶음 (2026-10 디자인 회의): 위 줄은 묶음, 아래 줄은 묶음 안의 탭. 탭 열한 개(TAB_ORDER)는 그대로 둔다.
-const GROUPS=[['오늘',['today','love','career','money']],['흐름',['newyear','life','past']],['둘이서',['match']],['고르기',['when','pick','name']]];
+// 2026-10-15 사용자 결정: 오늘 묶음에 학업, 오늘 옆에 내일 묶음. 사실표에 그 칸이 없으면(옛 공유 링크) 그 탭·묶음은 숨긴다
+const GROUPS=[['오늘',['today','love','career','money','study']],['내일',['tomorrow','tomorrow_love','tomorrow_career','tomorrow_money','tomorrow_study']],
+  ['흐름',['newyear','life','past']],['둘이서',['match']],['고르기',['when','pick','name']]];
+// 하루 단위 탭: [사실표의 날(today|tomorrow), 영역(없으면 총운)]
+const TAB_DAY={today:['today',null],love:['today','love'],career:['today','career'],money:['today','money'],study:['today','study'],
+  tomorrow:['tomorrow',null],tomorrow_love:['tomorrow','love'],tomorrow_career:['tomorrow','career'],tomorrow_money:['tomorrow','money'],tomorrow_study:['tomorrow','study']};
+const DAY_WORD={today:'오늘',tomorrow:'내일'};
 const EL_STEM={갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'금',신:'금',임:'수',계:'수'};
 const EL_BRANCH={자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'};
 const EL_WORD={목:'나무',화:'불',토:'흙',금:'쇠',수:'물'};
@@ -25,7 +32,7 @@ const ICON={
   lock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:3px"><rect x="5" y="11" width="14" height="9" rx="1"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>'};
 
 const S={token:'',facts:null,outline:null,rules:{},ai:false,tab:'today',
-  chapters:{},chat:[],queue:[],running:0,inflight:new Set()};
+  chapters:{},chat:[],queue:[],bg:[],running:0,inflight:new Set()};
 
 async function postJSON(url,obj){
   const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
@@ -98,13 +105,34 @@ function rheadHeight(){
 }
 window.addEventListener('resize',rheadHeight);
 function applyTheme(){document.body.dataset.theme=EL_THEME[(S.facts&&S.facts.natal.ilgan_element)||'']||'ink';}
-function groupOf(tab){return GROUPS.find(g=>g[1].includes(tab))||GROUPS[0];}
+function dayKey(tab){return (TAB_DAY[tab]||['today'])[0];}
+function dayFacts(tab){const f=S.facts;return f[dayKey(tab)]||f.today;}
+function dayDate(tab){
+  const f=S.facts,k=dayKey(tab);
+  if(k==='today') return f.meta.target;
+  const t=f.tomorrow||{};
+  if(t.date) return t.date;
+  const d=new Date(f.meta.target+'T00:00:00');d.setDate(d.getDate()+1);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+function tabOK(tab){
+  if(TOOLS[tab]) return true;
+  if(!S.outline||!S.outline[tab]) return false;
+  const d=TAB_DAY[tab];
+  if(d){const t=S.facts[d[0]];if(!t||!t.heads) return false;if(d[1]&&!(t.domains||{})[d[1]]) return false;}
+  return true;
+}
+function groupsOK(){return GROUPS.map(([g,tabs])=>[g,tabs.filter(tabOK)]).filter(g=>g[1].length);}
+function groupOf(tab){const gs=groupsOK();return gs.find(g=>g[1].includes(tab))||gs[0];}
 function showResult(){
   $('askFab').hidden=!S.chatOn;if(!S.chatOn) closeAsk();     // 공개 서버에서는 채팅을 잠시 막아 둔다
   askLabel();
   $('home').classList.remove('on');$('result').classList.add('on');
   applyTheme();
-  $('groups').innerHTML=GROUPS.map(([g,tabs])=>'<button class="grp" type="button" data-tab="'+tabs[0]+'" data-grp="'+g+'">'+g+'</button>').join('');
+  S.bg=bgList();
+  const gs=groupsOK();
+  $('groups').style.gridTemplateColumns='repeat('+gs.length+',1fr)';
+  $('groups').innerHTML=gs.map(([g,tabs])=>'<button class="grp" type="button" data-tab="'+tabs[0]+'" data-grp="'+g+'">'+g+'</button>').join('');
   openTab('today');
   setTimeout(rheadHeight,0);
 }
@@ -128,9 +156,10 @@ function termText(t,target){
   if(!t||!t.name) return '';
   return t.name+(t.date===target?' 들어옴':' 지나');
 }
-function dateLine(short){
-  const f=S.facts,t=f.today,parts=[mdDay(f.meta.target)];
-  const term=termText(t.term,f.meta.target);
+function dateLine(short,tab){
+  tab=tab||S.tab;
+  const t=dayFacts(tab),day=dayDate(tab),parts=[mdDay(day)];
+  const term=termText(t.term,day);
   const lunar=((t.almanac||[])[0]||'').match(/음력 [^·]+?일/);
   return parts[0]+(term?', '+term:'')+(lunar&&!short?' · '+lunar[0]:'');
 }
@@ -182,17 +211,19 @@ function band(n,opts){
     bd.map(i=>'<p>'+esc(i.text)+'</p>').join('')+'<p class="fine">'+esc(n.boundary.note||'')+'</p></div>';
   return h+'</section>';
 }
+// 오늘·내일 첫머리 (같은 모양, 보는 날만 다르다). 점수 붓 획은 영역마다 한 줄 (학업 칸이 없으면 세 줄)
 function todayTop(tab){
-  const f=S.facts,t=f.today;
-  let h='<div class="rtop"><section aria-label="오늘의 한 줄" style="display:flex;flex-direction:column;gap:6px"><p class="dateline">'+esc(dateLine())+'</p>';
-  if(tab==='today'){
-    const td=t.todo||{};
+  const f=S.facts,t=dayFacts(tab),[day,dom]=TAB_DAY[tab],W=DAY_WORD[day];
+  let h='<div class="rtop"><section aria-label="'+W+'의 한 줄" style="display:flex;flex-direction:column;gap:6px"><p class="dateline">'+esc(dateLine(false,tab))+'</p>';
+  if(!dom){
+    const td=t.todo||{},sc=t.scores||{};
+    const rows=['love','career','money','study'].filter(k=>sc[k]!=null).map(k=>[DOM_WORD[k],sc[k]]);
     h+='<h1 class="oneline">'+esc(t.heads.total)+'</h1>'+todoList(td.do,td.do_domain,td.avoid)+'</section>'+
-      meRow(t.scores.total,'오늘 총운')+brush([['연애',t.scores.love],['직장',t.scores.career],['금전',t.scores.money]])+band(f.natal);
+      meRow(sc.total,W+' 총운')+brush(rows)+band(f.natal);
   }else{
-    const d=t.domains[tab]||{};
+    const d=t.domains[dom]||{};
     h+='<h1 class="oneline">'+esc(d.head||'')+'</h1>'+todoList((d.tips||[])[0],'',d.avoid)+'</section>'+
-      meRow(d.score,'오늘 '+DOM_WORD[tab]);
+      meRow(d.score,W+' '+DOM_WORD[dom]);
   }
   return h+'</div>';
 }
@@ -269,14 +300,15 @@ function chapterHTML(tab,c,i){
 }
 function openTab(tab){
   if(TOOLS[tab]) return openTool(tab);
+  if(!tabOK(tab)) tab='today';               // 사실표에 없는 탭(학업·내일이 없는 옛 결과)은 오늘 총운으로
   S.tab=tab;S.queue=[];
   const o=S.outline[tab],f=S.facts;
   applyTheme();drawTabs(tab);
   let h='';
-  if(['today','love','career','money'].includes(tab)) h+=todayTop(tab);
+  if(TAB_DAY[tab]) h+=todayTop(tab);
   else if(tab==='life') h+='<div class="tab-hero"><h1 class="hero-title">'+esc(o.title)+'</h1><p class="hero-sub">'+esc(o.sub)+'</p></div>'+lifeTop()+band(f.natal,{head:true,counts:true});
   else h+='<div class="tab-hero"><h1 class="hero-title">'+esc(o.title)+'</h1><p class="hero-sub">'+esc(o.sub)+'</p></div>';
-  h+='<div class="chlist"><p>'+esc(TAB_NAME[tab])+' 풀이, '+o.chapters.length+'장</p>'+o.chapters.map((c,i)=>chapterHTML(tab,c,i)).join('');
+  h+='<div class="chlist"><p>'+esc((dayKey(tab)==='tomorrow'&&TAB_DAY[tab]?'내일 ':'')+TAB_NAME[tab])+' 풀이, '+o.chapters.length+'장</p>'+o.chapters.map((c,i)=>chapterHTML(tab,c,i)).join('');
   if(tab==='love') h+=sokSection(o.chapters.length);
   h+='</div>';
   $('page').innerHTML=h;
@@ -288,7 +320,7 @@ function openTab(tab){
     if(ai) fillChapter(tab,c.id,ai,false);
     else if(rule) fillChapter(tab,c.id,rule,S.ai);
     else $('page').querySelector('[data-body="'+c.id+'"]').innerHTML=skeleton();
-    if(!ai&&S.ai&&!S.inflight.has(key)) S.queue.push(c.id);
+    if(!ai&&S.ai&&!S.inflight.has(key)) S.queue.push([tab,c.id]);
   });
   pump();
 }
@@ -299,18 +331,32 @@ function openTab(tab){
 function skeleton(){
   return '<div class="skel w8"></div><div class="skel"></div><div class="skel w6"></div>';
 }
+// 미리 받기 (2026-10-15 사용자 결정: 내일 장도 오늘처럼 입력하자마자 AI 로 미리 만든다).
+// 서버리스(Vercel)는 서버 대기열 없이 화면이 장을 요청할 때 만들어서, 지금 연 탭을 먼저 받고 이어서
+// 오늘 묶음 탭 전부, 그다음 내일 묶음 탭 전부를 서버 outline 순서로 받는다. 서버에 없는 탭은 건너뛴다.
+function bgList(){
+  if(!S.ai||!S.outline) return [];
+  const tabs=Object.keys(S.outline).filter(t=>TAB_DAY[t]&&tabOK(t));
+  const order=tabs.filter(t=>dayKey(t)==='today').concat(tabs.filter(t=>dayKey(t)==='tomorrow'));
+  return order.flatMap(t=>(S.outline[t].chapters||[]).map(c=>[t,c.id]));
+}
 function pump(){
-  const tab=S.tab;
-  while(S.running<3&&S.queue.length){
-    const ch=S.queue.shift(),key=tab+'/'+ch;S.running++;S.inflight.add(key);
-    postJSON('/api/v2/chapter',{token:S.token,tab,chapter:ch})
+  while(S.running<3){
+    let item=S.queue.shift();
+    while(!item&&S.bg.length) item=S.bg.shift();
+    if(!item) break;
+    const [tab,ch]=item,key=tab+'/'+ch,tok=S.token;
+    if(S.chapters[key]||S.inflight.has(key)) continue;
+    S.running++;S.inflight.add(key);
+    postJSON('/api/v2/chapter',{token:tok,tab,chapter:ch})
       .then(body=>{
+        if(tok!==S.token) return;          // 그새 다른 사람 결과를 열었으면 버린다
         if(body.source==='ai') S.chapters[key]=body;
         if(S.tab===tab) fillChapter(tab,ch,body,false);
       })
-      .catch(()=>{                 // AI 풀이를 못 받아도 계산 풀이는 그대로 둔다
+      .catch(()=>{                 // AI 풀이를 못 받아도(서버에 없는 탭 포함) 계산 풀이는 그대로 둔다
         const rule=(S.rules[tab]||{})[ch];
-        if(rule&&S.tab===tab) fillChapter(tab,ch,rule,false);
+        if(tok===S.token&&rule&&S.tab===tab) fillChapter(tab,ch,rule,false);
       })
       .finally(()=>{S.running--;S.inflight.delete(key);pump();});
   }
@@ -321,7 +367,8 @@ function fillChapter(tab,ch,b,pending){
   const swap=el.dataset.src==='rule'&&b.source==='ai';
   let h='';const used=new Set();
   // 결론 한 줄: 맨 위 '오늘 한 줄'과 같은 말이면 되풀이하지 않고 첫 문장(lead)을 결론으로 올린다
-  const t=S.facts&&S.facts.today,dup=t&&b.headline&&(b.headline===t.heads.total||b.headline===((t.domains[tab]||{}).head));
+  const t=S.facts&&TAB_DAY[tab]&&dayFacts(tab),dom=TAB_DAY[tab]&&TAB_DAY[tab][1];
+  const dup=t&&b.headline&&(b.headline===t.heads.total||(dom&&b.headline===((t.domains||{})[dom]||{}).head));
   if(b.headline&&!dup) h+='<p class="headline">'+esc(b.headline)+'</p>';
   if(b.lead) h+=dup?'<p class="headline">'+soft(esc(b.lead))+'</p>':'<p class="lead">'+soft(linkTerms(esc(b.lead),used))+'</p>';
   // 사주·자미두수·점성술 각각의 풀이는 접어 둔다. 같은 장에 세 체계 부품이 이미 있으면 겹치지 않게 뺀다
@@ -393,10 +440,10 @@ function widget(w){
   const f=S.facts;
   switch(name){
     case 'wonguk': return wonguk(f.natal);
-    case 'gauge': return arg==='today'?gauge(f.today):dgauge(f.today.domains[arg],arg);
-    case 'dsys': return dsys(f.today.domains[arg],arg);
-    case 'systems': return systems(f.today);
-    case 'almanac': return almanac(f.today);
+    case 'gauge': return arg==='today'||arg==='tomorrow'?gauge(dayFacts(S.tab)):dgauge(dayFacts(S.tab).domains[arg],arg);
+    case 'dsys': return dsys(dayFacts(S.tab).domains[arg],arg);
+    case 'systems': return systems(dayFacts(S.tab));
+    case 'almanac': return almanac(dayFacts(S.tab));
     case 'animals': return animals(f.love.animals);
     case 'calendar': return calendar(f[arg].months,arg)+'<button type="button" class="ghost ics-btn" data-ics="'+arg+'">좋은 달·조심할 달을 캘린더 앱에 넣기</button><div id="ics-'+arg+'"></div>';
     case 'consensus': return consensus((f.insights||{}).consensus,arg);
@@ -473,7 +520,7 @@ function nyCal(ny){
     '<span class="sw"></span>무난 <span class="sw t-3"></span>다듬을 때 <span class="sw t-9"></span>조심할 때 (칸을 길게 누르면 이유)</div>',ny.year+'년 열두 달');
 }
 // 연애·직장·금전 탭: 오늘 그 영역 점수와 세 체계가 더하고 뺀 신호
-const DOM_WORD={love:'연애',career:'직장',money:'금전'};
+const DOM_WORD={love:'연애',career:'직장',money:'금전',study:'학업'};
 function sign(p){return p>0?'+'+p:String(p);}
 function dgauge(d,dom){
   return '<div class="chips" style="margin:0">'+d.systems.map(s=>'<span class="chip'+(s.points>0?' a':'')+'">'+esc(s.name)+' '+sign(s.points)+'</span>').join('')+
@@ -586,9 +633,9 @@ function askLabel(){
 }
 function askCtx(){
   const f=S.facts;if(!f) return '';
-  const n=f.natal,t=f.today,d=t.domains[S.tab];
-  const sc=S.tab==='today'?'총운 '+t.scores.total+'점':d?DOM_WORD[S.tab]+' '+d.score+'점':'';
-  return '보던 곳: '+(sc?'오늘 '+sc:TAB_NAME[S.tab])+' · '+n.ilgan+n.ilgan_element+'('+(EL_WORD[n.ilgan_element]||'')+' 기운)';
+  const n=f.natal,td=TAB_DAY[S.tab],t=dayFacts(S.tab),d=td&&td[1]&&t.domains[td[1]];
+  const sc=!td?'':(DAY_WORD[td[0]]+' ')+(d?DOM_WORD[td[1]]+' '+d.score+'점':'총운 '+t.scores.total+'점');
+  return '보던 곳: '+(sc||TAB_NAME[S.tab])+' · '+n.ilgan+n.ilgan_element+'('+(EL_WORD[n.ilgan_element]||'')+' 기운)';
 }
 function chatCount(){$('chatN').textContent=$('chatIn').value.length+'/300';}
 $('chatIn').addEventListener('input',chatCount);
@@ -1006,6 +1053,13 @@ function evLines(v,depth){
   });
   return out;
 }
+// 근거 이름: 내일 칸은 오늘 이름을 '내일'로, 학업 칸은 연애 이름을 '학업'으로 바꿔 쓴다
+function pathLabel(p){
+  if(PATH_LABEL[p]) return PATH_LABEL[p];
+  const l=PATH_LABEL[p.replace(/^tomorrow\./,'today.').replace(/\.study$/,'.love')];
+  if(!l) return p;
+  return (/^tomorrow\./.test(p)?l.replace(/오늘/g,'내일'):l).replace(/연애/g,/\.study$/.test(p)?'학업':'연애');
+}
 function evidenceHTML(pick){
   const f=S.facts;
   return pick.map(p=>{
@@ -1013,7 +1067,7 @@ function evidenceHTML(pick){
     if(p==='natal'&&v){const o={};NATAL_KEYS.forEach(k=>{if(v[k]!=null) o[k]=v[k];});v=o;}
     const lines=evLines(v).slice(0,12);
     if(!lines.length) return '';
-    return '<div class="ev"><b>'+esc(PATH_LABEL[p]||p)+'</b><ul>'+lines.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ul></div>';
+    return '<div class="ev"><b>'+esc(pathLabel(p))+'</b><ul>'+lines.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ul></div>';
   }).join('')+'<p class="fine">AI 풀이는 이 값들만 받아서 썼고, 여기 없는 숫자나 단정하는 말이 든 문장은 화면에 나오기 전에 걸러져.</p>';
 }
 document.addEventListener('toggle',e=>{
@@ -1534,10 +1588,12 @@ function cardMe(){
   return {seal:n.ilgan+el,el,word:EL_WORD[el]||'',first:String(n.character||'').split('. ')[0].replace(/\.?$/,'.')};
 }
 function cardInfo(){
-  const f=S.facts,t=f.today,tab=S.tab,o=S.outline[tab]||TOOLS[tab]||{title:'종합 사주'};
+  const f=S.facts,tab=S.tab,o=S.outline[tab]||TOOLS[tab]||{title:'종합 사주'};
   const base={kicker:dateLine(true),me:cardMe()};
-  if(tab==='today') return {...base,label:'오늘의 한 줄',head:t.heads.total};
-  if(t.domains[tab]) return {...base,label:'오늘의 '+DOM_WORD[tab],head:t.domains[tab].head};
+  const td=TAB_DAY[tab];                  // 공유 카드는 지금 보는 날(오늘·내일) 기준
+  if(td){const t=dayFacts(tab),W=DAY_WORD[td[0]];
+    if(!td[1]) return {...base,label:W+'의 한 줄',head:t.heads.total};
+    return {...base,label:W+'의 '+DOM_WORD[td[1]],head:(t.domains[td[1]]||{}).head||t.heads.total};}
   if(tab==='life'){const c=f.natal.ilju;return {...base,label:'나의 일주',head:c.pillar+' 일주, '+c.title};}
   if(tab==='newyear'){const ny=f.newyear;return {...base,label:ny.year+' '+ny.ganzhi+'년',head:ny.rel};}
   const one=$('toolOut')&&$('toolOut').querySelector('.oneline');

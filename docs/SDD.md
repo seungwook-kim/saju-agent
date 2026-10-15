@@ -142,9 +142,11 @@ flowchart TD
 ### 4.3 미리 만들기 (`prefetch.py`, 로컬)
 
 - 우선순위 힙. `submit_all` 우선순위 = 탭 순번 × 100 + 챕터 순번, 화면이 지금 연 챕터는 `URGENT(-1)`로 당긴다.
+  탭 순서는 오늘(총운·연애·직장·금전·학업) → 내일(tomorrow·tomorrow_love·tomorrow_career·tomorrow_money·tomorrow_study) → 신년 → 평생이라
+  내일 장은 오늘 장 뒤에 만든다 (2026-10-15). 사실표에 그 칸이 없으면(옛 공유 링크) `chapters.available` 로 건너뛴다.
 - 같은 key는 한 번만 만든다. 끝난 작업은 30분 들고 있는다.
 - 일꾼 수 = `max(1, SAJU_AI_PARALLEL - 1)`. 한 자리는 상담용으로 남긴다.
-- 새 사람 한 명당 AI 호출이 최대 33번 생겨서 공개 서버(Dockerfile)는 `SAJU_PREFETCH=0`이 기본이다. Vercel은 요청 안에서 만들기 때문에 대기열을 쓰지 않는다.
+- 새 사람 한 명당 AI 호출이 최대 57번(오늘 20, 내일 20, 신년 6, 평생 11) 생겨서 공개 서버(Dockerfile)는 `SAJU_PREFETCH=0`이 기본이다. Vercel은 요청 안에서 만들기 때문에 대기열을 쓰지 않는다.
 
 ### 4.4 상담 (`POST /api/chat`)
 
@@ -237,7 +239,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 | 생각 | 해당 없음 | 끔 (`reasoning.enabled=false`) |
 | 제공사 | 해당 없음 | 가격순 (`provider.sort=price`) |
 | JSON | 응답에서 가장 바깥 `{…}`를 꺼낸다 | `response_format: json_object` |
-| 시간당 상한 | 없음 (0) | 300번, 부르기 전에 센다 (실패도 센다) |
+| 시간당 상한 | 없음 (0) | 600번, 부르기 전에 센다 (실패도 센다) |
 | 쓸 수 있나 | `claude` 명령이 있으면 | 키와 모델이 둘 다 있으면 |
 
 - 시간 제한 180초, 동시 호출 3개(`BoundedSemaphore`), 챕터 답 2,000토큰, 상담 답 800토큰.
@@ -264,7 +266,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 | AI 수집·스크랩 | 수집 도구 UA 403 (빈 UA 포함, 카카오톡·슬랙 등 링크 미리보기는 허용), noai 헤더, 안내 파일 | `guard.py` |
 | 다른 사이트에서 POST | Origin이 Host(또는 신뢰하는 X-Forwarded-Host, `SAJU_ORIGINS`)와 다르면 403. `Origin: null`도 403 | `web.py:901-914` |
 | 요청 폭주 | IP당 POST 1분 90번, 상담 12번 | `web.py:43-46, 127-143` |
-| AI 요금 폭탄 | 시간당 300번, 상담 하루 10번·전체 300번, 질문 300자, 답 길이 상한 | `ai.py`, `web.py` |
+| AI 요금 폭탄 | 시간당 600번, 상담 하루 10번·전체 300번, 질문 300자, 답 길이 상한 | `ai.py`, `web.py` |
 | AI를 다른 용도로 | 챕터 요청에는 사용자가 친 글자가 없다. 상담은 운세 밖 요청을 AI 없이 돌려보낸다 | `chapters.py`, `web.offtopic` |
 | 프롬프트 인젝션 | 정리, 알아보기, 서명한 기록만 믿기, 울타리, 지시문 샘 검사 (4.4절) | `injection.py`, `web._chat` |
 | SSRF | 사용자 지정 LLM 주소는 `SAJU_CUSTOM_LLM=1`일 때만, http/https만 | `web.py:1152-1159, 603-634` |
@@ -294,7 +296,7 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 | AI | `SAJU_AI_CLI`, `SAJU_AI_MODEL` | claude, claude-sonnet-5 | CLI 방식 |
 | AI | `OPENROUTER_API_KEY`, `SAJU_OPENROUTER_MODEL`, `SAJU_OPENROUTER_URL` | 없음 | OpenRouter 방식 |
 | AI | `SAJU_OPENROUTER_REASONING`, `SAJU_OPENROUTER_SORT`, `SAJU_APP_NAME` | off, price, saju-agent | |
-| AI | `SAJU_AI_PARALLEL`, `SAJU_AI_PER_HOUR`, `SAJU_AI_MAX_TOKENS` | 3, (openrouter 300 / cli 0), 2000 | |
+| AI | `SAJU_AI_PARALLEL`, `SAJU_AI_PER_HOUR`, `SAJU_AI_MAX_TOKENS` | 3, (openrouter 600 / cli 0), 2000 | |
 | 저장 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (또는 `SUPABASE_SERVICE_ROLE_KEY`) | 없음 | 있으면 Supabase. 키는 상담 해시 소금의 재료도 됨 |
 | 저장 | `SAJU_CONTENT_DB`, `SAJU_DB` | `data/`(Vercel은 `/tmp`) | SQLite 파일 위치 |
 | 기록 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` | 없음, 없음, cloud.langfuse.com | 둘 다 있으면 기록 |

@@ -1,7 +1,10 @@
 """domains.py, 영역별 오늘 운세 엔진 (로컬·결정적).
 
-총운·직장운·금전운. 연애운 점수 엔진을 영역별로 응용한 구조이며,
+총운·직장운·금전운·학업운. 연애운 점수 엔진을 영역별로 응용한 구조이며,
 서술은 전통 해석에 근거한 경향·흐름체.
+
+학업 무게는 2026-10 조사한 해설에 근거가 있는 신호만 넣었다 (db/init.sql source 표의 study_* 항목).
+근거를 찾지 못한 십신(정관·편관·정재·편재·비견·겁재)은 학업 무게 0 이다.
 """
 from __future__ import annotations
 
@@ -40,6 +43,44 @@ MONEY_GOD_LINE = {
     "겁재": "지갑이 가벼워지기 쉬우니 큰 결정은 미루면 좋은 흐름",
 }
 
+# 학업: 오늘 들어온 천간이 나에게 무엇인지 (십신)
+# - 정인: 학업·공부가 순조로운 별 (study_sina: 인성이 좋으면 배우기를 즐기고 학업이 높다, study_mseanchan: Direct Resource = academic)
+# - 편인: 남다른 지식·몰입 (study_mseanchan: Indirect Resource = unconventional knowledge, 인성은 education)
+# - 식신·상관: 말로 풀고 가르치는 기운, 인성이 넘칠 때 학업을 거든다 (study_sina: 식신은 말로 풀어 전해 주는 기운, 식상 운은 학업을 거든다)
+# - 나머지는 근거를 찾지 못해 0 (관인상생은 두 기운이 함께 있는 구조라 하루 한 글자로는 쓰지 않는다)
+STUDY_GOD_BONUS = {"정인": 6, "편인": 4, "식신": 2, "상관": 1, "정관": 0, "편관": 0,
+                   "정재": 0, "편재": 0, "비견": 0, "겁재": 0}
+STUDY_GOD_LINE = {
+    "정인": "배우고 익히는 일이 순하게 들어오기 쉬운 흐름",
+    "편인": "남다른 분야를 깊이 파고들기 좋은 흐름",
+    "식신": "배운 것을 말로 풀어 보거나 가르쳐 보기 좋은 흐름",
+    "상관": "아는 것을 내 말로 바꿔 정리해 보기 좋은 흐름",
+    "정관": "공부 쪽으로 따로 더하거나 빼는 신호는 아닌 흐름",
+    "편관": "공부 쪽으로 따로 더하거나 빼는 신호는 아닌 흐름",
+    "정재": "공부 쪽으로 따로 더하거나 빼는 신호는 아닌 흐름",
+    "편재": "공부 쪽으로 따로 더하거나 빼는 신호는 아닌 흐름",
+    "비견": "공부 쪽으로 따로 더하거나 빼는 신호는 아닌 흐름",
+    "겁재": "공부 쪽으로 따로 더하거나 빼는 신호는 아닌 흐름",
+}
+STUDY_TIPS = [
+    "그날 배운 것을 세 줄로 정리해 두기",
+    "모르는 것 한 가지를 그날 안에 물어보기",
+    "25분 집중하고 5분 쉬는 걸 두 번 해 보기",
+    "자기 전 10분 그날 본 것 훑어보기",
+    "어제 틀린 문제 하나 다시 풀기",
+    "책상 위에는 지금 볼 책 하나만 두기",
+    "배운 내용을 남에게 설명하듯 말해 보기",
+    "공부할 분량을 작게 쪼개 적어 두기",
+]
+STUDY_AVOID = [
+    "밤새우는 벼락치기",
+    "알림 켜 둔 채 공부하기",
+    "남과 진도 비교하기",
+    "한 번에 여러 과목 붙잡기",
+    "모르는 걸 그냥 넘기기",
+    "쉬는 시간 없이 몰아치기",
+]
+
 CAREER_TIPS = [
     "회의 전 요점을 세 줄로 정리해두기",
     "보고는 결론부터, 이유는 뒤에 붙이기",
@@ -64,7 +105,7 @@ MONEY_TIPS = [
     "가계부에 5분만 기록하기",
     "비상금·예비비 잔액 확인하기",
     "안 쓰는 구독 정리하기",
-    "오늘 쓴 돈 메모하기",
+    "그날 쓴 돈 메모하기",
     "저축 자동이체 점검하기",
     "비싼 결정은 내일로 미루기",
 ]
@@ -216,17 +257,38 @@ def money_score(day_stem: int, branches: list[int], today_stem: int,
     return max(1, min(100, score)), reasons, today_elem
 
 
+def study_score(day_stem: int, branches: list[int], today_stem: int,
+                today_branch: int, seed_extra: str = "") -> tuple[int, list[str], str]:
+    """오늘 학업 기본 점수. 오행 생극 문장은 쓰지 않는다 (학업 근거는 십신으로만 본다, 인성이 곧 나를 생하는 기운)."""
+    reasons: list[str] = []
+    score = 55
+    today_elem = STEM_ELEMENT[today_stem]
+    s, r = _branch_points(branches, today_branch, "공부")
+    score += s
+    reasons += r
+    god = ten_god(day_stem, today_stem)
+    score += STUDY_GOD_BONUS.get(god, 0)
+    from .narrate import GOD_MEAN
+    reasons.append(f"오늘 들어온 기운과 나는 공부로 '{god}' 사이야. {GOD_MEAN[god]} {STUDY_GOD_LINE[god]}")
+    score += _jitter(f"study-{day_stem}-{today_stem}-{today_branch}-{seed_extra}", -5, 5)
+    return max(1, min(100, score)), reasons, today_elem
+
+
 def total_score(day_stem: int, branches: list[int], today_stem: int,
                 today_branch: int, love: int, career: int, money: int,
                 daxian_hua: list[str], liunian_branch: int,
-                seed_extra: str = "") -> tuple[int, list[str], str, list[str]]:
+                seed_extra: str = "", study: int | None = None) -> tuple[int, list[str], str, list[str]]:
+    """총운 = 연애·직장·금전·학업 네 영역 평균 + 그날 공통 기운 (2026-10-15 사용자 결정).
+    study 를 넘기지 않으면 예전처럼 세 영역 평균 (옛 호출 호환)."""
     reasons: list[str] = []
-    score = round((love + career + money) / 3)
+    parts = [love, career, money] + ([study] if study is not None else [])
+    score = round(sum(parts) / len(parts))
     me_elem = STEM_ELEMENT[day_stem]
     today_elem = STEM_ELEMENT[today_stem]
     s, r = _element_reasons(me_elem, today_elem, "전반")
     score += s // 2
-    reasons.append(f"연애 {love}·직장 {career}·금전 {money}의 평균에서 출발한 오늘 총운")
+    reasons.append(f"연애 {love}·직장 {career}·금전 {money}"
+                   + (f"·학업 {study}" if study is not None else "") + "의 평균에서 출발한 오늘 총운")
     reasons += r
     if "기" in daxian_hua:
         score -= 3
@@ -257,6 +319,11 @@ def band_headline(score: int, kind: str) -> str:
                   (55, "지키는 게 이기는 흐름, 현상 유지가 좋아"),
                   (40, "지갑 단속이 필요한 흐름, 큰 결정은 미루면 좋아"),
                   (0, "관망이 답인 흐름, 새 투자는 쉬어가면 좋아")],
+        "study": [(85, "배운 게 잘 들어오는 흐름, 어려운 단원에 도전해 보기 좋아"),
+                  (70, "집중이 잘 붙는 흐름, 계획한 분량을 채우기 좋아"),
+                  (55, "다지기 좋은 흐름, 아는 것을 복습하면 좋아"),
+                  (40, "집중이 흩어지기 쉬운 흐름, 짧게 끊어 공부하면 좋아"),
+                  (0, "쉬어 가는 흐름, 무리한 벼락치기는 피하면 좋아")],
         "total": [(85, "무엇이든 해보기 좋은 흐름, 좋은 기운을 나눠주면 좋아"),
                   (70, "하루가 순조롭게 풀리기 쉬운 흐름, 약속을 잡기 좋아"),
                   (55, "평온하게 보내기 좋은 흐름, 루틴대로 가면 좋아"),

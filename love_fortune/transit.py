@@ -81,7 +81,7 @@ def transits(birth: date, hour: int | None, minute: int, city: str, today: date)
     retro_today = [b for b in BODIES if sky[b]["retro"]]
     return {
         "hits": hits, "sky": sky, "moon_house": moon_house, "retro": retro_today,
-        "points": {k: round(domain_points(f"w_{k}"), 2) for k in ("love", "career", "money")},
+        "points": {k: round(domain_points(f"w_{k}"), 2) for k in ("love", "career", "money", "study")},
     }
 
 

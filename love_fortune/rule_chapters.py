@@ -227,94 +227,103 @@ def run_now(extra: list[str]) -> list[str]:
     return [x for x in extra if not x.startswith("태어날 때")]
 
 
-# ---------------------------------------------------------------- 총운 (오늘)
+# ---------------------------------------------------------------- 총운 (오늘·내일)
 
-TODAY_WORD = {"love": "연애", "career": "직장", "money": "금전"}
+TODAY_WORD = {"love": "연애", "career": "직장", "money": "금전", "study": "학업"}
+DAY_WORD = {"today": "오늘", "tomorrow": "내일"}
 
 
-def today(f: dict, ch: str) -> dict:
-    t, n = f["today"], f["natal"]
+def _doms(t: dict) -> list[str]:
+    """그날 칸에 있는 영역 (옛 공유 링크의 사실표에는 학업이 없다)."""
+    return [d for d in TODAY_WORD if d in t["scores"]]
+
+
+def today(f: dict, ch: str, day: str = "today") -> dict:
+    t, n = f[day], f["natal"]
+    W = DAY_WORD[day]
     heads, sc = t["heads"], t["scores"]
     saju = next((s for s in t["systems"] if s["name"] == "사주"), {"lines": []})
     doms = t["domains"]
+    names = _doms(t)
     if ch == "today":
+        parts = ", ".join(f"{TODAY_WORD[d]} {sc[d]}점" for d in names)
         return chapter(heads["total"], t["agreement"], [
-            callout(f"오늘 총운 {sc['total']}점은 연애 {sc['love']}점, 직장 {sc['career']}점, 금전 {sc['money']}점의 "
-                    "평균에 오늘 공통 기운을 더한 값이야."),
+            callout(f"{W} 총운 {sc['total']}점은 {parts}의 평균에 {W} 공통 기운을 더한 값이야."),
             text("세 체계를 합치면", t["focus"]),
             *[text(f"{s['name']}: {s['signal']}", *s["lines"]) for s in t["systems"]],
-            cards("영역별 오늘", [(f"연애 {sc['love']}점", heads["love"]), (f"직장 {sc['career']}점", heads["career"]),
-                               (f"금전 {sc['money']}점", heads["money"])]),
-        ], "점수는 오늘 흐름의 방향을 보는 참고값이야.")
+            cards(f"영역별 {W}", [(f"{TODAY_WORD[d]} {sc[d]}점", heads[d]) for d in names]),
+        ], f"점수는 {W} 흐름의 방향을 보는 참고값이야.")
     if ch == "me":
         kw = "·".join(t["keywords"])
-        return chapter(f"오늘의 키워드는 {kw}", n["character"], [
-            text("오늘 내 기운의 단계", *saju["lines"][:1]),
-            text("오늘 들어온 기운과 나", *saju["lines"][1:]),
+        return chapter(f"{W}의 키워드는 {kw}", n["character"], [
+            text(f"{W} 내 기운의 단계", *saju["lines"][:1]),
+            text(f"{W} 들어오는 기운과 나", *saju["lines"][1:]),
             quote(heads["total"]),
             callout(t["focus"]),
         ])
+    tipped = [d for d in ("career", "money", "study") if d in doms]
     if ch == "todo":
-        tips = doms["career"]["tips"] + doms["money"]["tips"]
-        avoid = [doms[d]["avoid"] for d in ("career", "money") if doms[d]["avoid"]]
-        return chapter("오늘 달력으로 본 할 일", t["almanac"][0] if t["almanac"] else "", [
-            text("오늘 달력 풀이", *t["almanac"][1:-1]),
-            checklist("오늘 해 보면 좋은 것", tips),
-            checklist("오늘 피할 것", avoid),
+        tips = [x for d in tipped for x in doms[d]["tips"]]
+        avoid = [doms[d]["avoid"] for d in tipped if doms[d]["avoid"]]
+        return chapter(f"{W} 달력으로 본 할 일", t["almanac"][0] if t["almanac"] else "", [
+            text(f"{W} 달력 풀이", *t["almanac"][1:-1]),
+            checklist(f"{W} 해 보면 좋은 것", tips),
+            checklist(f"{W} 피할 것", avoid),
             callout(t["almanac"][-1] if len(t["almanac"]) > 1 else ""),
         ])
-    tip = (doms["career"]["tips"] or doms["money"]["tips"] or [""])[0]
+    tip = next((doms[d]["tips"][0] for d in tipped if doms[d]["tips"]), "")
     return chapter(heads["total"], t["focus"], [
-        text("오늘을 한 문단으로", t["agreement"], heads["love"], heads["career"], heads["money"]),
+        text(f"{W}을 한 문단으로", t["agreement"], *(heads[d] for d in names)),
         quote(heads["total"]),
-    ], f"오늘 딱 하나만 한다면: {tip}" if tip else "")
+    ], f"{W} 딱 하나만 한다면: {tip}" if tip else "")
 
 
-# ---------------------------------------------------------------- 연애·직장·금전 (오늘)
+# ---------------------------------------------------------------- 연애·직장·금전·학업 (오늘·내일)
 
-def _points_line(p: int, word: str) -> str:
+def _points_line(p: int, word: str, W: str = "오늘") -> str:
     """체계별 가감 신호 (점수 그 자체가 아니라 방향과 세기)."""
     if p > 0:
-        return f"{word} 쪽 신호 +{p}, 오늘 {j(word, '을')} 받쳐 주는 쪽이야."
+        return f"{word} 쪽 신호 +{p}, {W} {j(word, '을')} 받쳐 주는 쪽이야."
     if p < 0:
-        return f"{word} 쪽 신호 {p}, 오늘 {j(word, '을')} 조금 누르는 쪽이야."
+        return f"{word} 쪽 신호 {p}, {W} {j(word, '을')} 조금 누르는 쪽이야."
     return f"{word} 쪽으로는 더하거나 빼는 신호가 없어."
 
 
-def today_domain(f: dict, ch: str, dom: str) -> dict:
-    t = f["today"]
+def today_domain(f: dict, ch: str, dom: str, day: str = "today") -> dict:
+    t = f[day]
+    W = DAY_WORD[day]
     d = t["domains"][dom]
     word = TODAY_WORD[dom]
     if ch == "score":
-        return chapter(f"오늘 {word} {d['score']}점", d["head"], [
+        return chapter(f"{W} {word} {d['score']}점", d["head"], [
             checklist("이 점수가 나온 근거", d["reasons"]),
-            cards("세 체계가 더하고 뺀 몫", [(s["name"], _points_line(s["points"], word)) for s in d["systems"]]),
-        ], "점수는 오늘 흐름의 방향을 보는 참고값이야.")
+            cards("세 체계가 더하고 뺀 몫", [(s["name"], _points_line(s["points"], word, W)) for s in d["systems"]]),
+        ], f"점수는 {W} 흐름의 방향을 보는 참고값이야.")
     if ch == "systems":
         blocks = []
         for s in d["systems"]:
-            blocks.append(text(s["name"], *(s["lines"] or [f"오늘 {word}에만 따로 걸리는 신호는 없어."]),
+            blocks.append(text(s["name"], *(s["lines"] or [f"{W} {word}에만 따로 걸리는 신호는 없어."]),
                                *(f"모든 운에 함께 걸리는 것: {x}" for x in s.get("common", [])),
-                               _points_line(s["points"], word)))
+                               _points_line(s["points"], word, W)))
         blocks.append(callout(t["agreement"]))
-        return chapter(f"세 체계로 본 오늘 {word}", d["head"], blocks)
+        return chapter(f"세 체계로 본 {W} {word}", d["head"], blocks)
     if ch == "howto":
         if dom == "love":
             L = f["love"]
             todo = [L["spouse_seat"].split("팁: ")[-1], L["venus"]["how"],
-                    "오늘 가 보기 좋은 자리: " + ", ".join(L["meet_paths"])]
+                    f"{W} 가 보기 좋은 자리: " + ", ".join(L["meet_paths"])]
             avoid = []
         else:
             todo, avoid = d["tips"], [d["avoid"]] if d["avoid"] else []
-        return chapter("오늘 이렇게 해 봐", d["head"], [
-            checklist("오늘 해 보면 좋은 것", todo),
-            checklist("오늘 피할 것", avoid),
-            text("오늘 달력으로 보면", *t["almanac"][1:2]),
+        return chapter(f"{W} 이렇게 해 봐", d["head"], [
+            checklist(f"{W} 해 보면 좋은 것", todo),
+            checklist(f"{W} 피할 것", avoid),
+            text(f"{W} 달력으로 보면", *t["almanac"][1:2]),
             callout(t["almanac"][-1] if len(t["almanac"]) > 1 else ""),
         ])
     best = d["reasons"][0] if d["reasons"] else ""
-    return chapter(d["head"], f"오늘 {j(word, '은')} {d['score']}점, {d['head']}.", [
-        text("오늘을 한 문단으로", best, *(x for s in d["systems"] for x in s["lines"][:1])),
+    return chapter(d["head"], f"{W} {j(word, '은')} {d['score']}점, {d['head']}.", [
+        text(f"{W}을 한 문단으로", best, *(x for s in d["systems"] for x in s["lines"][:1])),
         quote(d["head"]),
     ])
 
@@ -499,8 +508,10 @@ def newyear(f: dict, ch: str) -> dict:
 def build(tab: str, ch: str, facts: dict) -> dict:
     if tab == "newyear":
         return newyear(facts, ch)
-    if tab == "today":
-        return today(facts, ch)
-    if tab in ("love", "career", "money"):
+    if tab in ("today", "tomorrow"):
+        return today(facts, ch, tab)
+    if tab in TODAY_WORD:
         return today_domain(facts, ch, tab)
+    if tab.startswith("tomorrow_"):
+        return today_domain(facts, ch, tab.partition("_")[2], "tomorrow")
     return life(facts, ch)
