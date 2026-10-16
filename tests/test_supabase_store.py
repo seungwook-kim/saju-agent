@@ -325,6 +325,10 @@ def test_visit_sqlite_and_report(tmp_path, monkeypatch):
     web.count_visit("203.0.113.7")
     st = CS.visit_stats()
     assert st["total"] == 1 and st["days"][0]["visitors"] == 1
+    monkeypatch.setattr(web, "_VISIT_STATS", {"t": 0.0, "body": b"{}"})
+    assert json.loads(web.visit_numbers()) == {"today": 1, "total": 1}       # 첫 화면 오른쪽 위 숫자
+    web.count_visit("198.51.100.2")
+    assert json.loads(web.visit_numbers()) == {"today": 1, "total": 1}       # 1분 동안은 기억한 값
     calls = []
     monkeypatch.setattr(web, "count_visit", calls.append)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)

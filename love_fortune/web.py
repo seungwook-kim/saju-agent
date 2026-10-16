@@ -129,6 +129,26 @@ def count_visit(ip: str) -> None:
         print(f"[방문] 기록 실패: {type(e).__name__}", file=sys.stderr)
 
 
+_VISIT_STATS: dict = {"t": 0.0, "body": b"{}"}
+
+
+def visit_numbers() -> bytes:
+    """첫 화면 오른쪽 위의 오늘·누적 방문자. 1분 동안은 기억해 둔 값을 준다 (저장소를 매번 부르지 않게)."""
+    if time.time() - _VISIT_STATS["t"] < 60:
+        return _VISIT_STATS["body"]
+    from . import content_store
+    day = visit_day()
+    try:
+        st = content_store.visit_stats(day)
+        today = next((r["visitors"] for r in st["days"] if r["day"] == day), 0)
+        body = json.dumps({"today": today, "total": st["total"]}).encode()
+    except Exception as e:  # noqa: BLE001  숫자를 못 읽으면 화면에서 숨긴다
+        print(f"[방문] 숫자 읽기 실패: {type(e).__name__}", file=sys.stderr)
+        body = b"{}"
+    _VISIT_STATS.update(t=time.time(), body=body)
+    return body
+
+
 def _chat_take(keys: list[str], local: bool = False) -> int | None:
     """한 번 쓴다. 열쇠(IP·브라우저 표시·결과·사주) 중 하나라도 하루 횟수를 다 썼으면 None.
     남은 횟수를 돌려준다. 이 컴퓨터(local)는 제한 없음(-1)."""
@@ -875,6 +895,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/healthz":
             from . import content_store      # 저장소 종류만 보인다 (주소·키는 안 보인다)
             self._send(json.dumps({"ok": True, "store": content_store.backend()}).encode(), "application/json")
+        elif path == "/api/visits":       # 오늘·누적 방문자 수 (숫자만)
+            self._send(visit_numbers(), "application/json", cache="no-store")
         elif path == "/api/whoami":       # 배포 뒤 프록시 설정 확인용: 서버가 보는 내 IP (내 것만 보인다)
             self._send(json.dumps({"ip": self._client_ip()}).encode(), "application/json")
         elif self.path.split("?")[0] == "/api/lunar-year":

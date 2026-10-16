@@ -1625,6 +1625,17 @@ $('shCard').addEventListener('click',async()=>{
       '<a class="go dl" href="'+url+'" download="saju-'+S.tab+'.png">이미지 내려받기</a>';
   },'image/png');
 });
+// 첫 화면 오른쪽 위: 오늘·누적 방문자 (결과를 연 IP 수, 같은 IP 는 한 번)
+(async function showVisits(){
+  try{
+    const j=await (await fetch('/api/visits')).json();
+    if(typeof j.total!=='number'||!j.total) return;
+    const el=$('visits');
+    el.textContent='오늘 '+j.today.toLocaleString('ko-KR')+' · 누적 '+j.total.toLocaleString('ko-KR');
+    el.title='사주를 펼쳐 본 사람 수 (같은 IP 는 한 번)';
+    el.hidden=false;
+  }catch(_){}
+})();
 // 저장 링크로 들어오면 그 결과를 연다
 (async function openShared(){
   renderPeople();
