@@ -1,12 +1,15 @@
 """ai.py, AI 모델 호출 (상담 채팅·챕터 풀이 공용).
 
-두 가지 방식 중 하나를 쓴다 (환경변수 SAJU_AI_BACKEND):
+세 가지 방식 중 하나를 쓴다 (환경변수 SAJU_AI_BACKEND):
 - cli (기본): 이 PC 에 로그인된 구독 AI 를 로컬 CLI 명령으로 부른다.
   도구는 전부 끄고(--tools ""), 대화는 저장하지 않는다(--no-session-persistence).
   시스템 프롬프트는 임시 파일로, 본문은 표준입력으로 넘긴다 (명령줄 길이 제한 회피).
 - openrouter: OpenRouter API(https://openrouter.ai/api/v1/chat/completions)로 부른다.
   OPENROUTER_API_KEY 와 SAJU_OPENROUTER_MODEL(예: 제공사/모델 이름)을 넣어야 켜진다.
-  서비스로 공개할 때 쓰는 방식이다.
+  2026-10-16 까지 공개 서비스가 쓰던 방식이다 (qwen/qwen3.7-flash).
+- anthropic: Claude API(https://api.anthropic.com/v1/messages)로 직접 부른다. ANTHROPIC_API_KEY 가 있어야 켜진다.
+  모델은 SAJU_ANTHROPIC_MODEL (기본 claude-haiku-5-5, 2026-10-16 사용자 결정: 같은 사실표 4장 비교에서
+  말투·구성·거름망 통과가 Qwen 보다 나아서). 생각(thinking)은 끈다 (켜 두면 길이 상한을 생각으로 다 써서 빈 답이 왔다).
 어느 쪽이든 보내는 것은 개인정보를 뺀 계산 결과와 요청뿐이고, 동시에 도는 호출 수를 제한한다.
 """
 from __future__ import annotations
@@ -24,10 +27,13 @@ BACKEND = os.environ.get("SAJU_AI_BACKEND", "cli").strip().lower()
 AI_CLI = os.environ.get("SAJU_AI_CLI", "claude")          # 실행할 명령 이름 (cli)
 OPENROUTER_URL = os.environ.get("SAJU_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
 OPENROUTER_MODEL = os.environ.get("SAJU_OPENROUTER_MODEL", "").strip()
+ANTHROPIC_URL = os.environ.get("SAJU_ANTHROPIC_URL", "https://api.anthropic.com/v1/messages")
+ANTHROPIC_MODEL = os.environ.get("SAJU_ANTHROPIC_MODEL", "").strip() or "claude-haiku-5-5"
+PAID = BACKEND in ("openrouter", "anthropic")           # 부를 때마다 돈이 나가는 방식
 # 챕터 풀이 저장 키에도 들어가서, 모델을 바꾸면 풀이를 새로 만든다
-AI_MODEL = (OPENROUTER_MODEL if BACKEND == "openrouter"
+AI_MODEL = (OPENROUTER_MODEL if BACKEND == "openrouter" else ANTHROPIC_MODEL if BACKEND == "anthropic"
             else os.environ.get("SAJU_AI_MODEL", "claude-sonnet-5"))
-LABEL = "AI 모델" if BACKEND == "openrouter" else "구독 AI 모델"      # 화면에 보이는 이름
+LABEL = "AI 모델" if PAID else "구독 AI 모델"      # 화면에 보이는 이름
 AI_TIMEOUT = 180
 PARALLEL = max(1, int(os.environ.get("SAJU_AI_PARALLEL", "3")))
 _SLOTS = threading.BoundedSemaphore(PARALLEL)
@@ -35,7 +41,7 @@ _SLOTS = threading.BoundedSemaphore(PARALLEL)
 
 # 한 시간에 실제로 부르는 AI 횟수 상한 (공개 서버에서 요금 폭탄을 막는다). 0 이면 제한 없음.
 # OpenRouter(유료)는 기본 600번(2026-10-15 사용자 결정, 전에는 300번), 로컬 구독 CLI 는 기본 제한 없음. 넘으면 부르는 쪽이 계산 풀이로 대신한다.
-PER_HOUR = int(os.environ.get("SAJU_AI_PER_HOUR", "600" if BACKEND == "openrouter" else "0"))
+PER_HOUR = int(os.environ.get("SAJU_AI_PER_HOUR", "600" if PAID else "0"))
 _CALLS: list[float] = []
 _CALLS_LOCK = threading.Lock()
 
@@ -61,12 +67,17 @@ def _take_budget() -> None:
 def available() -> bool:
     if BACKEND == "openrouter":
         return bool(os.environ.get("OPENROUTER_API_KEY") and OPENROUTER_MODEL)
+    if BACKEND == "anthropic":
+        return bool(os.environ.get("ANTHROPIC_API_KEY"))
     return shutil.which(AI_CLI) is not None
 
 
 # 한 번에 받는 답의 길이 상한 (토큰). 챕터 풀이는 평균 950, 가장 긴 것 1,700 정도라 2,000 이면 넉넉하다.
-# 상한이 없으면 모델이 길게 쓰는 만큼 요금이 나간다.
-MAX_TOKENS = int(os.environ.get("SAJU_AI_MAX_TOKENS", "2000"))
+# Claude 는 같은 한국어도 토큰을 더 쓰고 더 길게 써서 3,000 (2026-10-16 비교: 원국 장이 2,000 중 1,931).
+# 넘으면 JSON 이 잘려 통째로 못 쓴다. 상한이 없으면 모델이 길게 쓰는 만큼 요금이 나간다 (요금은 실제로 쓴 만큼만).
+MAX_TOKENS = int(os.environ.get("SAJU_AI_MAX_TOKENS", "3000" if BACKEND == "anthropic" else "2000"))
+# Claude 요금 (달러, 100만 토큰당 입력·출력). Langfuse 비용 기록용. Haiku 5.5 기본, 다른 모델이면 SAJU_ANTHROPIC_PRICE=입력,출력
+_PRICE = os.environ.get("SAJU_ANTHROPIC_PRICE", "0.10,0.50")
 
 
 # 요금 설정 (2026-09-27, 추천 모델 qwen/qwen3.7-flash 기준)
@@ -122,6 +133,49 @@ def _run_openrouter(system: str, prompt: str, timeout: int, max_tokens: int = MA
     return out
 
 
+def _anthropic_cost(u: dict) -> float | None:
+    try:
+        pin, pout = (float(x) for x in _PRICE.split(","))
+        return (u.get("input_tokens", 0) * pin + u.get("output_tokens", 0) * pout) / 1e6
+    except (ValueError, TypeError):
+        return None
+
+
+def _run_anthropic(system: str, prompt: str, timeout: int, max_tokens: int = MAX_TOKENS,
+                   json_mode: bool = False) -> str:
+    import urllib.error
+    import urllib.request
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not key:
+        raise RuntimeError("Claude API 키가 없어")
+    body = json.dumps({"model": ANTHROPIC_MODEL, "max_tokens": max_tokens, "system": system,
+                       "messages": [{"role": "user", "content": prompt}],
+                       "thinking": {"type": "disabled"}}).encode("utf-8")
+    req = urllib.request.Request(ANTHROPIC_URL, data=body, method="POST", headers={
+        "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+    with _SLOTS:
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"AI 호출 실패 (HTTP {e.code})") from None
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            raise RuntimeError(f"AI 연결 실패: {e}") from None
+        except json.JSONDecodeError:
+            raise RuntimeError("AI 응답을 읽지 못했어") from None
+    u = data.get("usage") or {}
+    _LAST.usage, _LAST.cost, _LAST.model = u, _anthropic_cost(u), data.get("model") or ANTHROPIC_MODEL
+    try:
+        out = "".join(b.get("text", "") for b in data["content"] if b.get("type") == "text").strip()
+    except (KeyError, TypeError, AttributeError):
+        raise RuntimeError(f"AI 응답 형식 오류: {str(data)[:200]}") from None
+    if json_mode and data.get("stop_reason") == "max_tokens":
+        raise RuntimeError("AI 답이 길이 상한에서 잘렸어")
+    if not out:
+        raise RuntimeError("AI 가 빈 답을 보냈어")
+    return out
+
+
 _LAST = threading.local()          # 방금 부른 호출의 토큰·비용·모델 (Langfuse 기록용)
 
 
@@ -147,6 +201,8 @@ def run(system: str, prompt: str, timeout: int = AI_TIMEOUT, max_tokens: int = M
 def _run_backend(system: str, prompt: str, timeout: int, max_tokens: int, json_mode: bool) -> str:
     if BACKEND == "openrouter":
         return _run_openrouter(system, prompt, timeout, max_tokens, json_mode)
+    if BACKEND == "anthropic":
+        return _run_anthropic(system, prompt, timeout, max_tokens, json_mode)
     exe = shutil.which(AI_CLI)
     if not exe:
         raise RuntimeError("AI 명령을 찾지 못했어")

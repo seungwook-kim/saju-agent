@@ -193,9 +193,16 @@ Supabase 무료 프로젝트는 7일 동안 요청이 없으면 일시정지되�
   - 채팅 API(`/api/chat`)에 `backend=openai`·`endpoint`·`api_key` 를 주면 OpenAI 호환 LLM(예: Ollama `http://localhost:11434/v1`)도 부를 수 있다.
     요청이 준 주소로 서버가 요청을 보내는 기능이라 공개 서버에서는 위험해서(SSRF), `SAJU_CUSTOM_LLM=1` 일 때만 켜진다.
 
-### AI 연결 방식 바꾸기 (공개 서비스용 OpenRouter)
+### AI 연결 방식 바꾸기 (공개 서비스용 Claude API·OpenRouter)
 
-기본은 이 PC 에 로그인된 구독 AI 를 CLI 로 부른다. 서비스로 공개할 때는 OpenRouter API 로 바꾼다.
+기본은 이 PC 에 로그인된 구독 AI 를 CLI 로 부른다. 서비스로 공개할 때는 Claude API(운영, 2026-10-16~) 나 OpenRouter API 로 바꾼다.
+둘 다 쓴 만큼 돈이 나간다 (Claude API 는 Max 구독과 따로 결제).
+
+```bash
+SAJU_AI_BACKEND=anthropic
+ANTHROPIC_API_KEY=...                      # Claude 콘솔에서 발급한 키
+SAJU_ANTHROPIC_MODEL=claude-haiku-5-5      # 비우면 이 모델
+```
 
 ```bash
 SAJU_AI_BACKEND=openrouter

@@ -224,7 +224,9 @@ def _context(token: str) -> dict | None:
 
 
 CHAT_MAX_CHARS = 300          # 질문 한 번의 길이 상한 (화면 입력칸은 200자). 긴 글을 붙여 AI 를 딴 데 쓰지 못하게
-CHAT_MAX_TOKENS = 800         # 상담 답 길이 상한 (번호 목록으로 충분히 말할 수 있게, 2026-09-28 사용자: 내용은 줄이지 말 것)
+# 상담 답 길이 상한 (번호 목록으로 충분히 말할 수 있게, 2026-09-28 사용자: 내용은 줄이지 말 것).
+# Claude 는 같은 한국어에 토큰을 1.5배쯤 써서 1,200 (같은 길이의 답이 나오게)
+CHAT_MAX_TOKENS = 1200 if os.environ.get("SAJU_AI_BACKEND", "").strip().lower() == "anthropic" else 800
 
 
 # 운세와 관계없는 게 뻔한 요청은 AI 를 부르기 전에 정해 둔 문구로 답한다 (토큰 0).

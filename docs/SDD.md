@@ -43,7 +43,7 @@ flowchart LR
   W --> P --> C
   C --> CS
   E --> ST
-  A -->|운영| OR[OpenRouter]
+  A -->|운영| OR[Claude API]
   A -->|로컬| CLI[구독 AI CLI]
   A -->|운영만| LF[Langfuse]
   CS -->|운영| SB[(Supabase)]
@@ -58,7 +58,7 @@ flowchart LR
 | 입구 | `love_fortune.wsgi:app` (`pyproject.toml` `[tool.vercel]`) | `python -m love_fortune form` (`cli.py`) |
 | HTTP | WSGI 어댑터가 요청을 원래 HTTP 바이트로 다시 만들어 `web.Handler`에 그대로 넘긴다 (`wsgi.py:38-70`) | `ThreadingHTTPServer` + `web.Handler` |
 | 챕터 AI | 요청 안에서 바로 만든다 (`SERVERLESS`, `web.py:739`) | `prefetch` 대기열에서 미리 만들고 화면 요청을 앞으로 당긴다 |
-| AI 백엔드 | OpenRouter (`SAJU_AI_BACKEND=openrouter`) | 구독 AI CLI (`claude -p …`) |
+| AI 백엔드 | Claude API (`SAJU_AI_BACKEND=anthropic`, Haiku 5.5. 2026-10-16 전에는 OpenRouter) | 구독 AI CLI (`claude -p …`) |
 | 저장소 | Supabase REST | SQLite `data/content.db` |
 | 결과 토큰 | 메모리 + Supabase `ctx` (요청마다 다른 기계가 받아도 이어지게) | 메모리 |
 | 임시 파일 | `/tmp` (`VERCEL` 값이 있으면) | `data/` |
@@ -232,17 +232,21 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 
 ## 6. AI 호출 (`ai.py`)
 
-| 항목 | CLI (로컬) | OpenRouter (운영) |
-|---|---|---|
-| 호출 | `claude -p --model … --output-format json --system-prompt-file <임시> --tools "" --no-session-persistence --strict-mcp-config`, 표준입력으로 요청, 임시 폴더에서 실행 | `chat/completions` HTTPS |
-| 모델 | `SAJU_AI_MODEL` (기본 claude-sonnet-5) | `SAJU_OPENROUTER_MODEL` (운영 `qwen/qwen3.7-flash`) |
-| 생각 | 해당 없음 | 끔 (`reasoning.enabled=false`) |
-| 제공사 | 해당 없음 | 가격순 (`provider.sort=price`) |
-| JSON | 응답에서 가장 바깥 `{…}`를 꺼낸다 | `response_format: json_object` |
-| 시간당 상한 | 없음 (0) | 600번, 부르기 전에 센다 (실패도 센다) |
-| 쓸 수 있나 | `claude` 명령이 있으면 | 키와 모델이 둘 다 있으면 |
+| 항목 | CLI (로컬) | Claude API (운영, 2026-10-16~) | OpenRouter (그 전 운영) |
+|---|---|---|---|
+| 호출 | `claude -p --model … --output-format json --system-prompt-file <임시> --tools "" --no-session-persistence --strict-mcp-config`, 표준입력으로 요청, 임시 폴더에서 실행 | `v1/messages` HTTPS | `chat/completions` HTTPS |
+| 모델 | `SAJU_AI_MODEL` (기본 claude-sonnet-5) | `SAJU_ANTHROPIC_MODEL` (기본 `claude-haiku-5-5`) | `SAJU_OPENROUTER_MODEL` (`qwen/qwen3.7-flash`) |
+| 생각 | 해당 없음 | 끔 (`thinking.type=disabled`, 켜 두면 상한을 생각으로 다 써서 빈 답) | 끔 (`reasoning.enabled=false`) |
+| 제공사 | 해당 없음 | Anthropic | 가격순 (`provider.sort=price`) |
+| JSON | 응답에서 가장 바깥 `{…}`를 꺼낸다 | 같음. 상한에서 잘리면(`stop_reason=max_tokens`) 실패로 본다 | `response_format: json_object` |
+| 비용 기록 | CLI 가 준 값 | 토큰 x `SAJU_ANTHROPIC_PRICE`(기본 0.10,0.50달러/100만) | OpenRouter 가 준 값 |
+| 시간당 상한 | 없음 (0) | 600번, 부르기 전에 센다 (실패도 센다) | 같음 |
+| 쓸 수 있나 | `claude` 명령이 있으면 | `ANTHROPIC_API_KEY` 가 있으면 | 키와 모델이 둘 다 있으면 |
 
-- 시간 제한 180초, 동시 호출 3개(`BoundedSemaphore`), 챕터 답 2,000토큰, 상담 답 800토큰.
+- 시간 제한 180초, 동시 호출 3개(`BoundedSemaphore`). 챕터 답 2,000토큰·상담 답 800토큰, Claude API 는 3,000·1,200
+  (같은 한국어에 토큰을 1.5배쯤 쓰고 더 길게 써서. 비교에서 원국 장이 2,000 중 1,931).
+- 모델 고르기 (2026-10-16, 예시 생일 하나·같은 사실표 4장): Haiku 5.5 가 말투(반말 유지), 구성(번호 줄·체크리스트), 거름망 통과
+  (장마다 빠진 문장 0~1, Qwen 1~3), 속도(5~10초, Qwen 13~22초)에서 낫고, 값은 한 장 약 0.0012달러로 Qwen(약 0.00022)의 5배쯤.
 - 시간당 총량은 Supabase `ai_call`로 서버 여러 대가 함께 센다. 없으면 기계 메모리.
 - 부를 때마다 `langfuse.log_generation`이 이름(chapter/chat), 모델, 입력과 출력, 토큰 수, 비용, 오류를 보낸다. `SAJU_LANGFUSE_CONTENT=0`이면 숫자만 보낸다. 키가 없으면 아무것도 안 한다.
 
@@ -292,17 +296,18 @@ HEAD, OPTIONS는 구현하지 않아 501이 나간다.
 | 상담 | `SAJU_CUSTOM_LLM` | 0 | 1이면 사용자 지정 LLM 주소 허용 |
 | AI | `SAJU_AI` | 1 | 0이면 계산 풀이만 |
 | AI | `SAJU_PREFETCH` | 1 | 0이면 연 탭만 만듦 |
-| AI | `SAJU_AI_BACKEND` | cli | cli 또는 openrouter |
+| AI | `SAJU_AI_BACKEND` | cli | cli, anthropic, openrouter |
 | AI | `SAJU_AI_CLI`, `SAJU_AI_MODEL` | claude, claude-sonnet-5 | CLI 방식 |
+| AI | `ANTHROPIC_API_KEY`, `SAJU_ANTHROPIC_MODEL`, `SAJU_ANTHROPIC_PRICE`, `SAJU_ANTHROPIC_URL` | 없음, claude-haiku-5-5, 0.10,0.50 | Claude API 방식 |
 | AI | `OPENROUTER_API_KEY`, `SAJU_OPENROUTER_MODEL`, `SAJU_OPENROUTER_URL` | 없음 | OpenRouter 방식 |
 | AI | `SAJU_OPENROUTER_REASONING`, `SAJU_OPENROUTER_SORT`, `SAJU_APP_NAME` | off, price, saju-agent | |
-| AI | `SAJU_AI_PARALLEL`, `SAJU_AI_PER_HOUR`, `SAJU_AI_MAX_TOKENS` | 3, (openrouter 600 / cli 0), 2000 | |
+| AI | `SAJU_AI_PARALLEL`, `SAJU_AI_PER_HOUR`, `SAJU_AI_MAX_TOKENS` | 3, (유료 600 / cli 0), (anthropic 3000 / 그 밖 2000) | |
 | 저장 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (또는 `SUPABASE_SERVICE_ROLE_KEY`) | 없음 | 있으면 Supabase. 키는 상담 해시 소금의 재료도 됨 |
 | 저장 | `SAJU_CONTENT_DB`, `SAJU_DB` | `data/`(Vercel은 `/tmp`) | SQLite 파일 위치 |
 | 기록 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` | 없음, 없음, cloud.langfuse.com | 둘 다 있으면 기록 |
 | 기록 | `SAJU_LANGFUSE_CONTENT` | 1 | 0이면 숫자만 보냄 |
 
-운영(Vercel Production)에 넣어 둔 이름: `SAJU_AI_BACKEND`, `SAJU_OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `SAJU_AI_PER_HOUR`, `SAJU_PREFETCH`, `SAJU_CHAT`, `SAJU_TRUST_PROXY`, `SAJU_IP_HEADER`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`.
+운영(Vercel Production)에 넣어 둔 이름: `SAJU_AI_BACKEND`, `ANTHROPIC_API_KEY`, `SAJU_OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `SAJU_AI_PER_HOUR`, `SAJU_PREFETCH`, `SAJU_CHAT`, `SAJU_TRUST_PROXY`, `SAJU_IP_HEADER`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`.
 
 ## 10. 배포와 운영
 

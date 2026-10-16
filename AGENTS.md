@@ -45,7 +45,9 @@
     AI 에는 facts.py 사실표(개인정보 없음)만 넘기고, 사실표 밖의 사실·확률·단정 예언을
     쓰지 못하게 SYSTEM 프롬프트와 chapters.normalize 로 막는다. 프롬프트를 바꾸면
     chapters.PROMPT_VERSION 을 올려 저장된 풀이를 새로 만들게 한다.
-  - OpenRouter 모델은 qwen/qwen3.7-flash (2026-09-27 사용자 결정, 가장 싼 적합 모델). 부를 때 생각(reasoning) 끄기,
+  - 운영 AI 는 Claude API 직접(SAJU_AI_BACKEND=anthropic, 모델 claude-haiku-5-5, 2026-10-16 사용자 결정: 같은 사실표 4장 비교에서
+    말투·구성·거름망 통과가 Qwen 보다 나아서, 값은 약 5배). 생각(thinking) 끄기, 챕터 상한 3,000·상담 1,200 토큰 (Claude 는 한국어 토큰이 많아서).
+  - 그 전 OpenRouter 모델은 qwen/qwen3.7-flash (2026-09-27 사용자 결정, 가장 싼 적합 모델). 부를 때 생각(reasoning) 끄기,
     provider.sort=price, 챕터는 response_format json_object. 사용자 허락 없이 유료 AI 를 시험으로 부르지 않는다.
   - AI 호출 기록: LANGFUSE_PUBLIC_KEY·SECRET_KEY 가 있으면 ai.run 이 부를 때마다 Langfuse 로 보낸다 (langfuse.py, 외부 패키지 없음).
     사실표 값은 보내지 않는다 (2026-10-16: 나이·네 기둥·일간·별자리를 맞춰 보면 생년월일이 되살아나서). 기준일·성별·연령대·칸 이름만,
@@ -54,7 +56,7 @@
   - 방문자 수 (2026-10-16 사용자 요청, 포트폴리오용): 결과를 연 IP 를 하루·누적으로 센다 (web.count_visit, 표 visit_day·visitor).
     같은 IP 는 하루 한 번, 누적 한 번 (사용자 결정: 같은 IP 는 중복으로 치지 않는다). IP 원래 값은 저장하지 않고 해시만,
     하루 표 키는 날짜를 섞어 날을 넘어 잇지 못하게. 보는 법: tools/visit_stats.py
-  - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(SAJU_AI_BACKEND=openrouter)로
+  - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 Claude API(anthropic, 2026-10-16 부터), 그 전에는 OpenRouter API(SAJU_AI_BACKEND=openrouter)로
     부른다 (2026-09-25 사용자 결정, 운영 Vercel 에서 쓰는 중). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
     공개 서버에서 SSRF 통로가 된다. SAJU_CUSTOM_LLM=1 일 때만 켠다 (기본 꺼짐).
@@ -78,7 +80,7 @@
     정해 둔 답은 세지 않고, 루프백은 세지 않는다. 프록시 뒤 IP 는 X-Forwarded-For 맨 왼쪽(꾸밀 수 있음)이 아니라
     오른쪽에서 SAJU_PROXY_HOPS 번째나 SAJU_IP_HEADER 로 본다. 배포 뒤 /api/whoami 로 확인.
   - 공개 서버 남용 방지: POST 는 IP 하나당 1분 90번, 상담 채팅은 12번 (web.py _rate_ok, 넘으면 429).
-    유료 AI 는 ai.py 에서 시간당 총량(SAJU_AI_PER_HOUR, OpenRouter 기본 600, 2026-10-15 사용자 결정)으로 한 번 더 막는다.
+    유료 AI 는 ai.py 에서 시간당 총량(SAJU_AI_PER_HOUR, 유료 방식(openrouter·anthropic) 기본 600, 2026-10-15 사용자 결정)으로 한 번 더 막는다.
   - 외부 데이터는 라이선스가 명시된 것만 쓰고 THIRD_PARTY_NOTICES.md 에 적는다. 포털 사전을 긁은 자료는 쓰지 않는다
     (2026-09-27: 네이버 사전 출처 훈음을 libhangul 사전(BSD)으로 바꿈).
   - 내장 데이터(음력표·표준시 이력)는 tools/gen_calendar_data.py 로만 다시 만든다.

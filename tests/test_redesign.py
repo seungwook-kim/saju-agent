@@ -335,6 +335,54 @@ def test_openrouter_backend(monkeypatch):
         importlib.reload(ai)
 
 
+def test_anthropic_backend(monkeypatch):
+    # Claude API 직접 (2026-10-16): 생각 끔, 챕터 상한 3,000, 잘린 JSON 은 실패로, 비용은 토큰으로 셈
+    import importlib
+    from love_fortune import ai
+    monkeypatch.setenv("SAJU_AI_BACKEND", "anthropic")
+    monkeypatch.delenv("SAJU_ANTHROPIC_MODEL", raising=False)
+    monkeypatch.delenv("SAJU_AI_MAX_TOKENS", raising=False)
+    monkeypatch.delenv("SAJU_AI_PER_HOUR", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    mod = importlib.reload(ai)
+    try:
+        assert mod.available() is False and mod.AI_MODEL == "claude-haiku-5-5"
+        assert mod.MAX_TOKENS == 3000 and mod.PER_HOUR == 600 and mod.LABEL == "AI 모델"
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        assert mod.available() is True
+        seen, reply = {}, {"stop": "end_turn", "text": '{"a": 1}'}
+
+        class R:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self):
+                return json.dumps({"model": "claude-haiku-5-5", "stop_reason": reply["stop"],
+                                   "content": [{"type": "text", "text": reply["text"]}],
+                                   "usage": {"input_tokens": 1000, "output_tokens": 2000}}).encode()
+
+        def fake_open(req, timeout=0):
+            seen["url"], seen["key"] = req.full_url, req.get_header("X-api-key")
+            seen["body"] = json.loads(req.data.decode())
+            return R()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_open)
+        monkeypatch.setattr(mod, "_take_budget", lambda: None)
+        assert mod.run_json("시스템", "질문") == {"a": 1}
+        assert seen["url"].startswith("https://api.anthropic.com/") and seen["key"] == "test-key"
+        b = seen["body"]
+        assert b["system"] == "시스템" and b["messages"] == [{"role": "user", "content": "질문"}]
+        assert b["thinking"] == {"type": "disabled"} and b["max_tokens"] == 3000
+        assert abs(mod._LAST.cost - (1000 * 0.10 + 2000 * 0.50) / 1e6) < 1e-12
+        reply.update(stop="max_tokens", text='{"a": ')
+        with pytest.raises(RuntimeError, match="잘렸"):
+            mod.run_json("시스템", "질문")
+        reply.update(stop="max_tokens", text="상담 답이 길어서 끝이")
+        assert mod.run("시스템", "질문") == "상담 답이 길어서 끝이"             # 상담 글은 잘려도 보여 준다
+    finally:
+        monkeypatch.delenv("SAJU_AI_BACKEND")
+        importlib.reload(ai)
+
+
 def test_look_back_and_new_year(sheet):
     past = sheet["past"]
     assert past["rows"] and all(r["year"] < 2026 for r in past["rows"])
