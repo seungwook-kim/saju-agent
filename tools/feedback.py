@@ -54,4 +54,10 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except OSError as e:                              # urllib 오류도 OSError
+        code = getattr(e, "code", "")
+        hint = " (표가 없으면 Supabase SQL Editor 에서 db/supabase.sql 을 실행해 줘)" if code == 404 else ""
+        print(f"읽지 못했어: {type(e).__name__} {code}{hint}")
+        raise SystemExit(1)
