@@ -30,7 +30,8 @@ def test_policy_contents():
               "AI 없이 계산 풀이만 보기", "만 14세 미만", "만 19세 미만", "이 링크 지우기", "/licenses.txt"):
         assert s in H, s
     assert "나무위키" not in H and "namu" not in H.lower()
-    assert "@" not in re.search(r'<dialog id="legal".*?</dialog>', H, re.S).group(0)     # 이메일 없음
+    legal = re.search(r'<dialog id="legal".*?</dialog>', H, re.S).group(0)
+    assert re.findall(r"[\w.+-]+@[\w.-]+", legal) and set(re.findall(r"[\w.+-]+@[\w.-]+", legal)) == {"kswook30@gmail.com"}   # 운영자 연락 이메일 하나만 (2026-10-16 사용자 지정)
 
 
 def test_noai_checkbox_and_requests():
