@@ -217,7 +217,7 @@ def test_prefetch_puts_tomorrow_after_today(monkeypatch, sheet):
     seen = []
     monkeypatch.setattr(prefetch, "submit", lambda tab, ch, f, prio: seen.append((prio, tab, ch)))
     n = prefetch.submit_all(sheet)
-    assert n == len(seen) == 57
+    assert n == len(seen) == 58          # 평생 탭 공부의 흐름 장 (2026-10-16)
     order = [tab for _, tab, _ in sorted(seen)]
     last_today = max(i for i, t in enumerate(order) if t in TAB_IDS[:5])
     first_tomorrow = min(i for i, t in enumerate(order) if t.startswith("tomorrow"))
@@ -268,3 +268,21 @@ def test_share_keeps_tomorrow(server):
     assert "tomorrow_study" in got["rules"]
     body = _post(server + "/api/v2/chapter", {"token": got["token"], "tab": "tomorrow_study", "chapter": "score"})
     assert body["headline"].startswith("내일 학업 ")
+
+
+def test_flow_study_signals_from_sourced_rules(sheet):
+    # 흐름 묶음 공부(2026-10-16): 해·달 신호는 정인·편인·식신·학당귀인만 (근거 없는 신호는 0)
+    from love_fortune.signals import _score
+    from love_fortune.natal_extra import hakdang
+    natal = {"ilgan_stem": 0, "day_branch": 0, "pillars": {"year": (0, 0), "month": (0, 2)}}
+    seal = _score(natal, "female", 9, 6)            # 갑 일간에 계(정인) 천간
+    assert seal["scores"]["study"] >= 2 and any("정인" in w for w in seal["why"]["study"])
+    hd = _score(natal, "female", 6, hakdang(0))     # 경(편관, 학업 0) 천간에 학당 자리 지지
+    assert any("학당귀인" in w for w in hd["why"]["study"])
+    for tab_rows in (sheet["study"]["months"], sheet["study"]["years"], sheet["newyear"]["months"]["study"]):
+        assert tab_rows and all("tag" in r for r in tab_rows)
+    assert "study" in sheet["newyear"]["signals"]
+    body = chapters.rule_chapter("life", "study_flow", sheet)
+    assert body["headline"].startswith("공부의 흐름")
+    ny = chapters.rule_chapter("newyear", "final", sheet)
+    assert "공부는" in json.dumps(ny, ensure_ascii=False) and "공부은" not in json.dumps(ny, ensure_ascii=False)

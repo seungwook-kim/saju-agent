@@ -667,8 +667,8 @@ def llm_chat(endpoint: str, api_key: str, model: str,
 
 
 def cli_available() -> bool:
-    from . import ai
-    return ai.available()
+    """상담에 AI 를 쓸지. 챕터와 같이 SAJU_AI=0 이면 끈다 (시험·오프라인, 2026-10-16)."""
+    return _ai_on()
 
 
 def cli_chat(summary: str, history: list[dict], message: str) -> str:
@@ -1025,6 +1025,9 @@ class Handler(BaseHTTPRequestHandler):
             self._drain()
             self._fail(429, "요청이 너무 많아. 1분쯤 뒤에 다시 해 줘.")
             return
+        from . import langfuse
+        # Langfuse userId: 쿠키를 서버 비밀과 섞은 해시 (사람 수 세기용, 쿠키 원래 값은 안 보낸다). 기록이 꺼져 있으면 쿠키도 안 만든다
+        langfuse.set_user(_h("lf-user", self._cid()) if langfuse.enabled() else None)
         try:
             q = self._fields()
         except (ValueError, UnicodeDecodeError):
@@ -1090,6 +1093,8 @@ class Handler(BaseHTTPRequestHandler):
         ai_on = _ai_on()
         if ai_on and _prefetch_on():
             prefetch.submit_all(f)
+        from . import langfuse
+        langfuse.log_visit("report", f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
                     "rules": chapters.rule_all(f), "ai": ai_on, "chat": _chat_on(self._client_ip())})
 
@@ -1142,6 +1147,8 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("없는 링크야")
         f = got["facts"]
         token = _remember("", got["summary"], f["meta"]["target"], facts=f)
+        from . import langfuse
+        langfuse.log_visit("shared", f)
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
                     "rules": chapters.rule_all(f), "ai": _ai_on(), "shared": True,
                     "chat": _chat_on(self._client_ip())})
@@ -1213,6 +1220,8 @@ class Handler(BaseHTTPRequestHandler):
             # CLI 명령이 없으면 로컬 규칙 에이전트
             backend = ("openai" if custom_ok and endpoint and api_key
                        else "cli" if cli_available() else "local")
+        if backend == "cli" and not cli_available():
+            backend = "local"           # 요청이 cli 를 골라도 AI 가 꺼져 있으면 부르지 않는다
         try:
             if backend == "openai":
                 reply, mode, used = llm_chat(endpoint, api_key, model, summary,

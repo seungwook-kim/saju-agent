@@ -4,6 +4,9 @@
         합(육합·삼합)하는 때는 +, 일지와 충하는 때는 -
 - 직장: 관성·인성이 드는 때 +, 역마가 드는 때 + (움직임), 일지·월지와 충하면 -
 - 금전: 재성이 드는 때 +, 식상(재물을 낳는 기운)이 드는 때 +, 겁재(나눠 가져가는 기운)가 드는 때 -
+- 학업: 정인 +2, 편인 +1, 식신 +1, 학당귀인(일간의 장생 자리)이 드는 때 +1 (2026-10-16).
+        오늘 학업 무게(domains.STUDY_GOD_BONUS 6·4·2)를 해·달 크기로 줄인 것. 근거는 db/init.sql source 의
+        study_sina·study_mseanchan(정인·편인·식신), study_devcomma(학당귀인). 근거가 없는 십신은 0
 - 공통: 일주 공망에 드는 때는 결과가 비기 쉬워 -
 
 천간과 지지(본기)를 함께 본다. 수치는 방향을 나타내는 자작 점수이며 확률이 아니다.
@@ -15,6 +18,7 @@ from datetime import date, datetime
 from .manseryuk import (BRANCHES_KR, KONGWANG, STEMS_KR, YIMA_AT, _trio_of, month_pillar,
                         year_pillar)
 from .match import BRANCH_BONQI, DOHWA_MAP
+from .natal_extra import hakdang
 from .rules import ten_god
 from .today import GOD_GROUP
 
@@ -31,8 +35,8 @@ def _score(natal: dict, sex: str, stem: int, branch: int) -> dict:
     gods = [ten_god(ds, stem), ten_god(ds, BRANCH_BONQI[branch])]
     groups = [GOD_GROUP[g] for g in gods]
     spouse = "재성" if sex == "male" else "관성"
-    why = {"love": [], "career": [], "money": []}
-    sc = {"love": 0, "career": 0, "money": 0}
+    why = {"love": [], "career": [], "money": [], "study": []}
+    sc = {"love": 0, "career": 0, "money": 0, "study": 0}
     if spouse in groups:
         sc["love"] += 2 * groups.count(spouse)
         why["love"].append(f"배우자를 뜻하는 기운({spouse})이 들어오는 때")
@@ -66,6 +70,15 @@ def _score(natal: dict, sex: str, stem: int, branch: int) -> dict:
     if "겁재" in gods:
         sc["money"] -= 2
         why["money"].append("나눠 가져가는 기운(겁재)이 들어오는 때")
+    for god, pts, line in (("정인", 2, "배우고 익히는 기운(정인)이 들어오는 때"),
+                           ("편인", 1, "남다른 분야를 파고드는 기운(편인)이 들어오는 때"),
+                           ("식신", 1, "배운 것을 말로 풀어 보는 기운(식신)이 들어오는 때")):
+        if god in gods:
+            sc["study"] += pts * gods.count(god)
+            why["study"].append(line)
+    if branch == hakdang(ds):
+        sc["study"] += 1
+        why["study"].append("공부와 가르침의 별(학당귀인) 자리가 드는 때")
     idx60 = next(n for n in range(60) if n % 10 == ds and n % 12 == db)
     if branch in KONGWANG[idx60 // 10]:
         for k in sc:

@@ -141,13 +141,13 @@ TABS = {
              "widgets": ["ny"],
              "pick": ["newyear.year", "newyear.ganzhi", "newyear.age", "newyear.age_kr", "newyear.god", "newyear.rel",
                       "newyear.signals", "newyear.dayun_note", "natal.character"],
-             "ask": "그해 간지가 나에게 어떤 기운인지(십신), 배우자 자리와의 관계, 연애·일·돈 세운 시그널, 교운기 여부로 그해의 큰 그림을 풀어 줘. 사실표의 해만 말한다."},
+             "ask": "그해 간지가 나에게 어떤 기운인지(십신), 배우자 자리와의 관계, 연애·일·돈·공부 세운 시그널, 교운기 여부로 그해의 큰 그림을 풀어 줘. 사실표의 해만 말한다."},
             {"id": "tojeong", "emoji": "📖", "title": "토정비결",
              "widgets": ["tojeong"], "pick": ["newyear.year", "newyear.tojeong"],
              "ask": "그해 토정비결 괘(세 자리 번호)와 괘사(독음)·풀이(mean)를 쉬운 말로 풀어 줘. 괘사가 말하지 않는 구체적 사건·날짜·금액은 지어내지 않는다. 토정비결은 조선 후기 필사본으로 전하는 옛 점서라는 점을 가볍게 밝힌다."},
             {"id": "months", "emoji": "📅", "title": "달마다 흐름",
              "widgets": ["nycal"], "pick": ["newyear.year", "newyear.months", "newyear.best"],
-             "ask": "그해 열두 달을 연애·일·돈으로 나눠 밀고 나갈 달과 조심할 달, 그 이유를 풀어 줘. 사실표의 달만 쓴다."},
+             "ask": "그해 열두 달을 연애·일·돈·공부로 나눠 밀고 나갈 달과 조심할 달, 그 이유를 풀어 줘. 사실표의 달만 쓴다."},
             {"id": "ziwei", "emoji": "🧭", "title": "자미두수로 본 한 해",
              "widgets": [], "pick": ["newyear.year", "newyear.ziwei"],
              "ask": "그해 유년 명궁이 걸린 자리와 그해 사화(록권과기)가 붙는 자리를 풀어 줘. 사실표 ziwei 가 없으면 태어난 시간을 몰라 보지 못했다고만 말한다."},
@@ -160,7 +160,7 @@ TABS = {
         ]},
     "life": {
         "title": "평생 흐름", "hand": "Life", "theme": "lilac",
-        "sub": "타고난 결과 앞으로의 흐름 (연애·일·돈)",
+        "sub": "타고난 결과 앞으로의 흐름 (연애·일·돈·공부)",
         "chapters": [
             {"id": "ilju", "emoji": "🎴", "title": "나의 일주",
              "widgets": ["ilju"], "pick": ["natal.ilju", "natal.character", "love.spouse_seat", "love.day_stage"],
@@ -194,6 +194,9 @@ TABS = {
             {"id": "money_flow", "emoji": "💹", "title": "돈의 흐름: 12개월과 3년",
              "widgets": ["calendar:money", "years:money", "consensus:money"], "pick": ["money.months", "money.years", "money.best"],
              "ask": "앞으로 12개월과 3년의 돈 흐름을 풀어 줘: 들어오기 좋은 때, 지출을 조심할 때와 이유. 사실표의 달·해만 쓴다. 투자 조언은 하지 않는다."},
+            {"id": "study_flow", "emoji": "📚", "title": "공부의 흐름: 12개월과 3년",
+             "widgets": ["calendar:study", "years:study"], "pick": ["study.months", "study.years", "study.best"],
+             "ask": "앞으로 12개월과 3년의 공부 흐름을 풀어 줘: 배우기 좋은 때, 다질 때와 그 이유. 사실표의 달·해만 쓴다. 시험 합격 여부는 말하지 않는다."},
             {"id": "decades", "emoji": "🕰️", "title": "연대별 나의 모습",
              "widgets": ["decades"], "pick": ["life.phases", "life.decades", "life.current"],
              "ask": "연대별 흐름(청년·중년·장년)을 풀고, 지금 연대에서 중요한 것을 말해 줘."},
@@ -202,8 +205,8 @@ TABS = {
              "ask": "대운(10년 단위 큰 흐름) 여덟 걸음을 차례로 풀고, 지금 대운의 과제를 말해 줘. "
                     "각 대운이 원국의 어느 자리(해·달·날·시)와 합·충·형·파·해로 만나는지는 사실표(life.dayun_rel) 그대로만 쓴다."},
             {"id": "final", "emoji": "✨", "title": "평생 흐름 최종 진단",
-             "widgets": [], "pick": ["natal", "life.current", "love.best", "career.best", "money.best"],
-             "ask": "인생 전체 흐름의 결론과 지금 세울 방향을 연애·일·돈을 함께 놓고 말해 줘."},
+             "widgets": [], "pick": ["natal", "life.current", "love.best", "career.best", "money.best", "study.best"],
+             "ask": "인생 전체 흐름의 결론과 지금 세울 방향을 연애·일·돈·공부를 함께 놓고 말해 줘."},
         ]},
 }
 
@@ -313,11 +316,21 @@ def terms_ok(sent: str, text: str) -> bool:
     return True
 # 챕터의 틀로 늘 쓰는 기간 말 (대운 10년, 앞으로 12개월·3년). 사람마다 다른 숫자가 아니라 허용한다
 _GENERIC = re.compile("10년|12개월|3년")
+# 우리말 풀이에 영어 단어가 섞이면 뺀다 (2026-10-16: 학업 장 머리말에 'Pace' 가 나왔다). 화면에 쓰는 약어만 허용
+_LATIN = re.compile(r"[A-Za-z]{2,}")
+LATIN_OK = frozenset({"IT", "TOP", "AI", "MBTI", "STEP", "SNS", "PC", "TV", "OK"})
+
+
+def latin_ok(sent: str) -> bool:
+    return all(w in LATIN_OK for w in _LATIN.findall(sent))
 
 
 def _grounded_sentence(sent: str, allowed: set[str], text: str | None = None) -> bool:
-    """문장 속 숫자와 전문 용어가 모두 사실표에 있으면 통과. '3단계', '2가지', 'STEP 1' 같은 순서 표기는 허용."""
+    """문장 속 숫자와 전문 용어가 모두 사실표에 있으면 통과. '3단계', '2가지', 'STEP 1' 같은 순서 표기는 허용.
+    허용 약어(LATIN_OK) 밖의 영어 단어가 든 문장은 뺀다."""
     if _SURE.search(_SURE_OK.sub("", sent)):
+        return False
+    if not latin_ok(sent):
         return False
     if text is not None and not terms_ok(sent, text):
         return False
@@ -412,7 +425,16 @@ def ground(body: dict, facts_part: dict) -> dict:
 
 # ---------------------------------------------------------------- 용어 풀이 한 번만
 
-_GLOSS = re.compile(r"([가-힣]+)\(([^()]{3,60})\)")
+_GLOSS = re.compile(r"([가-힣]+)\(([^()]{3,120})\)")
+GLOSS_MAX = 30      # 괄호 풀이는 한 구절까지 (2026-10 디자인 회의: 괄호가 길면 문장이 끊긴다)
+
+
+def _short_gloss(inner: str) -> str | None:
+    """긴 괄호 풀이는 첫 구절만. 첫 구절도 길면 None (괄호를 뗀다)."""
+    if len(inner) <= GLOSS_MAX:
+        return inner
+    first = re.split(r"[,.]\s*", inner, maxsplit=1)[0].strip()
+    return first if 3 <= len(first) <= GLOSS_MAX else None
 _SOE = re.compile(r"'쇠'(?!\s*\(| 단계)")
 SOE_GLOSS = "'쇠'(기운이 한풀 꺾이는 단계)"
 
@@ -429,6 +451,7 @@ def gloss_once(body: dict) -> dict:
     - 풀이집에 있는 용어(부처궁·도화 등)는 두 번째부터 괄호를 뗀다.
     - 그 밖의 말은 같은 말·같은 풀이가 또 나올 때만 뗀다.
     - 숫자가 든 괄호(오차, 나이)와 두 글자 이하 괄호(간지)는 풀이가 아니라 값이라 그대로 둔다.
+    - 풀이 괄호가 GLOSS_MAX 자를 넘으면 첫 구절만 남기고, 그래도 길면 괄호를 뗀다.
     십이운성 '쇠'는 오행의 쇠(금)와 헷갈려서, 장에서 처음 나올 때 단계라는 풀이를 붙인다.
     저장된 AI 풀이에도 꺼낼 때마다 적용한다 (저장 키·저장 내용은 그대로).
     """
@@ -452,7 +475,8 @@ def gloss_once(body: dict) -> dict:
                 return word
             seen_word.add(word)
             seen_pair.add((word, inner))
-            return m.group(0)
+            short = _short_gloss(inner)
+            return f"{word}({short})" if short else word
         return _GLOSS.sub(one, s)
 
     out = dict(body)

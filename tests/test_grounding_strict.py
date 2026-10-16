@@ -85,3 +85,15 @@ def test_numbered_formats_calculation_answers():
         "오늘 직장운은 이래:\n1. 점수 60.\n2. 관록궁 칠살.\n3. 조심할 날."
     assert chapters.numbered("정관: 원칙과 책임의 기운") == "정관: 원칙과 책임의 기운"
     assert "1. 짧은 제목: 설명" in web.SYSTEM_PROMPT and "steps" in chapters.SYSTEM
+
+
+def test_english_words_dropped(summary):
+    # 우리말 풀이에 영어 단어가 섞인 문장은 뺀다 (2026-10-16 운영 학업 장 'Pace 조절이 관건이야')
+    assert not chapters.latin_ok("Pace 조절이 관건이야.")
+    assert chapters.latin_ok("IT 쪽 일과 잘 맞고 TOP 3 안에 들어.") and chapters.latin_ok("STEP 1, 정리부터 해.")
+    kept = ground_reply("오늘은 Pace 조절이 관건이야. 천천히 정리해 봐.", summary)
+    assert "Pace" not in kept and "천천히 정리해 봐" in kept
+    body = {"headline": "Focus 가 중요한 날", "lead": "기본기에 힘쓰기 좋은 흐름이야.", "closing": "",
+            "blocks": [{"type": "text", "title": "t", "body": "Routine 을 지켜. 복습이 핵심이야."}]}
+    out = chapters.ground(body, {"x": 1})
+    assert out["headline"] == "" and "Routine" not in json.dumps(out) and out["blocks"][0]["body"] == "복습이 핵심이야."

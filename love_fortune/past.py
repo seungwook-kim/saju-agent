@@ -3,7 +3,7 @@
 사용자가 자기 기억과 맞춰 보며 '맞았어·아니야'를 직접 고른다. 결과를 지어내지 않고
 계산이 가리킨 신호만 보여 주는 것이 원칙이다.
 
-- 세운 시그널: 해마다 연애·일·돈에 '밀고 나갈 때'와 '다듬을·조심할 때' (signals.year_signals)
+- 세운 시그널: 해마다 연애·일·돈·공부에 '밀고 나갈 때'와 '다듬을·조심할 때' (signals.year_signals)
 - 교운기: 사주 대운이 바뀐 해와 그 앞뒤 1년. 대운이 바뀌는 전후 1~2년에 직장·관계·거주 같은
   삶의 맥락이 재편되기 쉽다고 보는 해석 (사주하루·사자사주·데이사주 등 여러 곳이 같은 설명, 2026-09 조사)
 - 자미두수 대한이 바뀐 해 (세는나이 기준 대한 시작 나이)
@@ -19,7 +19,7 @@ from . import astronomy as A
 from .signals import year_signals
 
 STRONG = {"밀고 나갈 때": "up", "좋은 흐름": "up", "다듬을 때": "down", "조심할 때": "down"}
-DOMAIN_KR = {"love": "연애", "career": "일", "money": "돈"}
+DOMAIN_KR = {"love": "연애", "career": "일", "money": "돈", "study": "공부"}
 SCAN_DAYS = 4
 
 
@@ -95,7 +95,7 @@ def look_back(birth: date, natal: dict, sex: str, dayun: dict, ziwei: dict | Non
     for r in year_signals(natal, sex, first, len(years)):
         y = r["year"]
         signals = []
-        for dom in ("love", "career", "money"):
+        for dom in DOMAIN_KR:
             tag = r["labels"][dom]
             if tag in STRONG:
                 signals.append({"domain": dom, "word": DOMAIN_KR[dom], "tag": tag, "dir": STRONG[tag],

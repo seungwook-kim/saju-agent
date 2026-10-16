@@ -246,3 +246,12 @@ def test_soe_stage_is_told_apart(sheet):
 def test_tal_hae_is_explained(sheet):
     assert store.by_key("saenggi")["화해"]["meaning"].startswith("탈과 해(")
     assert any("탈과 해(뜻밖의 사고와 손해)" in x for x in sheet["today"]["almanac"])
+
+
+def test_long_gloss_cut_to_one_phrase():
+    # 괄호 풀이는 한 구절까지 (디자인 회의 숙제). 첫 구절도 길면 괄호를 뗀다
+    long1 = "태어난 날의 하늘 기운, 나 자신을 가리키는 글자로 쇠 기운이고 바위처럼 단단한 성질이야"
+    long2 = "가" * 40 + ", 나"
+    body = {"headline": "", "lead": f"일간({long1})을 볼게. 홍염({long2})이 있어.", "closing": "", "blocks": []}
+    lead = chapters.gloss_once(body)["lead"]
+    assert lead == "일간(태어난 날의 하늘 기운)을 볼게. 홍염이 있어."

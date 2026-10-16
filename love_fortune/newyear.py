@@ -2,7 +2,7 @@
 
 한 해를 네 층으로 본다.
 - 사주 세운: 그해 간지가 나(일간)에게 어떤 십신인지, 배우자 자리(일지)와 어떤 사이인지,
-  연애·일·돈 세운 시그널, 달마다(월운) 시그널
+  연애·일·돈·공부 세운 시그널, 달마다(월운) 시그널 (공부는 2026-10-16 추가)
 - 교운기: 그해나 앞뒤 해에 대운이 바뀌는지
 - 자미두수 유년: 그해 유년 명궁이 내 명반의 어느 자리에 걸리는지, 그해 사화(록권과기)가 붙는 자리
 - 점성술: 그해 목성(기회)·토성(과제)이 지나는 별자리와 내 하우스 (1월 1일·12월 31일 실제 위치),
@@ -19,7 +19,7 @@ from .narrate import GOD_SHORT, HOUSE_TALK, JUP_TALK, PALACE_TALK, SAT_TALK, _re
 from .rules import branch_relation, ten_god
 from .signals import best, month_signals, year_signals
 
-DOMAINS = ("love", "career", "money")
+DOMAINS = ("love", "career", "money", "study")
 HUA_TALK = {"록": "복이 붙는", "권": "힘이 실리는", "과": "이름이 나는", "기": "막힘이 걸리는"}
 
 

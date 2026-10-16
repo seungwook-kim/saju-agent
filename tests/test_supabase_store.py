@@ -88,6 +88,7 @@ def fake(monkeypatch):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     monkeypatch.setenv("SUPABASE_URL", f"http://127.0.0.1:{srv.server_address[1]}/")
     monkeypatch.setenv("SUPABASE_SECRET_KEY", "sb_secret_test")
+    monkeypatch.setenv("SAJU_STORE", "supabase")
     yield FakeRest
     srv.shutdown()
 
@@ -97,6 +98,21 @@ def test_backend_switch(monkeypatch):
     assert CS.backend() == "sqlite"
     monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
     monkeypatch.setenv("SUPABASE_SECRET_KEY", "sb_secret_x")
+    monkeypatch.delenv("SAJU_STORE", raising=False)
+    monkeypatch.delenv("VERCEL", raising=False)
+    monkeypatch.delenv("HOST", raising=False)
+    assert CS.backend() == "sqlite"           # 로컬은 키가 있어도 운영 DB 에 쓰지 않는다
+    monkeypatch.setenv("HOST", "127.0.0.1")
+    assert CS.backend() == "sqlite"
+    monkeypatch.setenv("VERCEL", "1")
+    assert CS.backend() == "supabase"
+    monkeypatch.delenv("VERCEL")
+    monkeypatch.setenv("HOST", "0.0.0.0")     # Docker 같은 서버
+    assert CS.backend() == "supabase"
+    monkeypatch.setenv("SAJU_STORE", "sqlite")
+    assert CS.backend() == "sqlite"
+    monkeypatch.delenv("HOST")
+    monkeypatch.setenv("SAJU_STORE", "supabase")
     assert CS.backend() == "supabase"
 
 
@@ -125,6 +141,7 @@ def test_legacy_jwt_key_also_sent_as_bearer(fake, monkeypatch):
 def test_supabase_down(monkeypatch, capsys):
     monkeypatch.setenv("SUPABASE_URL", "http://127.0.0.1:9")       # 아무도 안 받는 포트
     monkeypatch.setenv("SUPABASE_SECRET_KEY", "sb_secret_zzz")
+    monkeypatch.setenv("SAJU_STORE", "supabase")
     assert CS.get_chapter("k") is None                               # 챕터는 새로 만들면 된다
     CS.put_chapter("k", "love", "flow", "ai", {"blocks": []})        # 저장 실패는 조용히 넘어간다
     with pytest.raises(ValueError, match="다시"):

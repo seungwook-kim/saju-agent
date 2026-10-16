@@ -423,6 +423,35 @@ def test_custom_llm_endpoint_is_off_by_default(server, monkeypatch):
     assert code == 200 and not called and j["mode"] != "llm"
 
 
+def test_chat_ai_off_with_saju_ai_0(server, monkeypatch):
+    """SAJU_AI=0 이면 챕터처럼 상담도 AI 를 부르지 않는다. 요청이 backend=cli 를 골라도."""
+    from love_fortune import ai
+    called = []
+    monkeypatch.setattr(ai, "available", lambda: True)
+    monkeypatch.setattr(ai, "run", lambda *a, **k: called.append(a) or "AI 답")
+    monkeypatch.setenv("SAJU_AI", "0")
+    _, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
+    for backend in ("", "cli"):
+        code, j = _post(server, "/api/chat", {"token": rep["token"], "message": "올해 연애운 어때", "backend": backend})
+        assert code == 200 and j["mode"] == "local"
+    assert called == []
+
+
+def test_report_logs_visit_with_hashed_user(server, monkeypatch):
+    """결과를 열면 AI 없이 방문 기록 하나 (2026-10-16). userId 는 쿠키 해시, 생년월일은 없다."""
+    from love_fortune import langfuse
+    got = []
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.setattr(langfuse, "_send", got.append)
+    code, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
+    assert code == 200
+    visits = [b[0]["body"] for b in got if b[0]["body"].get("name") == "visit"]
+    assert len(visits) == 1 and len(visits[0]["userId"]) == 24
+    raw = json.dumps(visits, ensure_ascii=False)
+    assert "1990" not in raw and "05-05" not in raw and visits[0]["metadata"]["sex"] == "여성"
+
+
 def test_port_env_for_deploy(monkeypatch):
     from love_fortune.cli import parse_args
     monkeypatch.setenv("PORT", "10000")

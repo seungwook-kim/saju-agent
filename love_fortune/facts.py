@@ -285,6 +285,11 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
             "months": mrows("money"), "years": yrows("money"),
             "best": [f"{r['year']}년 {r['month']}월({r['ganzhi']})" for r in best(months, "money")],
         },
+        # 공부의 흐름 (2026-10-16). 해·달 신호 근거는 signals.py 머리말
+        "study": {
+            "months": mrows("study"), "years": yrows("study"),
+            "best": [f"{r['year']}년 {r['month']}월({r['ganzhi']})" for r in best(months, "study")],
+        },
         "life": {
             "phases": [p["line"] for p in ma["lifetime"]["phases"]],
             "current": ma["lifetime"]["current"]["short"],

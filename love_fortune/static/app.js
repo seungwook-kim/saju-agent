@@ -250,13 +250,13 @@ function lifeTop(){
   if(ys.length){
     const cons=((f.insights||{}).consensus||[]);
     h+='<section style="display:flex;flex-direction:column;gap:6px" aria-label="앞으로 3년"><div class="sec-h"><h2>앞으로 3년</h2></div><div class="ytbl">'+
-      '<div class="yh"><span></span><span>연애</span><span>일</span><span>돈</span></div>'+ys.map((y,i)=>{
+      '<div class="yh"><span></span><span>연애</span><span>일</span><span>돈</span><span>공부</span></div>'+ys.map((y,i)=>{
         const c=cons.find(x=>x.year===y.year);
-        return '<div class="yrow"><span>'+y.year+' <small>'+esc(y.ganzhi)+(c?' · '+c.age+'세':'')+'</small></span>'+['love','career','money'].map(d=>{
+        return '<div class="yrow"><span>'+y.year+' <small>'+esc(y.ganzhi)+(c?' · '+c.age+'세':'')+'</small></span>'+FLOW_DOMS.map(d=>{
           const r=((f[d]||{}).years||[])[i]||{},t=TAG_SHORT[r.tag]||[r.tag||'',''];return '<span class="'+t[1]+'">'+esc(t[0])+'</span>';}).join('')+'</div>';}).join('')+'</div></section>';
   }
   h+='<section style="display:flex;flex-direction:column;gap:6px" aria-label="앞으로 12개월"><div class="sec-h"><h2>앞으로 12개월</h2><span>가운데 선이 무난</span></div>'+
-    '<div class="mdom" role="group" aria-label="영역 고르기">'+['love','career','money'].map(d=>'<button type="button" data-mdom="'+d+'"'+(d===S.mdom?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>'+{love:'연애',career:'일',money:'돈'}[d]+'</button>').join('')+'</div>'+
+    '<div class="mdom" role="group" aria-label="영역 고르기">'+FLOW_DOMS.map(d=>'<button type="button" data-mdom="'+d+'"'+(d===S.mdom?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>'+FLOW_WORD[d]+'</button>').join('')+'</div>'+
     '<div id="mline">'+monthLine(S.mdom)+'</div></section>';
   return h+'</div>';
 }
@@ -501,19 +501,21 @@ function iljuCard(c){
     '<div class="chips" style="justify-content:center">'+['십이운성 '+c.stage,'배우자 자리 '+c.spouse_god].concat(c.marks.map(m=>m.name)).map(x=>'<span class="chip a">'+esc(x)+'</span>').join('')+'</div></div>';
 }
 // 신년운세: 한 해 요약 카드와 열두 달 표
+// 흐름 묶음(신년·평생)의 영역. 공부는 2026-10-16 추가 (해·달 신호 근거는 signals.py)
+const FLOW_DOMS=['love','career','money','study'],FLOW_WORD={love:'연애',career:'일',money:'돈',study:'공부'};
 const NY_CLS={'밀고 나갈 때':'t4','좋은 흐름':'t2','무난한 흐름':'','다듬을 때':'t-3','조심할 때':'t-9'};
 function nyCard(ny){
-  const w={love:'연애',career:'일',money:'돈'};
+  const w=FLOW_WORD;
   return card('<div style="text-align:center"><div style="font-size:2.2rem;font-weight:900;letter-spacing:-.03em">'+ny.year+
     ' <span class="accent">'+esc(ny.ganzhi)+'</span></div><p class="fine" style="margin:.2rem 0 .8rem">만 '+ny.age+'세의 한 해 · 나에게 '+esc(ny.god)+'</p></div>'+
-    '<div class="cards">'+['love','career','money'].map(d=>'<div class="c"><b>'+w[d]+'</b><p><span class="pill '+
+    '<div class="cards">'+FLOW_DOMS.filter(d=>ny.signals[d]).map(d=>'<div class="c"><b>'+w[d]+'</b><p><span class="pill '+
       (['밀고 나갈 때','좋은 흐름'].includes(ny.signals[d].tag)?'up':['다듬을 때','조심할 때'].includes(ny.signals[d].tag)?'down':'')+'">'+
       esc(ny.signals[d].tag)+'</span></p></div>').join('')+'</div>');
 }
 function nyCal(ny){
-  const w={love:'연애',career:'일',money:'돈'};
+  const w=FLOW_WORD;
   let h='<div class="nycal"><div></div>'+ny.months.love.map(r=>'<div class="nh">'+esc(r.label)+'</div>').join('');
-  ['love','career','money'].forEach(d=>{
+  FLOW_DOMS.filter(d=>ny.months[d]).forEach(d=>{
     h+='<div class="nr">'+w[d]+'</div>'+ny.months[d].map(r=>'<div class="nd '+(NY_CLS[r.tag]||'')+'" title="'+esc(r.label+' '+r.ganzhi+': '+r.tag+(r.why.length?' ('+r.why.join(', ')+')':''))+'"></div>').join('');
   });
   return card(h+'</div><div class="legend"><span class="sw t4"></span>밀고 나갈 때 <span class="sw t2"></span>좋은 흐름 '+
@@ -569,7 +571,7 @@ document.addEventListener('click',e=>{
 function years(rows,dom){
   return card('<div class="years">'+rows.map(r=>'<div class="y"><b>'+r.year+'</b><div class="sm">'+esc(r.ganzhi)+'년</div>'+
     '<div class="tag">'+esc(r.tag)+'</div><p>'+esc(r.why.join(', ')||'잔잔한 해')+'</p></div>').join('')+'</div>',
-    {love:'연애',career:'직장',money:'금전'}[dom]+' · 앞으로 3년');
+    DOM_WORD[dom]+' · 앞으로 3년');
 }
 function decades(life,age){
   return '<div class="timeline">'+life.decades.map(d=>{
@@ -1022,7 +1024,7 @@ const PATH_LABEL={
 const KEY_LABEL={sun:'태양',moon:'달',venus:'금성',mars:'화성',asc:'상승궁',mc:'천정',aspects:'각도',sign:'별자리',style:'스타일',ideal:'끌리는 상대',
   how:'다가가는 법',need:'필요한 것',star:'별',look:'인상',mind:'마음',job:'일',meet:'만나는 곳',tip:'팁',main:'먼저 쓰는 기운',order:'순서',palace:'궁',
   palace_talk:'뜻',hua:'사화',score:'점수',head:'한 줄',reasons:'근거',signal:'신호',points:'가감',tips:'해 볼 것',avoid:'피할 것',
-  love:'연애',career:'직장',money:'금전',total:'총운',all:'공통',tag:'흐름',read:'괘',mean:'뜻',note:'참고',year:'해',age:'나이',rel:'관계',god:'기운',
+  love:'연애',career:'직장',money:'금전',study:'학업',total:'총운',all:'공통',tag:'흐름',read:'괘',mean:'뜻',note:'참고',year:'해',age:'나이',rel:'관계',god:'기운',
   common:'모든 운 공통',only:'이 영역만'};
 const EV_SKIP=new Set(['wheel','key','stem','branch','boundary','ilju','ziwei','pillars','palaces','steps','agree_with_eokbu','hour_known','text_len']);
 const NATAL_KEYS=['day_pillar','character','strength','geguk','geguk_mean','yongsin','johu','elements','classic_sinsal','guiin','dayun'];
@@ -1104,7 +1106,8 @@ document.addEventListener('click',e=>{
 
 // ---------------- 캘린더 앱으로 내보내기 (.ics, 서버 저장 없이 이 기기에서 만든다)
 const DOM_TIP={love:['만남 자리를 늘려 봐 (소개·모임·앱)','큰 결정은 서두르지 말고 오해는 바로 풀어'],
-  career:['밀고 나가 보기 좋은 달','무리하지 말고 다듬는 달'],money:['기회를 잡아 보기 좋은 달','지출을 조심하는 달']};
+  career:['밀고 나가 보기 좋은 달','무리하지 말고 다듬는 달'],money:['기회를 잡아 보기 좋은 달','지출을 조심하는 달'],
+  study:['새로 배우거나 깊이 파고들기 좋은 달','진도보다 복습으로 다지는 달']};
 function icsEsc(s){return String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');}
 function icsFold(line){
   const enc=new TextEncoder(),out=[];let cur='',n=0;

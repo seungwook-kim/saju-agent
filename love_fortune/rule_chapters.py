@@ -13,7 +13,7 @@ from .josa import j
 
 PUSH, GOOD = "밀고 나갈 때", "좋은 흐름"
 CARE = ("다듬을 때", "조심할 때")
-DOMAIN_WORD = {"love": "연애", "career": "일", "money": "돈"}
+DOMAIN_WORD = {"love": "연애", "career": "일", "money": "돈", "study": "공부"}
 
 
 # ---------------------------------------------------------------- 블록 도우미
@@ -421,7 +421,7 @@ def life(f: dict, ch: str) -> dict:
         return love_nature(f)
     if ch in ("career_nature", "money_nature"):
         return work_nature(f, ch.split("_")[0])
-    if ch in ("love_flow", "career_flow", "money_flow"):
+    if ch in ("love_flow", "career_flow", "money_flow", "study_flow"):
         return flow(f, ch.split("_")[0])
     if ch == "decades":
         return chapter("연대별 흐름", current, [
@@ -439,8 +439,7 @@ def life(f: dict, ch: str) -> dict:
     return chapter("평생 흐름 정리", current, [
         text("타고난 그릇", strength_line(n)),
         text("지금 10년", dayun_now(n)),
-        text("앞으로 힘이 실리는 때", best_line(f["love"]["best"], "love"), best_line(f["career"]["best"], "career"),
-             best_line(f["money"]["best"], "money")),
+        text("앞으로 힘이 실리는 때", *(best_line(f[d]["best"], d) for d in DOMAIN_WORD)),
         quote(n["character"]),
     ])
 
@@ -450,13 +449,13 @@ def life(f: dict, ch: str) -> dict:
 def newyear(f: dict, ch: str) -> dict:
     ny = f["newyear"]
     y = ny["year"]
-    words = {"love": "연애", "career": "일", "money": "돈"}
+    words = DOMAIN_WORD
     if ch == "overview":
         sig = ny["signals"]
         return chapter(f"{y}년 {ny['ganzhi']}년, 만 {ny['age']}세의 한 해",
                        f"{y}년 기운은 나에게 {j(ny['god'], '으로')} 다가와. {ny['rel']}", [
-            cards("세 영역의 한 해", [(f"{words[d]}: {sig[d]['tag']}", ", ".join(sig[d]["why"]) or "특별히 걸리는 신호 없이 잔잔한 해")
-                                   for d in ("love", "career", "money")]),
+            cards("네 영역의 한 해", [(f"{words[d]}: {sig[d]['tag']}", ", ".join(sig[d]["why"]) or "특별히 걸리는 신호 없이 잔잔한 해")
+                                   for d in words]),
             callout(ny["dayun_note"]),
             text("타고난 나와 함께 보면", f["natal"]["character"]),
         ])
@@ -472,7 +471,7 @@ def newyear(f: dict, ch: str) -> dict:
         ])
     if ch == "months":
         blocks = []
-        for d in ("love", "career", "money"):
+        for d in words:
             rows = ny["months"][d]
             push = [r for r in rows if r["tag"] in ("밀고 나갈 때", "좋은 흐름")]
             care = [r for r in rows if r["tag"] in ("다듬을 때", "조심할 때")]
@@ -497,10 +496,10 @@ def newyear(f: dict, ch: str) -> dict:
         return chapter(f"{y}년 목성과 토성", "목성은 기회와 넓어짐을, 토성은 과제와 다짐을 보는 별이야.",
                        [text("", line) for line in ny["sky"]])
     sig = ny["signals"]
-    top = max(("love", "career", "money"), key=lambda d: ["조심할 때", "다듬을 때", "무난한 흐름", "좋은 흐름", "밀고 나갈 때"].index(sig[d]["tag"]))
+    top = max(words, key=lambda d: ["조심할 때", "다듬을 때", "무난한 흐름", "좋은 흐름", "밀고 나갈 때"].index(sig[d]["tag"]))
     return chapter(f"{y}년은 {words[top]}에 힘이 실리는 해", ny["rel"], [
-        text("정리하면", *(f"{words[d]}은 {sig[d]['tag']}." if d != "love" else f"연애는 {sig[d]['tag']}." for d in ("love", "career", "money"))),
-        text("미리 표시해 둘 달", *(f"{words[d]}: {', '.join(ny['best'][d])}" for d in ("love", "career", "money"))),
+        text("정리하면", *(f"{j(words[d], '은')} {sig[d]['tag']}." for d in words)),
+        text("미리 표시해 둘 달", *(f"{words[d]}: {', '.join(ny['best'][d])}" for d in words)),
         callout(ny["dayun_note"]),
     ])
 

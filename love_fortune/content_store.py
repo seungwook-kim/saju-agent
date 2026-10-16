@@ -2,7 +2,8 @@
 
 두 가지 중 하나에 저장한다.
 - SQLite (기본): data/content.db, db/content.sql 로 만든다. 로컬·시험용.
-- Supabase: SUPABASE_URL 과 SUPABASE_SECRET_KEY 가 있으면 Supabase 의 REST API 로 저장한다.
+- Supabase: SUPABASE_URL 과 SUPABASE_SECRET_KEY 가 있고 운영 서버(VERCEL, 또는 HOST 가 로컬 주소가 아님)면
+  Supabase 의 REST API 로 저장한다. 로컬은 키가 있어도 SQLite (SAJU_STORE=supabase|sqlite 로 직접 정할 수 있다).
   서버가 재시작돼도(Render 무료 등) 공유 링크와 AI 풀이가 남는다. 표는 db/supabase.sql 로 만든다.
   키는 서버 환경변수에만 둔다. 화면(브라우저)으로는 절대 보내지 않는다.
 """
@@ -48,7 +49,20 @@ def _con() -> sqlite3.Connection:
 REST_TIMEOUT = 10
 
 
+LOCAL_HOSTS = ("", "127.0.0.1", "localhost", "::1")
+
+
+def _server() -> bool:
+    """운영 서버에서 도는지. 로컬(이 컴퓨터)에서 연 결과가 운영 DB 에 섞이지 않게 (2026-10-16)."""
+    store = os.environ.get("SAJU_STORE", "auto").strip().lower()
+    if store in ("supabase", "sqlite"):
+        return store == "supabase"
+    return bool(os.environ.get("VERCEL")) or os.environ.get("HOST", "").strip() not in LOCAL_HOSTS
+
+
 def _supabase() -> tuple[str, str] | None:
+    if not _server():
+        return None
     url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
     key = (os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
     return (url, key) if url and key else None

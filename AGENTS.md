@@ -48,7 +48,9 @@
   - OpenRouter 모델은 qwen/qwen3.7-flash (2026-09-27 사용자 결정, 가장 싼 적합 모델). 부를 때 생각(reasoning) 끄기,
     provider.sort=price, 챕터는 response_format json_object. 사용자 허락 없이 유료 AI 를 시험으로 부르지 않는다.
   - AI 호출 기록: LANGFUSE_PUBLIC_KEY·SECRET_KEY 가 있으면 ai.run 이 부를 때마다 Langfuse 로 보낸다 (langfuse.py, 외부 패키지 없음).
-    보내는 입력은 AI 에 보내는 것과 같다(개인정보 없는 사실표, 상담 질문). SAJU_LANGFUSE_CONTENT=0 이면 숫자만.
+    사실표 값은 보내지 않는다 (2026-10-16: 나이·네 기둥·일간·별자리를 맞춰 보면 생년월일이 되살아나서). 기준일·성별·연령대·칸 이름만,
+    상담은 리포트 요약을 빼고 질문의 연도 붙은 날짜·답의 '○○ 일주'를 가린다 (langfuse.redact). SAJU_LANGFUSE_CONTENT=0 이면 숫자만.
+    userId 는 쿠키(cid)를 서버 비밀과 섞은 해시, 결과를 열 때마다 AI 없는 visit 기록(성별·연령대)을 남겨 사람·방문 수를 센다.
   - AI 호출은 ai.py 한 곳에서만 한다. 공개 서비스는 OpenRouter API(SAJU_AI_BACKEND=openrouter)로
     부른다 (2026-09-25 사용자 결정, 운영 Vercel 에서 쓰는 중). 두 방식 모두 개인정보를 뺀 사실표만 보낸다.
   - 채팅의 사용자 지정 LLM 주소(backend=openai)는 요청이 준 주소로 서버가 대신 요청하는 기능이라
@@ -57,7 +59,8 @@
     챕터를 요청 안에서 만들고(SERVERLESS), 결과 토큰(ctx)·AI 시간당 사용량(ai_call)도 Supabase 에 둔다. 임시 파일은 /tmp.
     요청 횟수 제한·상담 횟수는 기계마다 메모리로 세서 서버리스에서는 느슨하다 (돈은 ai_call 총량이 막는다).
   - 저장소: SUPABASE_URL·SUPABASE_SECRET_KEY 가 있으면 Supabase(REST), 없으면 SQLite (content_store.py).
-    표는 db/supabase.sql. 서버 전용 키는 환경변수(.env·Vercel)에만 두고 화면·저장소·로그에 절대 넣지 않는다.
+    로컬은 키가 있어도 SQLite (2026-10-16: 로컬 시험 결과가 운영 DB 에 섞여서). VERCEL 이나 HOST 가 로컬 주소가 아닌 서버만 Supabase,
+    SAJU_STORE=supabase|sqlite 로 직접 정한다. 표는 db/supabase.sql. 서버 전용 키는 환경변수(.env·Vercel)에만 두고 화면·저장소·로그에 절대 넣지 않는다.
     .env 는 git 에 올리지 않는다. 적는 법은 .env.example. 시험은 .env 를 읽지 않는다(conftest).
   - 상담 채팅 기본값은 이 컴퓨터에서 직접 접속할 때만 열린다 (2026-09-27 사용자 결정, AI 요금). 운영(Vercel)은 SAJU_CHAT=1 로 켠다.
     web.py _chat_on: SAJU_CHAT=auto(기본) 루프백만, 1 어디서나, 0 막음. 막히면 화면의 채팅 버튼도 숨긴다.
@@ -86,7 +89,8 @@
   모두 같은 정의를 쓴다. 타고난 결과 12개월·3년·대운 같은 앞으로의 흐름은 평생 탭에만 둔다.
   오늘 탭에는 오늘만, 내일 탭에는 내일만 둔다 (다른 날 이야기를 섞지 않는다). 내일 장도 입력하자마자 오늘 장 뒤 순서로 AI 로 미리 만든다.
   학업 신호의 무게는 조사한 해설에 근거가 있는 것만 넣고(db/init.sql source 의 study_*), 근거가 없는 신호는 0 으로 둔다.
-  신년·평생·되짚기·궁합의 영역 목록(연애·일·돈)은 아직 그대로다.
+  신년·평생·되짚기도 공부를 함께 본다 (2026-10-16). 해·달 공부 신호는 정인·편인·식신·학당귀인만(signals.py, 근거 study_*).
+  궁합은 영역 목록이 따로 없다. 세 체계 합의도(insights)는 공부 근거가 점수용이 아니라 연애·일·돈만 본다.
 - 이름 풀이의 한자 선택 칸에는 한자 글자도 같이 보여 준다 (2026-09-28 사용자 요청, 한자 금지 규칙의 유일한 예외).
   코드·데이터에는 한자를 두지 않고 코드포인트로만 두며, 화면이 String.fromCodePoint 로 그린다. 풀이 문장에는 여전히 한자 금지.
 - 속궁합(19)은 성인 확인(브라우저에만 저장)을 켠 사람에게만 보인다 (2026-09-27 사용자 요청). 표현은 솔직하되
