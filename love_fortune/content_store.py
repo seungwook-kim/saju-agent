@@ -170,21 +170,23 @@ def ai_budget_take(per_hour: int) -> bool | None:
 
 # ---------------- 방문자 수 (하루·누적, 포트폴리오·운영 확인용)
 
-def visit_add(day: str, day_key: str, person_key: str) -> None:
+def visit_add(day: str, day_key: str, person_key: str) -> bool:
     """결과를 연 IP 하나. 키는 이미 해시된 값이다 (IP 원래 값은 저장하지 않는다).
     day_key 는 날짜를 섞은 해시라 하루 표만으로는 같은 사람이 언제 또 왔는지 이어 볼 수 없다.
-    visitor 는 처음 온 날만 남긴다 (누적 방문자·그날 새로 온 사람)."""
+    visitor 는 처음 온 날만 남긴다 (누적 방문자·그날 새로 온 사람). 저장했으면 True."""
     if _supabase():
         try:
             _rest("POST", "visit_day", body={"day": day, "k": day_key}, keep=True)
             _rest("POST", "visitor", body={"k": person_key, "first_day": day}, keep=True)
         except (urllib.error.URLError, OSError, ValueError) as e:
             _log("방문 기록", e)
-        return
+            return False
+        return True
     with closing(_con()) as con:
         con.execute("INSERT OR IGNORE INTO visit_day VALUES (?,?)", (day, day_key))
         con.execute("INSERT OR IGNORE INTO visitor VALUES (?,?)", (person_key, day))
         con.commit()
+    return True
 
 
 def visit_stats(since: str = "") -> dict:

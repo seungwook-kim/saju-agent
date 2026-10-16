@@ -122,9 +122,9 @@ def count_visit(ip: str) -> None:
         return
     if len(_VISITED) > 5000:
         _VISITED.clear()
-    _VISITED.add(day_key)
     try:
-        content_store.visit_add(day, day_key, _h("visitor", ip))
+        if content_store.visit_add(day, day_key, _h("visitor", ip)):
+            _VISITED.add(day_key)               # 저장에 성공했을 때만 (실패하면 다음 방문에서 다시 센다)
     except Exception as e:  # noqa: BLE001  방문 세기 때문에 결과가 안 열리면 안 된다
         print(f"[방문] 기록 실패: {type(e).__name__}", file=sys.stderr)
 

@@ -347,3 +347,7 @@ def test_visit_failure_does_not_break(monkeypatch, capsys):
     monkeypatch.setattr(CS, "visit_add", lambda *a: 1 / 0)
     web.count_visit("203.0.113.7")
     assert "[방문] 기록 실패" in capsys.readouterr().err
+    assert not web._VISITED                                       # 실패한 방문은 다음에 다시 센다
+    monkeypatch.setattr(CS, "visit_add", lambda *a: False)        # 표가 없을 때(404)도 같다
+    web.count_visit("203.0.113.7")
+    assert not web._VISITED
