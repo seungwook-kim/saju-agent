@@ -13,7 +13,7 @@ import itertools
 import threading
 import time
 
-from . import ai, chapters, langfuse
+from . import ai, chapters
 
 URGENT = -1                 # 화면이 지금 달라고 한 챕터
 KEEP = 30 * 60              # 끝난 작업 결과를 들고 있는 시간(초)
@@ -26,11 +26,10 @@ _workers: list[threading.Thread] = []
 
 
 class Job:
-    __slots__ = ("tab", "chapter", "facts", "prio", "running", "done", "result", "finished", "user")
+    __slots__ = ("tab", "chapter", "facts", "prio", "running", "done", "result", "finished")
 
     def __init__(self, tab: str, chapter: str, facts: dict, prio: int):
         self.tab, self.chapter, self.facts, self.prio = tab, chapter, facts, prio
-        self.user = langfuse.current_user()       # 작업을 넣은 요청의 익명 사용자 (Langfuse userId)
         self.running = False
         self.done = threading.Event()
         self.result: dict | None = None
@@ -97,7 +96,6 @@ def _next_job() -> tuple[str, Job]:
 def _work() -> None:
     while True:
         _key, job = _next_job()
-        langfuse.set_user(job.user)
         try:
             job.result = chapters.generate(job.tab, job.chapter, job.facts, use_ai=True)
         except Exception:  # noqa: BLE001  한 챕터가 실패해도 일꾼은 산다

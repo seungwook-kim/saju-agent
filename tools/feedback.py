@@ -6,6 +6,7 @@
       uv run --no-project python tools/feedback.py unblock 12      다시 풀어 준다
 - 막힌 IP 는 쪽지를 못 보낸다 ("이 주소에서는 쪽지를 보낼 수 없어"). 사주 보기·상담은 그대로 된다.
 - IPv6 는 /64 로 묶어 막는다 (한 폰이 주소를 바꿔 가며 써서).
+- 쪽지의 IP 는 90일이 지나면 비워지고(목록에 "(90일 지나 지움)"), 365일이 지나면 쪽지가 지워진다. 차단은 IP 해시로만 하고 차단 표에는 IP 를 두지 않는다.
 - .env 의 SUPABASE_URL·SUPABASE_SECRET_KEY 로 읽는다. 없으면 로컬 SQLite.
 """
 from __future__ import annotations
@@ -37,8 +38,8 @@ def main(argv: list[str]) -> int:
             print(f"{argv[1]}번 쪽지가 없어 (최근 1000통 안에서 찾았어).")
             return 1
         on = argv[0] == "block"
-        CS.feedback_block(r["k"], r["ip"], " ".join(argv[2:]), on=on)
-        print(f"{r['ip']} {'막음' if on else '풀어 줌'} ({argv[1]}번 쪽지)")
+        CS.feedback_block(r["k"], "", " ".join(argv[2:]), on=on)      # 해시(k)만으로 막는다. 차단 표에는 IP 를 두지 않는다
+        print(f"{r['ip'] or '(90일 지나 지움)'} {'막음' if on else '풀어 줌'} ({argv[1]}번 쪽지)")
         return 0
     limit = int(argv[0]) if argv and argv[0].isdigit() else 30
     rows = CS.feedback_list(limit)
@@ -49,7 +50,7 @@ def main(argv: list[str]) -> int:
     for r in rows:
         when = datetime.fromtimestamp(r["ts"], KST).strftime("%m-%d %H:%M")
         mark = " [막힘]" if r["blocked"] else ""
-        print(f"\n#{r['id']}  {when}  {r['ip']}{mark}\n  " + r["body"].replace("\n", "\n  "))
+        print(f"\n#{r['id']}  {when}  {r['ip'] or '(90일 지나 지움)'}{mark}\n  " + r["body"].replace("\n", "\n  "))
     return 0
 
 

@@ -4,12 +4,13 @@
 - LANGFUSE_HOST: 기본 https://cloud.langfuse.com (미국 리전이면 https://us.cloud.langfuse.com)
 - 한 번 부를 때마다 trace 하나와 generation 하나: 무슨 일(챕터·상담), 모델, 입력·출력, 토큰, 비용(달러), 걸린 시간, 오류.
 - SAJU_LANGFUSE_CONTENT=0 이면 입력·출력 글은 빼고 숫자(토큰·비용·시간)만 보낸다.
+  name 이 "chat"(상담)인 기록은 설정과 상관없이 늘 숫자만 보낸다: 사람이 직접 쓴 질문과 답이라 (2026-10-16 법률 검토).
 - 입력은 AI 에 보낸 그대로가 아니라 가린 것을 보낸다 (redact). 사실표 값은 여러 칸을 맞춰 보면
   생년월일이 되살아나서(나이·네 기둥·일간·별자리), 기준일·성별·연령대·시간 앎과 칸 이름만 남긴다.
   상담은 리포트 요약을 빼고, 질문의 연도 붙은 날짜와 답의 '○○ 일주' 같은 기둥 이름을 가린다.
-- userId: 브라우저 쿠키(cid)를 서버 비밀과 섞은 해시 (web 이 요청마다 set_user). 쿠키 원래 값·IP 는 보내지 않는다.
-  사람 수를 세려고 (2026-10-16). 미리 만들기 일꾼은 작업을 넣은 요청의 값을 이어 받는다.
-- visit: 결과를 열 때마다 AI 없이 남기는 기록 (저장된 풀이만 다시 본 방문도 세려고). 성별·연령대만 담는다.
+- userId: 더는 보내지 않는다 (2026-10-16 법률 검토, web 이 set_user 를 부르지 않는다). 방문자 수는 Supabase 로 센다.
+  set_user 함수는 남겨 두었지만 앱은 쓰지 않는다.
+- visit: log_visit 함수는 남겨 두었지만 앱은 부르지 않는다 (방문자 수는 Supabase 의 visit 표로 센다).
 - 기록 실패는 앱 동작에 영향을 주지 않는다. 키는 로그에 남기지 않는다.
 """
 from __future__ import annotations
@@ -115,7 +116,7 @@ def log_generation(name: str, model: str, system: str, prompt: str, output: str 
     그 밖에는 뒤에서 보내 응답을 늦추지 않는다."""
     if not enabled():
         return
-    content = os.environ.get("SAJU_LANGFUSE_CONTENT", "1") != "0"
+    content = os.environ.get("SAJU_LANGFUSE_CONTENT", "1") != "0" and name != "chat"   # 상담은 글을 보내지 않는다
     trace_id, gen_id = str(uuid.uuid4()), str(uuid.uuid4())
     meta = {**(meta or {}), "backend": os.environ.get("SAJU_AI_BACKEND") or "cli"}
     system, prompt = redact(system, prompt)

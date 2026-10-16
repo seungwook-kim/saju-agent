@@ -1,7 +1,8 @@
 """ai.py, AI 모델 호출 (상담 채팅·챕터 풀이 공용).
 
 세 가지 방식 중 하나를 쓴다 (환경변수 SAJU_AI_BACKEND):
-- cli (기본): 이 PC 에 로그인된 구독 AI 를 로컬 CLI 명령으로 부른다.
+- cli (기본): 이 PC 에 로그인된 구독 AI 를 로컬 CLI 명령으로 부른다. 내가 이 컴퓨터에서 쓸 때만 켜진다:
+  공개 서버(_public_server: VERCEL, 로컬 주소가 아닌 HOST, SAJU_TRUST_PROXY)에서는 구독 약관상 막는다.
   도구는 전부 끄고(--tools ""), 대화는 저장하지 않는다(--no-session-persistence).
   시스템 프롬프트는 임시 파일로, 본문은 표준입력으로 넘긴다 (명령줄 길이 제한 회피).
 - openrouter: OpenRouter API(https://openrouter.ai/api/v1/chat/completions)로 부른다.
@@ -64,11 +65,24 @@ def _take_budget() -> None:
         _CALLS.append(now)
 
 
+LOCAL_HOSTS = ("", "127.0.0.1", "localhost", "::1")
+
+
+def _public_server() -> bool:
+    """남의 요청을 받는 공개 서버에서 도는지: Vercel, 로컬 주소가 아닌 HOST, 프록시 뒤(SAJU_TRUST_PROXY).
+    Claude 구독(소비자 약관)은 남의 요청을 처리하는 데 쓸 수 없어서, 공개 서버에서는 구독 CLI(cli 방식)를 막는다 (2026-10-16 법률 검토)."""
+    trust = os.environ.get("SAJU_TRUST_PROXY", "").strip().lower() in ("1", "true", "yes", "on")
+    return (bool(os.environ.get("VERCEL")) or os.environ.get("HOST", "").strip() not in LOCAL_HOSTS or trust
+            or os.environ.get("SAJU_PUBLIC") == "1")             # web.serve(--host 0.0.0.0 처럼 바깥에 연 서버)
+
+
 def available() -> bool:
     if BACKEND == "openrouter":
         return bool(os.environ.get("OPENROUTER_API_KEY") and OPENROUTER_MODEL)
     if BACKEND == "anthropic":
         return bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if _public_server():                            # 구독 CLI 는 이 컴퓨터에서 내가 쓸 때만
+        return False
     return shutil.which(AI_CLI) is not None
 
 
@@ -203,6 +217,8 @@ def _run_backend(system: str, prompt: str, timeout: int, max_tokens: int, json_m
         return _run_openrouter(system, prompt, timeout, max_tokens, json_mode)
     if BACKEND == "anthropic":
         return _run_anthropic(system, prompt, timeout, max_tokens, json_mode)
+    if _public_server():
+        raise RuntimeError("공개 서버에서는 구독 AI 를 쓰지 않아")
     exe = shutil.which(AI_CLI)
     if not exe:
         raise RuntimeError("AI 명령을 찾지 못했어")

@@ -4,6 +4,7 @@
 - 방문자 = 결과(사주 풀이)를 연 IP 수. 같은 IP 는 하루에 한 번, 누적에는 한 번만 센다 (IPv6 는 /64 로 묶는다).
   한 집 와이파이를 같이 쓰는 사람은 한 명으로, 휴대폰처럼 IP 가 바뀌면 다른 사람으로 세진다.
 - 2026-10-16 배포부터 센다. 그 전 숫자는 남아 있지 않다.
+- 어제보다 오래된 날은 날짜별 숫자(visit_count)로 합쳐 보관한다 (content_store.purge). 이 도구는 둘을 합쳐 보여 준다.
 - .env 의 SUPABASE_URL·SUPABASE_SECRET_KEY 로 읽는다. 없으면 로컬 SQLite(이 컴퓨터에서 연 결과)를 보여 준다.
 """
 from __future__ import annotations

@@ -138,8 +138,8 @@ def test_age_band():
     assert langfuse.age_band(None) is None
 
 
-def test_user_id_and_visit(sent, monkeypatch):
-    # 사람 수 세기 (2026-10-16): 익명 해시만 userId 로, 방문은 AI 없이 성별·연령대만
+def test_user_id_and_visit_functions_still_work(sent, monkeypatch):
+    # 함수는 남겨 두었다 (앱은 부르지 않는다, 위 test_web_never_sets_langfuse_user). 부르면 성별·연령대만 담는다
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
     langfuse.set_user("u-hash-1")
@@ -159,18 +159,30 @@ def test_user_id_and_visit(sent, monkeypatch):
     assert "age_kr" not in raw and "갑" not in raw and '"age": 31' not in raw
 
 
-def test_web_sends_hashed_cookie_not_raw(monkeypatch):
-    # 서버가 Langfuse 로 보내는 userId 는 쿠키를 서버 비밀과 섞은 해시라 쿠키 값과 다르다
+def test_web_never_sets_langfuse_user():
+    # 2026-10-16 법률 검토: 서버는 요청마다 userId 를 넣지 않는다 (do_POST 에 set_user 가 없다). 방문 기록(log_visit)도 부르지 않는다
+    import inspect
     from love_fortune import web
-    assert web._h("lf-user", "abcdefghijklmnop1234") != "abcdefghijklmnop1234"
-    assert len(web._h("lf-user", "abcdefghijklmnop1234")) == 24
+    src = inspect.getsource(web)
+    assert "set_user" not in src and "log_visit" not in src
 
 
-def test_prefetch_worker_keeps_submitter_user(monkeypatch):
+def test_prefetch_job_has_no_user():
     from love_fortune import prefetch
-    langfuse.set_user("u-hash-2")
-    try:
-        job = prefetch.Job("today", "today", {}, 0)
-    finally:
-        langfuse.set_user(None)
-    assert job.user == "u-hash-2"
+    job = prefetch.Job("today", "today", {}, 0)
+    assert not hasattr(job, "user")
+
+
+def test_chat_log_has_numbers_only(sent, monkeypatch):
+    # 상담(name == "chat")은 SAJU_LANGFUSE_CONTENT 가 켜져 있어도 질문·답 글을 보내지 않고 숫자만 보낸다
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.delenv("SAJU_LANGFUSE_CONTENT", raising=False)
+    langfuse.log_generation("chat", "m", "규칙", "내 고민은 이거야", "상담 답이야", 0, 1, {"input_tokens": 5, "output_tokens": 3})
+    langfuse.log_generation("chapter", "m", "규칙", "풀어 줘", "풀이야", 0, 1)
+    chat, chapter = sent[0][2]["batch"], sent[1][2]["batch"]
+    raw = json.dumps(chat, ensure_ascii=False)
+    assert "내 고민" not in raw and "상담 답" not in raw and "규칙" not in raw
+    assert chat[1]["body"]["input"] is None and chat[1]["body"]["output"] is None
+    assert chat[1]["body"]["usageDetails"] == {"input": 5, "output": 3}
+    assert chapter[1]["body"]["output"] == "풀이야"                  # 챕터는 그대로

@@ -321,7 +321,8 @@ def build(birth: date, hour: int | None, minute: int, sex: str, city: str, targe
     base["insights"] = {"consensus": _cons,
                         "golden": insights.golden(natal, sex, target, _asc["lon"] if _asc else None,
                                                   _nc["venus"]["lon"], _cons)}
-    base["sok"] = sok.natal(_chart, natal["day_branch"], hour is not None)   # 성인 확인을 켠 화면에서만 보임
+    # 성인 확인을 켠 화면에서만 보이고, 만 19세 미만이면 칸 자체를 만들지 않는다 (2026-10-16 법률 검토)
+    base["sok"] = sok.natal(_chart, natal["day_branch"], hour is not None) if age >= 19 else None
     base["newyear"] = newyear.build(birth, hour, minute, sex, city, target, natal, _du,
                                     _chart["asc"]["sign"] if hour is not None else None,
                                     {k: v["lon"] for k, v in _nc.items()})

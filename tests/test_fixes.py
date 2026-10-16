@@ -437,19 +437,16 @@ def test_chat_ai_off_with_saju_ai_0(server, monkeypatch):
     assert called == []
 
 
-def test_report_logs_visit_with_hashed_user(server, monkeypatch):
-    """결과를 열면 AI 없이 방문 기록 하나 (2026-10-16). userId 는 쿠키 해시, 생년월일은 없다."""
+def test_report_logs_no_visit_and_no_user_to_langfuse(server, monkeypatch):
+    """결과를 열어도 Langfuse 로 방문 기록·userId 를 보내지 않는다 (2026-10-16 법률 검토). 방문자 수는 Supabase 로 센다."""
     from love_fortune import langfuse
     got = []
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
     monkeypatch.setattr(langfuse, "_send", got.append)
     code, rep = _post(server, "/api/v2/report", {"birth": "1990-05-05", "birth_time": "14:30", "sex": "female", "city": "서울"})
-    assert code == 200
-    visits = [b[0]["body"] for b in got if b[0]["body"].get("name") == "visit"]
-    assert len(visits) == 1 and len(visits[0]["userId"]) == 24
-    raw = json.dumps(visits, ensure_ascii=False)
-    assert "1990" not in raw and "05-05" not in raw and visits[0]["metadata"]["sex"] == "여성"
+    assert code == 200 and got == []
+    assert langfuse.current_user() is None
 
 
 def test_port_env_for_deploy(monkeypatch):

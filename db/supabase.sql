@@ -46,7 +46,7 @@ create table if not exists public.ai_call (
 );
 create index if not exists ai_call_ts on public.ai_call (ts);
 
--- 상담 사용 기록 (한 사람 하루 5번을 서버 여러 대가 함께 센다). k 는 IP·쿠키·결과·사주의 해시, 원래 값은 없다.
+-- 상담 사용 기록 (한 사람 하루 10번을 서버 여러 대가 함께 센다). k 는 IP·쿠키·결과·사주의 해시, 원래 값은 없다.
 create table if not exists public.chat_use (
     id  bigserial primary key,
     k   text not null,
@@ -67,6 +67,18 @@ create table if not exists public.visitor (
 );
 create index if not exists visitor_first_day on public.visitor (first_day);
 
+-- 날짜별 방문자 숫자. 어제보다 오래된 날의 visit_day 줄을 content_store.purge 가 여기에 숫자로 합치고 지운다.
+-- visitors = 그날 온 사람 수, new = 그날 처음 온 사람 수. 누적 방문자 = new 의 합 + 아직 합치지 않은 visitor 수.
+create table if not exists public.visit_count (
+    day       text primary key,
+    visitors  integer not null,
+    new       integer not null
+);
+
+-- 보관 기간 (content_store.purge 가 앱 서버에서 10분에 한 번 지운다, 2026-10-16 법률 검토)
+--   ctx 6시간 / chat_use·ai_call 24시간 / feedback 90일 뒤 ip 를 비우고 365일 뒤 줄을 지움
+--   share 365일 / visit_day 는 어제보다 오래되면 visit_count 로 합치고 지움 / visitor 365일
+
 -- 익명 쪽지 (불편한 점·의견, 2026-10-16). 욕설·도배 차단용으로 IP 를 같이 둔다 (화면에 알린다). k 는 IP 해시
 create table if not exists public.feedback (
     id    bigserial primary key,
@@ -76,7 +88,7 @@ create table if not exists public.feedback (
     body  text not null
 );
 create index if not exists feedback_k_ts on public.feedback (k, ts);
--- 쪽지를 못 보내게 막은 IP
+-- 쪽지를 못 보내게 막은 IP. k(IP 해시)만으로 막고 ip 칸에는 '' 를 넣는다
 create table if not exists public.feedback_block (
     k     text primary key,
     ip    text not null,
@@ -92,6 +104,7 @@ alter table public.ai_call enable row level security;
 alter table public.chat_use enable row level security;
 alter table public.visit_day enable row level security;
 alter table public.visitor enable row level security;
+alter table public.visit_count enable row level security;
 alter table public.feedback enable row level security;
 alter table public.feedback_block enable row level security;
 revoke all on public.chapter from anon, authenticated;
@@ -101,5 +114,6 @@ revoke all on public.ai_call from anon, authenticated;
 revoke all on public.chat_use from anon, authenticated;
 revoke all on public.visit_day from anon, authenticated;
 revoke all on public.visitor from anon, authenticated;
+revoke all on public.visit_count from anon, authenticated;
 revoke all on public.feedback from anon, authenticated;
 revoke all on public.feedback_block from anon, authenticated;

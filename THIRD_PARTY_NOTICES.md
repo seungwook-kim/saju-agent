@@ -10,7 +10,9 @@
 | `tests/data/iztro_charts.json` | iztro (자미두수 명반 계산 결과, 대조용) | MIT | 테스트 기준값 |
 | `tests/data/saju_pillars.json`, `twelve_stages.json`, `almanac_lunar_python.json` | lunar-python (6tail, 대조용) | MIT | 테스트 기준값 |
 | `tests/data/saenggi_table.json` | 생기복덕 전통 조견표 (우리궁합 표와 대조) | 전통 자료(사실) | 테스트 기준값 |
-| `love_fortune/solar_terms_data.py` | NASA JPL DE421 천체력으로 계산 | 미국 정부 공개 자료 | 절기 시각 계산 결과 |
+| `love_fortune/solar_terms_data.py` | NASA JPL DE421 (Folkner et al. 2009)로 skyfield(MIT)를 써서 계산한 결과(사실) | 계산 결과(사실) | 절기 시각 |
+| `love_fortune/calendar_data.py` (생성 도구 `tools/gen_calendar_data.py`) | korean-lunar-calendar (usingsky/korean_lunar_calendar_py) | MIT | 음력표를 뽑는 데 썼다. 패키지 자체는 앱에 들어가지 않고, 뽑은 음력표(날짜 사실)만 들어간다 |
+| `love_fortune/calendar_data.py` (표준시 이력 부분) | IANA tz database | 공유 저작물 | 표준시 이력 |
 | `love_fortune/calendar_data.py`, `tests/data/kasi_lunar.json` | 한국천문연구원 음양력 자료 | 공공 자료 | 음력 변환표·대조값 |
 | `love_fortune/tojeong_data.py` | 토정비결 괘사 (19세기 필사본, 저작권 만료) | 공유 저작물 | 괘사 독음만 두고 풀이는 이 앱이 새로 씀 |
 | `love_fortune/static/fonts/*.woff2` | Gowun Batang (굵게), Gowun Dodum (Google Fonts 저장소 ofl/gowunbatang, ofl/gowundodum) | SIL OFL 1.1 | `tools/build_fonts.py` 로 한글 부분 글꼴(KS 완성형 2,350자 + 영숫자, 나머지 한글)로 나눠 화면과 공유 카드에 씀. 글꼴 이름은 바꾸지 않고 화면에서 SajuBatang·SajuDodum 별칭으로 부름 |
@@ -125,7 +127,35 @@ POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
+## korean-lunar-calendar (MIT)
+
+```
+Copyright (c) 2018-2026 Jinil Lee <usingsky@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
 ## SIL Open Font License 1.1 (Gowun Batang, Gowun Dodum)
+
+(전문이 아래에 있다. 글꼴 파일은 `love_fortune/static/fonts/` 에 있고 별도 OFL 파일은 두지 않았다.)
 
 Copyright 2021 The Gowun Batang Project Authors (https://github.com/yangheeryu/Gowun-Batang)
 Copyright 2021 The Gowun Dodum Project Authors (https://github.com/yangheeryu/Gowun-Dodum)

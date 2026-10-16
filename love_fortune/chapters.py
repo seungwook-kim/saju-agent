@@ -355,9 +355,13 @@ def _ground_text(s: str, allowed: set[str], text: str | None = None) -> str:
 _LIST_NO = re.compile(r"^\s*(\d{1,2})[.)]\s+")
 
 
+# 위기 안내 전화번호 (109, 청소년 1388, 1393, 정신건강 1577-0199)는 요약에 없어도 지우지 않는다
+CRISIS_NUMBERS = {"109", "1388", "1393", "1577", "0199"}
+
+
 def ground_reply(reply: str, context: str) -> str:
     """상담 답 거름망: 상담 요약(context)에 없는 숫자·용어가 든 문장, 미래를 못 박는 문장을 뺀다."""
-    return _ground_lines(reply, set(_NUM.findall(context)), context)
+    return _ground_lines(reply, set(_NUM.findall(context)) | CRISIS_NUMBERS, context)
 
 
 def _ground_lines(reply: str, allowed: set[str], context: str | None) -> str:

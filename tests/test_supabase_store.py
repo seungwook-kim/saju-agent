@@ -31,9 +31,16 @@ class FakeRest(BaseHTTPRequestHandler):
             if k in ("select", "limit", "order", "offset"):
                 continue
             op, val = v[0].split(".", 1)
-            test = {"eq": lambda a, b: str(a) == b, "gt": lambda a, b: float(a) > float(b),
+
+            def num(a, b):                      # 숫자면 숫자끼리, 날짜 글자(2026-10-16)면 글자끼리 견준다
+                try:
+                    return float(a), float(b)
+                except ValueError:
+                    return str(a), b
+            test = {"eq": lambda a, b: str(a) == b, "neq": lambda a, b: str(a) != b,
+                    "gt": lambda a, b: num(a, b)[0] > num(a, b)[1],
                     "gte": lambda a, b: str(a) >= b,
-                    "lt": lambda a, b: float(a) < float(b),
+                    "lt": lambda a, b: num(a, b)[0] < num(a, b)[1],
                     "in": lambda a, b: str(a) in b.strip("()").split(",")}[op]
             rows = [r for r in rows if test(r[k], val)]
         return rows
@@ -58,12 +65,20 @@ class FakeRest(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def do_PATCH(self):
+        FakeRest.seen.append(("PATCH", self.headers.get("apikey"), self.headers.get("Prefer")))
+        name, q = self._table()
+        data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        for r in self._match(name, q):
+            r.update(data)
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_DELETE(self):
         name, q = self._table()
         for r in self._match(name, q):
-            pk = next(k for k in ("key", "id", "token", "ts") if k in r)
             FakeRest.tables[name] = {k: v for k, v in FakeRest.tables[name].items() if v is not r}
-            del pk
         self.send_response(204)
         self.send_header("Content-Length", "0")
         self.end_headers()
@@ -72,7 +87,7 @@ class FakeRest(BaseHTTPRequestHandler):
         FakeRest.seen.append(("POST", self.headers.get("apikey"), self.headers.get("Prefer")))
         name, _ = self._table()
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        pk = {"chapter": "key", "ctx": "token", "visitor": "k", "feedback_block": "k"}.get(name, "id")
+        pk = {"chapter": "key", "ctx": "token", "visitor": "k", "feedback_block": "k", "visit_count": "day"}.get(name, "id")
         keep = "ignore-duplicates" in (self.headers.get("Prefer") or "")
         for row in data if isinstance(data, list) else [data]:
             if name in ("ai_call", "chat_use", "feedback"):
@@ -409,6 +424,7 @@ def test_feedback_supabase(fake):
     assert CS.feedback_state("kA") == (False, 1)
     CS.feedback_block("kA", "203.0.113.7", "도배")
     assert CS.feedback_state("kA") == (True, 1)
+    assert FakeRest.tables["feedback_block"]["kA"]["ip"] == ""          # 차단 표에는 IP 를 두지 않는다
     got = {r["body"]: r["blocked"] for r in CS.feedback_list()}
     assert got == {"글씨가 작아요": True, "좋아요": False}
     CS.feedback_block("kA", "203.0.113.7", on=False)

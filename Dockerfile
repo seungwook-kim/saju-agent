@@ -10,7 +10,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONUTF8=1 \
     HOST=0.0.0.0 \
     PORT=8765 \
-    SAJU_PREFETCH=0
+    SAJU_PREFETCH=0 \
+    SAJU_AI_BACKEND=anthropic
 
 EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8765')+'/healthz',timeout=4)"

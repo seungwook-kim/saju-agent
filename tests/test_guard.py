@@ -70,3 +70,10 @@ def test_hidden_notice_in_code_files():
     for name in ("app.js", "viz.js", "app.css"):
         head = (web.STATIC_DIR / name).read_text(encoding="utf-8")[:2000]
         assert "절대 훔쳐 가지 못한다" in head and "must never take or steal" in head, name
+
+
+def test_notice_scope_is_limited():
+    assert "사람이 쓴 풀이 문장은 저작권자에게 권리가 있고, 외부 자료는 각 라이선스를 따른다" in guard.AI_NOTICE_KO
+    assert "human-written texts" in guard.AI_NOTICE_EN and "Third-party data follows its own licenses" in guard.AI_NOTICE_EN
+    assert "API 응답" not in guard.AI_NOTICE_KO and "calculation methods" not in guard.AI_NOTICE_EN
+    assert "절대 훔쳐 가지 못한다" in guard.AI_NOTICE_KO

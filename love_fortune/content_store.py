@@ -6,6 +6,12 @@
   Supabase 의 REST API 로 저장한다. 로컬은 키가 있어도 SQLite (SAJU_STORE=supabase|sqlite 로 직접 정할 수 있다).
   서버가 재시작돼도(Render 무료 등) 공유 링크와 AI 풀이가 남는다. 표는 db/supabase.sql 로 만든다.
   키는 서버 환경변수에만 둔다. 화면(브라우저)으로는 절대 보내지 않는다.
+
+보관 기간 (2026-10-16 법률 검토, purge() 가 지운다. web 이 기계마다 10분에 한 번 부른다):
+- ctx(결과 토큰) 6시간, chat_use·ai_call(횟수 기록) 24시간.
+- feedback(쪽지): 90일이 지나면 IP 를 비우고, 365일이 지나면 줄을 지운다. feedback_block 은 IP 해시(k)만으로 막고 IP 는 두지 않는다.
+- share(공유 링크): 만든 지 365일이 지나면 열리지 않고 지운다.
+- 방문자: 어제보다 오래된 날의 visit_day 는 날짜별 숫자(visit_count)로 합치고 지운다. visitor 는 365일이 지나면 지운다.
 """
 from __future__ import annotations
 
@@ -19,6 +25,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from contextlib import closing
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,6 +90,8 @@ def _rest(method: str, table: str, query: str = "", body: dict | list | None = N
     if method == "POST":
         # 같은 key 면 덮어쓴다 (keep 이면 처음 값을 둔다)
         headers["Prefer"] = ("resolution=ignore-duplicates" if keep else "resolution=merge-duplicates") + ",return=minimal"
+    elif method == "PATCH":
+        headers["Prefer"] = "return=minimal"
     data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
     req = urllib.request.Request(f"{url}/rest/v1/{table}{query}", data=data, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=REST_TIMEOUT) as r:
@@ -101,8 +110,6 @@ def put_ctx(token: str, summary: str, target: str, facts: dict | None) -> None:
         _rest("POST", "ctx", body={"token": token, "summary": summary, "target": target,
                                    "facts_json": json.dumps(facts, ensure_ascii=False) if facts else "",
                                    "created": time.time()})
-        if time.time() % 50 < 1:                    # 가끔 6시간 넘은 것을 치운다
-            _rest("DELETE", "ctx", f"?created=lt.{time.time() - 6 * 3600}")
     except (urllib.error.URLError, OSError, ValueError) as e:
         _log("결과 저장", e)
 
@@ -140,8 +147,6 @@ def chat_take(keys: list[str], per_day: int, global_per_day: int) -> int | None 
         if used >= per_day:
             return None
         _rest("POST", "chat_use", body=[{"k": k, "ts": now} for k in keys + ["all"]])
-        if now % 100 < 1:
-            _rest("DELETE", "chat_use", f"?ts=lt.{since}")
         return per_day - used - 1
     except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
         _log("상담 횟수", e)
@@ -160,8 +165,6 @@ def ai_budget_take(per_hour: int) -> bool | None:
         if used >= per_hour:
             return False
         _rest("POST", "ai_call", body={"ts": now})
-        if now % 100 < 1:
-            _rest("DELETE", "ai_call", f"?ts=lt.{now - 86400}")
         return True
     except (urllib.error.URLError, OSError, ValueError) as e:
         _log("AI 사용량", e)
@@ -190,24 +193,102 @@ def visit_add(day: str, day_key: str, person_key: str) -> bool:
 
 
 def visit_stats(since: str = "") -> dict:
-    """{"total": 누적 방문자, "days": [{"day", "visitors", "new"}, ...]} (since 날짜부터, 오래된 날이 위)."""
+    """{"total": 누적 방문자, "days": [{"day", "visitors", "new"}, ...]} (since 날짜부터, 오래된 날이 위).
+    오래된 날은 visit_count(날짜별 숫자)에서, 아직 합치지 않은 날은 visit_day 에서 읽어 한 모양으로 합친다.
+    total = visit_count 의 new 합 + 합친 마지막 날보다 뒤에 처음 온 visitor 수."""
     if _supabase():
-        total = _rest("HEAD", "visitor", "?select=k", count=True)
+        counted = _rest_all("visit_count", "day,visitors,new", "", order="day")
+        last = counted[-1]["day"] if counted else ""
+        total_tail = _rest("HEAD", "visitor", "?select=k" + (f"&first_day=gt.{last}" if last else ""), count=True)
         days = _rest_all("visit_day", "day", f"&day=gte.{since}" if since else "")
         firsts = _rest_all("visitor", "first_day", f"&first_day=gte.{since}" if since else "")
         day_rows, new_rows = [r["day"] for r in days], [r["first_day"] for r in firsts]
     else:
         with closing(_con()) as con:
-            total = con.execute("SELECT COUNT(*) FROM visitor").fetchone()[0]
+            counted = [dict(r) for r in con.execute("SELECT day, visitors, new FROM visit_count ORDER BY day")]
+            last = counted[-1]["day"] if counted else ""
+            total_tail = con.execute("SELECT COUNT(*) FROM visitor WHERE first_day > ?", (last,)).fetchone()[0]
             day_rows = [r[0] for r in con.execute("SELECT day FROM visit_day WHERE day >= ?", (since,))]
             new_rows = [r[0] for r in con.execute("SELECT first_day FROM visitor WHERE first_day >= ?", (since,))]
-    out = [{"day": d, "visitors": day_rows.count(d), "new": new_rows.count(d)} for d in sorted(set(day_rows))]
-    return {"total": total, "days": out}
+    total = sum(int(r["new"]) for r in counted) + total_tail
+    out = {r["day"]: {"day": r["day"], "visitors": int(r["visitors"]), "new": int(r["new"])}
+           for r in counted if r["day"] >= since}
+    for d in sorted(set(day_rows)):
+        out.setdefault(d, {"day": d, "visitors": day_rows.count(d), "new": new_rows.count(d)})
+    return {"total": total, "days": [out[d] for d in sorted(out)]}
+
+
+def _kst_today(now: float) -> date:
+    return datetime.fromtimestamp(now, timezone(timedelta(hours=9))).date()
+
+
+def purge(now: float | None = None) -> None:
+    """보관 기간이 지난 기록을 지운다 (모듈 위의 보관 기간 설명 참고). 단계마다 따로 시도해서 하나가 실패해도 나머지는 한다."""
+    now = time.time() if now is None else now
+    today = _kst_today(now)
+    cut = (today - timedelta(days=1)).isoformat()              # 이 날짜보다 오래된 visit_day 를 숫자로 합친다
+    old_visitor = (today - timedelta(days=365)).isoformat()
+    h6, d1, d90, d365 = now - 6 * 3600, now - 24 * 3600, now - 90 * 86400, now - 365 * 86400
+    steps = [("방문 합치기", lambda: _purge_visits(cut, old_visitor)),
+             ("쪽지·공유", lambda: _purge_old(d90, d365))]
+    if _supabase():
+        steps += [("결과 토큰", lambda: _rest("DELETE", "ctx", f"?created=lt.{h6}")),
+                  ("상담 기록", lambda: _rest("DELETE", "chat_use", f"?ts=lt.{d1}")),
+                  ("AI 호출 기록", lambda: _rest("DELETE", "ai_call", f"?ts=lt.{d1}"))]
+    for what, fn in steps:
+        try:
+            fn()
+        except (urllib.error.URLError, OSError, ValueError, sqlite3.Error) as e:
+            _log("파기 " + what, e)
+
+
+def _purge_old(d90: float, d365: float) -> None:
+    if _supabase():
+        _rest("PATCH", "feedback", f"?ts=lt.{d90}", {"ip": ""})            # 90일이 지나면 IP 를 비운다
+        _rest("DELETE", "feedback", f"?ts=lt.{d365}")
+        _rest("DELETE", "share", f"?created=lt.{d365}")
+        _rest("DELETE", "chapter", f"?created=lt.{d365}")             # AI 풀이도 1년 (처리방침)
+        return
+    with closing(_con()) as con:
+        con.execute("UPDATE feedback SET ip='' WHERE ts < ? AND ip <> ''", (d90,))
+        con.execute("DELETE FROM feedback WHERE ts < ?", (d365,))
+        con.execute("DELETE FROM share WHERE created < ?", (d365,))
+        con.execute("DELETE FROM chapter WHERE created < ?", (d365,))
+        con.commit()
+
+
+def _purge_visits(cut: str, old_visitor: str) -> None:
+    """cut 보다 오래된 날의 visit_day 를 날짜별 숫자(visit_count)로 합치고 지운다. 365일이 지난 visitor 도 지운다."""
+    sb = bool(_supabase())
+    if sb:
+        day_rows = [r["day"] for r in _rest_all("visit_day", "day", f"&day=lt.{cut}")]
+        last = ((_rest_all("visit_count", "day", "", order="day") or [{}])[-1]).get("day", "")
+        firsts = [r["first_day"] for r in _rest_all("visitor", "first_day", f"&first_day=lt.{cut}")]
+    else:
+        with closing(_con()) as con:
+            day_rows = [r[0] for r in con.execute("SELECT day FROM visit_day WHERE day < ?", (cut,))]
+            last = con.execute("SELECT COALESCE(MAX(day), '') FROM visit_count").fetchone()[0]
+            firsts = [r[0] for r in con.execute("SELECT first_day FROM visitor WHERE first_day < ?", (cut,))]
+    # 그날 사람 수가 없어도(처음 온 사람만 있는 날) 이미 합친 마지막 날보다 뒤면 빠뜨리지 않는다
+    days = sorted(set(day_rows) | {d for d in firsts if d > last})
+    rows = [{"day": d, "visitors": day_rows.count(d), "new": firsts.count(d)} for d in days]
+    if sb:
+        if rows:
+            _rest("POST", "visit_count", body=rows)
+        if day_rows:
+            _rest("DELETE", "visit_day", f"?day=lt.{cut}")
+        _rest("DELETE", "visitor", f"?first_day=lt.{old_visitor}")
+        return
+    with closing(_con()) as con:
+        con.executemany("INSERT OR REPLACE INTO visit_count VALUES (:day,:visitors,:new)", rows)
+        con.execute("DELETE FROM visit_day WHERE day < ?", (cut,))
+        con.execute("DELETE FROM visitor WHERE first_day < ?", (old_visitor,))
+        con.commit()
 
 
 # ---------------- 익명 쪽지 (불편한 점·의견, 2026-10-16 사용자 요청)
 # 이름·로그인 없이 받는다. 욕설·도배를 막으려고 IP 를 같이 둔다 (화면에 그렇게 알린다).
-# k 는 IP 해시 (차단·하루 횟수용), 차단은 feedback_block 에 k 로.
+# k 는 IP 해시 (차단·하루 횟수용), 차단은 feedback_block 에 k 로. IP 는 90일 뒤 비우고 365일 뒤 줄을 지운다 (purge).
 
 def feedback_add(ip: str, k: str, body: str) -> None:
     row = {"ts": time.time(), "ip": ip, "k": k, "body": body}
@@ -254,25 +335,28 @@ def feedback_list(limit: int = 50) -> list[dict]:
     return [{**r, "blocked": r["k"] in bl} for r in rows]
 
 
-def feedback_block(k: str, ip: str, note: str = "", on: bool = True) -> None:
+def feedback_block(k: str, ip: str = "", note: str = "", on: bool = True) -> None:
+    """k(IP 해시)만으로 막는다. ip 칸에는 늘 '' 를 넣는다 (받은 ip 는 쓰지 않는다, 2026-10-16 법률 검토)."""
     if _supabase():
         if on:
-            _rest("POST", "feedback_block", body={"k": k, "ip": ip, "note": note, "ts": time.time()})
+            _rest("POST", "feedback_block", body={"k": k, "ip": "", "note": note, "ts": time.time()})
         else:
             _rest("DELETE", "feedback_block", "?" + _eq("k", k))
         return
     with closing(_con()) as con:
         if on:
-            con.execute("INSERT OR REPLACE INTO feedback_block VALUES (?,?,?,?)", (k, ip, note, time.time()))
+            con.execute("INSERT OR REPLACE INTO feedback_block VALUES (?,?,?,?)", (k, "", note, time.time()))
         else:
             con.execute("DELETE FROM feedback_block WHERE k=?", (k,))
         con.commit()
 
 
-def _rest_all(table: str, col: str, extra: str, page: int = 1000) -> list[dict]:
+def _rest_all(table: str, col: str, extra: str, page: int = 1000, order: str = "") -> list[dict]:
+    """col 은 select 에 넣는 칸들(쉼표), order 는 정렬 칸 (기본은 col)."""
     rows, off = [], 0
+    order = order or col
     while True:
-        got = _rest("GET", table, f"?select={col}{extra}&order={col}.asc&limit={page}&offset={off}") or []
+        got = _rest("GET", table, f"?select={col}{extra}&order={order}.asc&limit={page}&offset={off}") or []
         rows += got
         if len(got) < page:
             return rows
@@ -327,6 +411,9 @@ def put_chapter(key: str, tab: str, chapter: str, source: str, body: dict) -> No
         con.commit()
 
 
+SHARE_TTL = 365 * 86400      # 공유 링크는 만든 지 365일까지만 열린다
+
+
 def put_share(share_id: str, facts: dict, summary: str) -> None:
     if _supabase():
         try:
@@ -349,12 +436,26 @@ def get_share(share_id: str) -> dict | None:
         except (urllib.error.URLError, OSError, ValueError) as e:
             _log("공유 읽기", e)
             raise ValueError("저장소에 연결하지 못했어. 잠시 뒤에 다시 해 줘.") from None
-        if not rows:
+        if not rows or time.time() - rows[0]["created"] > SHARE_TTL:
             return None
         r = rows[0]
         return {"facts": json.loads(r["facts_json"]), "summary": r["summary"], "created": r["created"]}
     with closing(_con()) as con:
         row = con.execute("SELECT facts_json, summary, created FROM share WHERE id=?", (share_id,)).fetchone()
-    if not row:
+    if not row or time.time() - row["created"] > SHARE_TTL:
         return None
     return {"facts": json.loads(row["facts_json"]), "summary": row["summary"], "created": row["created"]}
+
+
+def delete_share(share_id: str) -> None:
+    """공유 링크를 지운다 (만든 사람이 지우기 열쇠로 부른다). 없어도 오류가 아니다."""
+    if _supabase():
+        try:
+            _rest("DELETE", "share", "?" + _eq("id", share_id))
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            _log("공유 지우기", e)
+            raise ValueError("저장소에 연결하지 못했어. 잠시 뒤에 다시 해 줘.") from None
+        return
+    with closing(_con()) as con:
+        con.execute("DELETE FROM share WHERE id=?", (share_id,))
+        con.commit()

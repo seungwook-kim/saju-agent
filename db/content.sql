@@ -46,6 +46,13 @@ CREATE TABLE IF NOT EXISTS visitor (
     k          TEXT PRIMARY KEY,
     first_day  TEXT NOT NULL
 );
+-- 보관 기간 (content_store.purge, 2026-10-16 법률 검토): 어제보다 오래된 날의 visit_day 는 날짜별 숫자로 합쳐 지운다.
+-- visitor 는 처음 온 날이 365일 지나면 지운다. 쪽지는 90일 뒤 IP 를 비우고 365일 뒤 지운다. 공유 링크는 365일.
+CREATE TABLE IF NOT EXISTS visit_count (
+    day       TEXT PRIMARY KEY,
+    visitors  INTEGER NOT NULL,
+    new       INTEGER NOT NULL
+);
 
 -- 익명 쪽지 (불편한 점·의견). 욕설·도배 차단용으로 IP 를 같이 둔다 (화면에 알린다). k 는 IP 해시
 CREATE TABLE IF NOT EXISTS feedback (
@@ -56,7 +63,7 @@ CREATE TABLE IF NOT EXISTS feedback (
     body  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS feedback_k_ts ON feedback (k, ts);
--- 쪽지를 못 보내게 막은 IP (k = IP 해시)
+-- 쪽지를 못 보내게 막은 IP (k = IP 해시). ip 칸은 늘 '' (해시만으로 막는다)
 CREATE TABLE IF NOT EXISTS feedback_block (
     k     TEXT PRIMARY KEY,
     ip    TEXT NOT NULL,
