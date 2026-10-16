@@ -54,14 +54,31 @@ create table if not exists public.chat_use (
 );
 create index if not exists chat_use_k_ts on public.chat_use (k, ts);
 
+-- 방문자 수 (하루·누적). 같은 IP 는 한 사람. IP 를 서버 비밀과 섞은 해시만, IP 원래 값은 없다.
+-- visit_day.k 는 날짜도 섞은 해시라 하루 표만으로는 같은 사람이 언제 또 왔는지 이어 볼 수 없다. visitor 는 처음 온 날만.
+create table if not exists public.visit_day (
+    day  text not null,
+    k    text not null,
+    primary key (day, k)
+);
+create table if not exists public.visitor (
+    k          text primary key,
+    first_day  text not null
+);
+create index if not exists visitor_first_day on public.visitor (first_day);
+
 -- 공개 키로는 못 읽고 못 쓰게 잠근다 (서버 전용 키는 RLS 를 거치지 않는다)
 alter table public.chapter enable row level security;
 alter table public.share enable row level security;
 alter table public.ctx enable row level security;
 alter table public.ai_call enable row level security;
 alter table public.chat_use enable row level security;
+alter table public.visit_day enable row level security;
+alter table public.visitor enable row level security;
 revoke all on public.chapter from anon, authenticated;
 revoke all on public.share from anon, authenticated;
 revoke all on public.ctx from anon, authenticated;
 revoke all on public.ai_call from anon, authenticated;
 revoke all on public.chat_use from anon, authenticated;
+revoke all on public.visit_day from anon, authenticated;
+revoke all on public.visitor from anon, authenticated;

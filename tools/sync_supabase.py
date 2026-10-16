@@ -2,13 +2,14 @@
 
 실행: uv run --no-project python tools/sync_supabase.py
 - 한 방향 복사: Supabase → 로컬. 로컬에만 있는 줄은 지우지 않고, 같은 줄은 Supabase 값으로 덮어쓴다.
-- 앱이 쓰는 표(chapter, share)에 더해 ctx(결과 6시간), ai_call(AI 호출 시각), chat_use(상담 횟수 해시)도
+- 앱이 쓰는 표(chapter, share)에 더해 ctx(결과 6시간), ai_call(AI 호출 시각), chat_use(상담 횟수 해시), visit_day·visitor(방문자 해시)도
   같은 이름의 표로 만들어 넣는다. 개인정보(생년월일·이름·도시)는 원래 Supabase 에도 없다.
 - 복사 전에 data/content.db 를 data/content.db.bak 으로 한 번 떠 둔다.
 - 필요할 때마다 다시 돌리면 된다 (서버를 켜지 않아도 된다).
 """
 from __future__ import annotations
 
+import os
 import shutil
 import sqlite3
 import sys
@@ -30,6 +31,8 @@ TABLES = {
             "created REAL NOT NULL"),
     "ai_call": ("id", "id INTEGER PRIMARY KEY, ts REAL NOT NULL"),
     "chat_use": ("id", "id INTEGER PRIMARY KEY, k TEXT NOT NULL, ts REAL NOT NULL"),
+    "visit_day": ("day", "day TEXT NOT NULL, k TEXT NOT NULL, PRIMARY KEY (day, k)"),
+    "visitor": ("k", "k TEXT PRIMARY KEY, first_day TEXT NOT NULL"),
 }
 
 
@@ -44,6 +47,7 @@ def fetch_all(table: str, pk: str) -> list[dict]:
 
 
 def main() -> int:
+    os.environ.setdefault("SAJU_STORE", "supabase")    # 로컬은 기본이 SQLite 라서 이 도구만 운영 DB 를 읽게 한다
     if CS.backend() != "supabase":
         print("Supabase 설정(SUPABASE_URL·SUPABASE_SECRET_KEY)이 없어. .env 를 확인해 줘.")
         return 1

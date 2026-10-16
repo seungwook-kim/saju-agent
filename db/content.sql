@@ -35,3 +35,14 @@ CREATE TABLE IF NOT EXISTS share (
     summary     TEXT NOT NULL,
     created     REAL NOT NULL
 );
+
+-- 방문자 수 (하루·누적). 같은 IP 는 한 사람. IP 를 서버 비밀과 섞은 해시만 둔다. 하루 표의 k 는 날짜도 섞어서 날을 넘어 이어 볼 수 없다
+CREATE TABLE IF NOT EXISTS visit_day (
+    day  TEXT NOT NULL,
+    k    TEXT NOT NULL,
+    PRIMARY KEY (day, k)
+);
+CREATE TABLE IF NOT EXISTS visitor (
+    k          TEXT PRIMARY KEY,
+    first_day  TEXT NOT NULL
+);

@@ -101,6 +101,34 @@ def ip_key(ip: str) -> str:
     return str(a)
 
 
+_VISITED: set[str] = set()          # 이 기계가 오늘 이미 센 방문 (같은 사람이 탭을 여러 번 열어도 저장소를 또 부르지 않게)
+
+
+def visit_day() -> str:
+    """방문 날짜는 한국 날짜로 센다 (Vercel 서버 시계는 UTC 라서)."""
+    from datetime import timezone
+    return datetime.now(timezone(timedelta(hours=9))).date().isoformat()
+
+
+def count_visit(ip: str) -> None:
+    """하루·누적 방문자 (결과를 연 IP 수). 같은 IP 는 하루에 한 번, 누적에는 한 번만 센다 (2026-10-16 사용자 결정).
+    IP 원래 값은 저장하지 않고 서버 비밀과 섞은 해시만 둔다 (IPv6 는 /64 로 묶는다).
+    하루 표의 키는 날짜도 섞어서 날을 넘어 같은 사람을 이어 볼 수 없다. 실패해도 결과는 그대로 보인다."""
+    from . import content_store
+    day = visit_day()
+    ip = ip_key(ip)
+    day_key = _h("visit-day", day, ip)
+    if day_key in _VISITED:
+        return
+    if len(_VISITED) > 5000:
+        _VISITED.clear()
+    _VISITED.add(day_key)
+    try:
+        content_store.visit_add(day, day_key, _h("visitor", ip))
+    except Exception as e:  # noqa: BLE001  방문 세기 때문에 결과가 안 열리면 안 된다
+        print(f"[방문] 기록 실패: {type(e).__name__}", file=sys.stderr)
+
+
 def _chat_take(keys: list[str], local: bool = False) -> int | None:
     """한 번 쓴다. 열쇠(IP·브라우저 표시·결과·사주) 중 하나라도 하루 횟수를 다 썼으면 None.
     남은 횟수를 돌려준다. 이 컴퓨터(local)는 제한 없음(-1)."""
@@ -968,8 +996,11 @@ class Handler(BaseHTTPRequestHandler):
         return got in ok
 
     def _cid(self) -> str:
-        """이 브라우저 표시(쿠키). 없으면 새로 만들어 응답에 붙인다. 개인정보가 아닌 무작위 값이다."""
+        """이 브라우저 표시(쿠키). 없으면 새로 만들어 응답에 붙인다. 개인정보가 아닌 무작위 값이다.
+        한 요청 안에서는 같은 값을 쓴다 (쿠키가 없을 때 두 번 부르면 서로 다른 값이 나오던 것을 막는다)."""
         import http.cookies
+        if getattr(self, "_cid_val", None):
+            return self._cid_val
         c = http.cookies.SimpleCookie()
         try:
             c.load(self.headers.get("Cookie") or "")
@@ -980,6 +1011,7 @@ class Handler(BaseHTTPRequestHandler):
             cid = secrets.token_urlsafe(16)
             secure = "; Secure" if _truthy(os.environ.get("SAJU_TRUST_PROXY", "")) else ""
             self._cookie = f"cid={cid}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Strict{secure}"
+        self._cid_val = cid
         return cid
 
     def _client_ip(self) -> str:
@@ -1011,7 +1043,7 @@ class Handler(BaseHTTPRequestHandler):
             self._drain()
             self.send_error(404)
             return
-        self._cookie = None
+        self._cookie = self._cid_val = None
         from . import guard
         if guard.blocked(self.path.split("?")[0], self.headers.get("User-Agent")):
             self._drain()
@@ -1095,6 +1127,7 @@ class Handler(BaseHTTPRequestHandler):
             prefetch.submit_all(f)
         from . import langfuse
         langfuse.log_visit("report", f)
+        count_visit(self._client_ip())
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
                     "rules": chapters.rule_all(f), "ai": ai_on, "chat": _chat_on(self._client_ip())})
 
@@ -1149,6 +1182,7 @@ class Handler(BaseHTTPRequestHandler):
         token = _remember("", got["summary"], f["meta"]["target"], facts=f)
         from . import langfuse
         langfuse.log_visit("shared", f)
+        count_visit(self._client_ip())
         self._json({"token": token, "facts": f, "outline": chapters.outline(),
                     "rules": chapters.rule_all(f), "ai": _ai_on(), "shared": True,
                     "chat": _chat_on(self._client_ip())})

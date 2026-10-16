@@ -72,7 +72,8 @@ def backend() -> str:
     return "supabase" if _supabase() else "sqlite"
 
 
-def _rest(method: str, table: str, query: str = "", body: dict | list | None = None, count: bool = False):
+def _rest(method: str, table: str, query: str = "", body: dict | list | None = None, count: bool = False,
+          keep: bool = False):
     url, key = _supabase()
     headers = {"apikey": key, "Content-Type": "application/json", "Accept": "application/json"}
     if count:
@@ -80,7 +81,8 @@ def _rest(method: str, table: str, query: str = "", body: dict | list | None = N
     if key.startswith("eyJ"):                       # 예전 방식 키(JWT)는 Authorization 에도 넣는다
         headers["Authorization"] = "Bearer " + key
     if method == "POST":
-        headers["Prefer"] = "resolution=merge-duplicates,return=minimal"     # 같은 key 면 덮어쓴다
+        # 같은 key 면 덮어쓴다 (keep 이면 처음 값을 둔다)
+        headers["Prefer"] = ("resolution=ignore-duplicates" if keep else "resolution=merge-duplicates") + ",return=minimal"
     data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
     req = urllib.request.Request(f"{url}/rest/v1/{table}{query}", data=data, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=REST_TIMEOUT) as r:
@@ -164,6 +166,51 @@ def ai_budget_take(per_hour: int) -> bool | None:
     except (urllib.error.URLError, OSError, ValueError) as e:
         _log("AI 사용량", e)
         return None
+
+
+# ---------------- 방문자 수 (하루·누적, 포트폴리오·운영 확인용)
+
+def visit_add(day: str, day_key: str, person_key: str) -> None:
+    """결과를 연 IP 하나. 키는 이미 해시된 값이다 (IP 원래 값은 저장하지 않는다).
+    day_key 는 날짜를 섞은 해시라 하루 표만으로는 같은 사람이 언제 또 왔는지 이어 볼 수 없다.
+    visitor 는 처음 온 날만 남긴다 (누적 방문자·그날 새로 온 사람)."""
+    if _supabase():
+        try:
+            _rest("POST", "visit_day", body={"day": day, "k": day_key}, keep=True)
+            _rest("POST", "visitor", body={"k": person_key, "first_day": day}, keep=True)
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            _log("방문 기록", e)
+        return
+    with closing(_con()) as con:
+        con.execute("INSERT OR IGNORE INTO visit_day VALUES (?,?)", (day, day_key))
+        con.execute("INSERT OR IGNORE INTO visitor VALUES (?,?)", (person_key, day))
+        con.commit()
+
+
+def visit_stats(since: str = "") -> dict:
+    """{"total": 누적 방문자, "days": [{"day", "visitors", "new"}, ...]} (since 날짜부터, 오래된 날이 위)."""
+    if _supabase():
+        total = _rest("HEAD", "visitor", "?select=k", count=True)
+        days = _rest_all("visit_day", "day", f"&day=gte.{since}" if since else "")
+        firsts = _rest_all("visitor", "first_day", f"&first_day=gte.{since}" if since else "")
+        day_rows, new_rows = [r["day"] for r in days], [r["first_day"] for r in firsts]
+    else:
+        with closing(_con()) as con:
+            total = con.execute("SELECT COUNT(*) FROM visitor").fetchone()[0]
+            day_rows = [r[0] for r in con.execute("SELECT day FROM visit_day WHERE day >= ?", (since,))]
+            new_rows = [r[0] for r in con.execute("SELECT first_day FROM visitor WHERE first_day >= ?", (since,))]
+    out = [{"day": d, "visitors": day_rows.count(d), "new": new_rows.count(d)} for d in sorted(set(day_rows))]
+    return {"total": total, "days": out}
+
+
+def _rest_all(table: str, col: str, extra: str, page: int = 1000) -> list[dict]:
+    rows, off = [], 0
+    while True:
+        got = _rest("GET", table, f"?select={col}{extra}&order={col}.asc&limit={page}&offset={off}") or []
+        rows += got
+        if len(got) < page:
+            return rows
+        off += page
 
 
 def _eq(col: str, val: str) -> str:

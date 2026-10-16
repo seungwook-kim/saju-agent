@@ -28,10 +28,11 @@ class FakeRest(BaseHTTPRequestHandler):
     def _match(self, name, q):
         rows = list(FakeRest.tables.get(name, {}).values())
         for k, v in q.items():
-            if k in ("select", "limit"):
+            if k in ("select", "limit", "order", "offset"):
                 continue
             op, val = v[0].split(".", 1)
             test = {"eq": lambda a, b: str(a) == b, "gt": lambda a, b: float(a) > float(b),
+                    "gte": lambda a, b: str(a) >= b,
                     "lt": lambda a, b: float(a) < float(b),
                     "in": lambda a, b: str(a) in b.strip("()").split(",")}[op]
             rows = [r for r in rows if test(r[k], val)]
@@ -71,11 +72,15 @@ class FakeRest(BaseHTTPRequestHandler):
         FakeRest.seen.append(("POST", self.headers.get("apikey"), self.headers.get("Prefer")))
         name, _ = self._table()
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        pk = {"chapter": "key", "ctx": "token"}.get(name, "id")
+        pk = {"chapter": "key", "ctx": "token", "visitor": "k"}.get(name, "id")
+        keep = "ignore-duplicates" in (self.headers.get("Prefer") or "")
         for row in data if isinstance(data, list) else [data]:
             if name in ("ai_call", "chat_use"):
                 row["id"] = len(FakeRest.tables.get(name, {})) + 1
-            FakeRest.tables.setdefault(name, {})[row[pk]] = row
+            key = (row["day"], row["k"]) if name == "visit_day" else row[pk]
+            if keep and key in FakeRest.tables.get(name, {}):
+                continue
+            FakeRest.tables.setdefault(name, {})[key] = row
         self.send_response(201)
         self.send_header("Content-Length", "0")
         self.end_headers()
@@ -175,7 +180,7 @@ def test_secrets_stay_out_of_git_and_docker():
         if "=" in line and not line.startswith("#"):
             assert line.split("=", 1)[1] == "", line                 # 예시에는 값이 없다
     sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")
-    assert sql.count("enable row level security") == 5
+    assert sql.count("enable row level security") == sql.count("create table")   # 표마다 잠근다
 
 
 def test_ctx_roundtrip_and_web_context_fallback(fake):
@@ -243,7 +248,7 @@ def test_vercel_wsgi_entry():
     vi = (ROOT / ".vercelignore").read_text(encoding="utf-8").splitlines()
     assert ".env" in vi and "tests" in vi
     sql = (ROOT / "db" / "supabase.sql").read_text(encoding="utf-8")
-    assert sql.count("enable row level security") == 5
+    assert sql.count("enable row level security") == sql.count("create table")   # 표마다 잠근다
 
 
 def test_serverless_chapter_generates_in_request(monkeypatch):
@@ -285,3 +290,60 @@ def test_chat_quota_shared_across_servers(fake, monkeypatch):
     assert "1.1.1.1" not in stored and "cid:A" not in stored        # 해시만 저장
     monkeypatch.setattr(web, "CHAT_GLOBAL_PER_DAY", 6)                # 지금까지 6번 성공
     assert T(["ip:7.7.7.7"]) is None                                 # 모두 합쳐 하루 상한
+
+
+def test_visit_counts_daily_and_total(fake, monkeypatch):
+    # 같은 IP 는 하루에 한 번, 누적에는 처음 온 날 한 번만. IP 원래 값은 저장하지 않는다
+    from love_fortune import web
+    monkeypatch.setattr(web, "_VISITED", set())
+    day = ["2026-10-16"]
+    monkeypatch.setattr(web, "visit_day", lambda: day[0])
+    for ip in ("203.0.113.7", "203.0.113.7", "198.51.100.2", "2001:db8:1:2::1", "2001:db8:1:2::99"):
+        web.count_visit(ip)                                       # 같은 /64 의 IPv6 는 한 사람
+    day[0] = "2026-10-17"
+    for ip in ("203.0.113.7", "192.0.2.44"):
+        web.count_visit(ip)
+    monkeypatch.setattr(web, "_VISITED", set())                    # 다른 기계가 같은 IP 를 또 세도
+    web.count_visit("192.0.2.44")
+    st = CS.visit_stats("2026-10-01")
+    assert st["total"] == 4
+    assert st["days"] == [{"day": "2026-10-16", "visitors": 3, "new": 3},
+                          {"day": "2026-10-17", "visitors": 2, "new": 1}]
+    assert CS.visit_stats("2026-10-17")["days"] == [{"day": "2026-10-17", "visitors": 2, "new": 1}]
+    stored = json.dumps([[list(r.values()) for r in t.values()] for t in FakeRest.tables.values()])
+    assert "203.0" not in stored and "2001:db8" not in stored and "192.0" not in stored
+    assert len({k for (_d, k) in FakeRest.tables["visit_day"]}) == 5   # 날짜가 다르면 같은 IP 도 다른 키
+
+
+def test_visit_sqlite_and_report(tmp_path, monkeypatch):
+    # 로컬 SQLite 에도 센다. 결과를 열 때 세고, 세기가 깨져도 결과는 열린다
+    from love_fortune import web
+    monkeypatch.setattr(web, "_VISITED", set())
+    monkeypatch.setattr(CS, "DB", tmp_path / "c.db")
+    monkeypatch.setattr(CS, "_READY", False)
+    web.count_visit("203.0.113.7")
+    web.count_visit("203.0.113.7")
+    st = CS.visit_stats()
+    assert st["total"] == 1 and st["days"][0]["visitors"] == 1
+    calls = []
+    monkeypatch.setattr(web, "count_visit", calls.append)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        import urllib.request
+        body = json.dumps({"birth": "1990-05-05", "birth_time": "14:30", "sex": "F"}).encode()
+        req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}/api/v2/report", data=body,
+                                     method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req) as r:
+            assert r.status == 200
+    finally:
+        srv.shutdown()
+    assert calls == ["127.0.0.1"]
+
+
+def test_visit_failure_does_not_break(monkeypatch, capsys):
+    from love_fortune import web
+    monkeypatch.setattr(web, "_VISITED", set())
+    monkeypatch.setattr(CS, "visit_add", lambda *a: 1 / 0)
+    web.count_visit("203.0.113.7")
+    assert "[방문] 기록 실패" in capsys.readouterr().err
