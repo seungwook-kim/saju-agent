@@ -205,6 +205,70 @@ def visit_stats(since: str = "") -> dict:
     return {"total": total, "days": out}
 
 
+# ---------------- 익명 쪽지 (불편한 점·의견, 2026-10-16 사용자 요청)
+# 이름·로그인 없이 받는다. 욕설·도배를 막으려고 IP 를 같이 둔다 (화면에 그렇게 알린다).
+# k 는 IP 해시 (차단·하루 횟수용), 차단은 feedback_block 에 k 로.
+
+def feedback_add(ip: str, k: str, body: str) -> None:
+    row = {"ts": time.time(), "ip": ip, "k": k, "body": body}
+    if _supabase():
+        try:
+            _rest("POST", "feedback", body=row)
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            _log("쪽지 저장", e)
+            raise ValueError("쪽지를 저장하지 못했어. 잠시 뒤에 다시 해 줘.") from None
+        return
+    with closing(_con()) as con:
+        con.execute("INSERT INTO feedback (ts, ip, k, body) VALUES (?,?,?,?)", (row["ts"], ip, k, body))
+        con.commit()
+
+
+def feedback_state(k: str) -> tuple[bool, int]:
+    """(차단됐나, 최근 24시간에 보낸 수). 못 읽으면 (False, 0) 으로 받아 준다."""
+    since = time.time() - 24 * 3600
+    if _supabase():
+        try:
+            blocked = bool(_rest("GET", "feedback_block", "?select=k&" + _eq("k", k)))
+            used = _rest("HEAD", "feedback", f"?select=id&ts=gt.{since}&" + _eq("k", k), count=True)
+            return blocked, used
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            _log("쪽지 확인", e)
+            return False, 0
+    with closing(_con()) as con:
+        blocked = con.execute("SELECT 1 FROM feedback_block WHERE k=?", (k,)).fetchone() is not None
+        used = con.execute("SELECT COUNT(*) FROM feedback WHERE k=? AND ts>?", (k, since)).fetchone()[0]
+    return blocked, used
+
+
+def feedback_list(limit: int = 50) -> list[dict]:
+    """최근 쪽지부터. 차단된 IP 의 쪽지는 blocked=True."""
+    if _supabase():
+        rows = _rest("GET", "feedback", f"?select=id,ts,ip,k,body&order=id.desc&limit={int(limit)}") or []
+        ks = ",".join(sorted({urllib.parse.quote(r["k"], safe="") for r in rows}))
+        bl = {r["k"] for r in (_rest("GET", "feedback_block", f"?select=k&k=in.({ks})") or [])} if rows else set()
+    else:
+        with closing(_con()) as con:
+            rows = [dict(r) for r in con.execute("SELECT id, ts, ip, k, body FROM feedback ORDER BY id DESC LIMIT ?",
+                                                 (limit,))]
+            bl = {r[0] for r in con.execute("SELECT k FROM feedback_block")}
+    return [{**r, "blocked": r["k"] in bl} for r in rows]
+
+
+def feedback_block(k: str, ip: str, note: str = "", on: bool = True) -> None:
+    if _supabase():
+        if on:
+            _rest("POST", "feedback_block", body={"k": k, "ip": ip, "note": note, "ts": time.time()})
+        else:
+            _rest("DELETE", "feedback_block", "?" + _eq("k", k))
+        return
+    with closing(_con()) as con:
+        if on:
+            con.execute("INSERT OR REPLACE INTO feedback_block VALUES (?,?,?,?)", (k, ip, note, time.time()))
+        else:
+            con.execute("DELETE FROM feedback_block WHERE k=?", (k,))
+        con.commit()
+
+
 def _rest_all(table: str, col: str, extra: str, page: int = 1000) -> list[dict]:
     rows, off = [], 0
     while True:

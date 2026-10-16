@@ -72,10 +72,10 @@ class FakeRest(BaseHTTPRequestHandler):
         FakeRest.seen.append(("POST", self.headers.get("apikey"), self.headers.get("Prefer")))
         name, _ = self._table()
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        pk = {"chapter": "key", "ctx": "token", "visitor": "k"}.get(name, "id")
+        pk = {"chapter": "key", "ctx": "token", "visitor": "k", "feedback_block": "k"}.get(name, "id")
         keep = "ignore-duplicates" in (self.headers.get("Prefer") or "")
         for row in data if isinstance(data, list) else [data]:
-            if name in ("ai_call", "chat_use"):
+            if name in ("ai_call", "chat_use", "feedback"):
                 row["id"] = len(FakeRest.tables.get(name, {})) + 1
             key = (row["day"], row["k"]) if name == "visit_day" else row[pk]
             if keep and key in FakeRest.tables.get(name, {}):
@@ -355,3 +355,61 @@ def test_visit_failure_does_not_break(monkeypatch, capsys):
     monkeypatch.setattr(CS, "visit_add", lambda *a: False)        # 표가 없을 때(404)도 같다
     web.count_visit("203.0.113.7")
     assert not web._VISITED
+
+
+def _feedback_server(monkeypatch):
+    from love_fortune import web
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    import urllib.error
+    import urllib.request
+
+    def send(body, site=""):
+        req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}/api/feedback", method="POST",
+                                     data=json.dumps({"body": body, "site": site}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read())
+    return srv, send
+
+
+def test_feedback_sqlite_block_and_limit(tmp_path, monkeypatch):
+    # 익명 쪽지: IP 를 같이 저장, 막힌 IP 는 못 보냄, 하루 5통, 봇 칸(site)은 저장 안 함, 너무 짧으면 거절
+    from love_fortune import web
+    monkeypatch.setattr(CS, "DB", tmp_path / "c.db")
+    monkeypatch.setattr(CS, "_READY", False)
+    srv, send = _feedback_server(monkeypatch)
+    try:
+        assert send("버튼이 잘 안 눌려요")[0] == 200
+        assert send("광고", site="http://spam")[0] == 200                  # 봇은 받은 척만
+        assert send(" ")[0] == 400
+        rows = CS.feedback_list()
+        assert [r["body"] for r in rows] == ["버튼이 잘 안 눌려요"] and rows[0]["ip"] == "127.0.0.1"
+        assert rows[0]["k"] == web._h("fb", web.ip_key("127.0.0.1")) and not rows[0]["blocked"]
+        for i in range(4):
+            assert send(f"의견 {i}")[0] == 200
+        code, j = send("여섯 번째")
+        assert code == 429 and "하루 5통" in j["error"]
+        CS.feedback_block(rows[0]["k"], rows[0]["ip"], "욕설")
+        code, j = send("또 보냄")
+        assert code == 403 and "보낼 수 없어" in j["error"]
+        assert all(r["blocked"] for r in CS.feedback_list())
+        CS.feedback_block(rows[0]["k"], rows[0]["ip"], on=False)
+        assert not any(r["blocked"] for r in CS.feedback_list())
+    finally:
+        srv.shutdown()
+
+
+def test_feedback_supabase(fake):
+    CS.feedback_add("203.0.113.7", "kA", "글씨가 작아요")
+    CS.feedback_add("198.51.100.2", "kB", "좋아요")
+    assert CS.feedback_state("kA") == (False, 1)
+    CS.feedback_block("kA", "203.0.113.7", "도배")
+    assert CS.feedback_state("kA") == (True, 1)
+    got = {r["body"]: r["blocked"] for r in CS.feedback_list()}
+    assert got == {"글씨가 작아요": True, "좋아요": False}
+    CS.feedback_block("kA", "203.0.113.7", on=False)
+    assert CS.feedback_state("kA") == (False, 1)

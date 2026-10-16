@@ -67,6 +67,23 @@ create table if not exists public.visitor (
 );
 create index if not exists visitor_first_day on public.visitor (first_day);
 
+-- 익명 쪽지 (불편한 점·의견, 2026-10-16). 욕설·도배 차단용으로 IP 를 같이 둔다 (화면에 알린다). k 는 IP 해시
+create table if not exists public.feedback (
+    id    bigserial primary key,
+    ts    double precision not null,
+    ip    text not null,
+    k     text not null,
+    body  text not null
+);
+create index if not exists feedback_k_ts on public.feedback (k, ts);
+-- 쪽지를 못 보내게 막은 IP
+create table if not exists public.feedback_block (
+    k     text primary key,
+    ip    text not null,
+    note  text not null,
+    ts    double precision not null
+);
+
 -- 공개 키로는 못 읽고 못 쓰게 잠근다 (서버 전용 키는 RLS 를 거치지 않는다)
 alter table public.chapter enable row level security;
 alter table public.share enable row level security;
@@ -75,6 +92,8 @@ alter table public.ai_call enable row level security;
 alter table public.chat_use enable row level security;
 alter table public.visit_day enable row level security;
 alter table public.visitor enable row level security;
+alter table public.feedback enable row level security;
+alter table public.feedback_block enable row level security;
 revoke all on public.chapter from anon, authenticated;
 revoke all on public.share from anon, authenticated;
 revoke all on public.ctx from anon, authenticated;
@@ -82,3 +101,5 @@ revoke all on public.ai_call from anon, authenticated;
 revoke all on public.chat_use from anon, authenticated;
 revoke all on public.visit_day from anon, authenticated;
 revoke all on public.visitor from anon, authenticated;
+revoke all on public.feedback from anon, authenticated;
+revoke all on public.feedback_block from anon, authenticated;

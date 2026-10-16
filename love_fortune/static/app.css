@@ -50,6 +50,15 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 
 /* 입력 화면 */
 .brand{display:flex;align-items:center;gap:8px;height:48px}
+.fb{margin:22px 0 8px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r)}
+.fb summary{cursor:pointer;font-size:15px;color:var(--muted)}
+.fb textarea{display:block;width:100%;box-sizing:border-box;margin-top:10px;padding:10px;font:inherit;font-size:15px;
+  border:1px solid var(--line2);border-radius:var(--r);background:var(--bg2);color:var(--ink);resize:vertical}
+.fb-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.fb-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.fb-n{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.fb-go{width:auto;min-height:44px;padding:0 18px;font-size:15px}
+.fb-ok{font-size:15px;margin:8px 0 0}
 .visits{margin-left:auto;font-size:13px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 .logo{font-family:var(--bat);font-weight:700;font-size:18px;letter-spacing:-.2px;display:inline-flex;align-items:center;gap:8px}
 .hero{padding:2px 0 0}

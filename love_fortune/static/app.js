@@ -1625,6 +1625,24 @@ $('shCard').addEventListener('click',async()=>{
       '<a class="go dl" href="'+url+'" download="saju-'+S.tab+'.png">이미지 내려받기</a>';
   },'image/png');
 });
+// 첫 화면 맨 아래: 익명 쪽지 (IP 만 같이 저장한다고 화면에 알림)
+(function feedbackBox(){
+  const f=$('fbForm');
+  if(!f) return;
+  const ta=f.elements.body, n=$('fbN'), msg=$('fbMsg');
+  ta.addEventListener('input',()=>{n.textContent=ta.value.length+' / 500';});
+  f.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const btn=f.querySelector('button');
+    btn.disabled=true;msg.innerHTML='';
+    try{
+      await postJSON('/api/feedback',{body:ta.value,site:f.elements.site.value});
+      ta.value='';n.textContent='0 / 500';
+      msg.innerHTML='<p class="fb-ok">고마워, 잘 받았어.</p>';
+    }catch(err){msg.innerHTML='<div class="err">'+esc(err.message)+'</div>';}
+    btn.disabled=false;
+  });
+})();
 // 첫 화면 오른쪽 위: 오늘·누적 방문자 (결과를 연 IP 수, 같은 IP 는 한 번)
 (async function showVisits(){
   try{

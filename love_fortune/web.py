@@ -129,6 +129,8 @@ def count_visit(ip: str) -> None:
         print(f"[방문] 기록 실패: {type(e).__name__}", file=sys.stderr)
 
 
+FEEDBACK_MAX = 500           # 쪽지 한 통 글자 수
+FEEDBACK_PER_DAY = 5         # IP 하나당 하루 쪽지 수 (도배 막기)
 _VISIT_STATS: dict = {"t": 0.0, "body": b"{}"}
 
 
@@ -1061,6 +1063,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/v2/report": self._v2_report, "/api/v2/chapter": self._v2_chapter,
             "/api/v2/share": self._v2_share, "/api/v2/shared": self._v2_shared,
             "/api/name": self._name, "/api/v2/rectify": self._rectify,
+            "/api/feedback": self._feedback,
         }
         route = routes.get(self.path)
         if route is None:
@@ -1305,6 +1308,28 @@ class Handler(BaseHTTPRequestHandler):
             mode, used = "local-fallback", "로컬 규칙 에이전트"
         self._json({"reply": reply, "mode": mode, "model": used, "left": left,
                     "sig": injection.sign(_SIG_KEY, token, reply)})
+
+    def _feedback(self, q: dict):
+        """익명 쪽지. 이름·로그인 없이 받고, 욕설·도배를 막으려고 IP 를 같이 둔다 (화면에 알린다).
+        막힌 IP 는 못 보내고, IP 하나당 하루 FEEDBACK_PER_DAY 통. 사람 눈에 안 보이는 칸(site)을 채운 건 봇이라 저장하지 않는다."""
+        from . import content_store
+        if str(q.get("site", "") or "").strip():
+            self._json({"ok": True})
+            return
+        body = injection.clean(str(q.get("body", "") or ""), FEEDBACK_MAX)
+        if len(body) < 2:
+            raise ValueError("내용을 두 글자 넘게 적어 줘.")
+        ip = self._client_ip()
+        k = _h("fb", ip_key(ip))
+        blocked, used = content_store.feedback_state(k)
+        if blocked:
+            self._fail(403, "이 주소에서는 쪽지를 보낼 수 없어.")
+            return
+        if used >= FEEDBACK_PER_DAY:
+            self._fail(429, f"쪽지는 하루 {FEEDBACK_PER_DAY}통까지야. 내일 또 보내 줘.")
+            return
+        content_store.feedback_add(ip, k, body)
+        self._json({"ok": True})
 
     def _json(self, obj: dict):
         self._send(json.dumps(obj, ensure_ascii=False).encode("utf-8"),

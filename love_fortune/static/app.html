@@ -65,6 +65,16 @@
       <p class="fine">© 종합 사주. 화면·풀이·코드의 무단 수집(스크랩)·복제·AI 학습을 금지해.</p>
     </form>
     <div id="homeErr"></div>
+    <details class="fb hanji" id="fb">
+      <summary>불편한 점·의견 보내기</summary>
+      <form id="fbForm" autocomplete="off">
+        <textarea name="body" maxlength="500" rows="4" placeholder="쓰면서 불편했던 점, 틀린 것 같은 풀이, 바라는 기능을 적어 줘." aria-label="쪽지 내용" required></textarea>
+        <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" class="fb-hp">
+        <div class="fb-row"><span class="fb-n" id="fbN">0 / 500</span><button class="go fb-go" type="submit">쪽지 보내기</button></div>
+        <p class="fine">이름 없이 익명으로 보내져. 욕설·도배를 막으려고 IP 주소만 함께 저장하고, 그런 글을 쓴 주소는 쪽지를 막을 수 있어. 생년월일은 적지 말아 줘.</p>
+        <div id="fbMsg" role="status"></div>
+      </form>
+    </details>
   </section>
 
   <!-- 결과 화면 -->
