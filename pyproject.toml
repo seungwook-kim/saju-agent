@@ -15,6 +15,10 @@ extend-exclude = ["love_fortune/solar_terms_data.py", "love_fortune/calendar_dat
 [tool.ruff.lint]
 select = ["F", "E9"]
 
+[tool.ruff.lint.per-file-ignores]
+# pytest 고정물 fake 를 import 해 시험 인자로 받는 패턴이라 재정의로 잡힌다
+"tests/test_legal_fixes.py" = ["F811"]
+
 [tool.vercel]
 # Vercel 입구: WSGI app (love_fortune/wsgi.py 가 web.Handler 를 그대로 감싼다)
 entrypoint = "love_fortune.wsgi:app"

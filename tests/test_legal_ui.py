@@ -1,7 +1,7 @@
 """법률 검토 후 화면 문구: 꼬리말 팝업, AI 없이 보기, 지우기 버튼, AI 안내."""
 import re
 
-from love_fortune import guard, web
+from love_fortune import web
 
 H = (web.STATIC_DIR / "app.html").read_text(encoding="utf-8")
 J = (web.STATIC_DIR / "app.js").read_text(encoding="utf-8")
