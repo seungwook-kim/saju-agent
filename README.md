@@ -6,7 +6,7 @@ AI는 계산된 사실표만 받고, 사실표에 없는 숫자나 단정하는 
 [![CI](https://github.com/seungwook-kim/saju-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/seungwook-kim/saju-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
-![tests](https://img.shields.io/badge/tests-802%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-844%20collected-brightgreen)
 
 | 첫 화면 | 오늘 · 총운 (붓 획 네 줄) | 흐름 · 평생 (대운 여덟 걸음) |
 |---|---|---|
@@ -112,13 +112,13 @@ AI는 계산된 사실표만 받고, 사실표에 없는 숫자나 단정하는 
 
 | 영역 | 전 | 후 | 근거 |
 |---|---|---|---|
-| 시험 수 | 79개 | 802개 | `bbd7e9e`, `efddff5`. `pytest --collect-only` |
+| 시험 수 | 79개 | 844개 | `pytest --collect-only` (2026-10-20) |
 | 코드 | 파이썬 모듈 21개, 6,512줄 | 52개, 11,463줄 (내장 데이터 표 제외) | 같은 커밋 실측 |
 | 상담 횟수 | 제한 없음, 다음 하루 5번 | 하루 10번 (모두 합쳐 하루 300번) | `c1c4e0e`, `257d322` |
 | 유료 AI 시간당 상한 | 없음, 다음 300번 | 600번 | `305a617`, `433b320` |
 | 상담 답 길이 상한 | 500토큰 | 800토큰 | `e47bca6` |
 
-시험 수는 79 → 182(계산 오류 전면 수정) → 425(월주 대조) → 512(절기 표) → 650(설계 문서) → 705(인젝션 방어) → 787(학업·내일) → 798(Langfuse 가리기·공부 흐름) → 802(방문자 수·Claude API)로 늘었습니다.
+시험 수는 79 → 182(계산 오류 전면 수정) → 425(월주 대조) → 512(절기 표) → 650(설계 문서) → 705(인젝션 방어) → 787(학업·내일) → 798(Langfuse 가리기·공부 흐름) → 802(방문자 수·Claude API) → 844(2026-10-20 기준)로 늘었습니다.
 
 ## 구조
 
@@ -141,7 +141,7 @@ flowchart LR
 |---|---|
 | `love_fortune/` | 계산 엔진, 웹 서버, 풀이 생성 (파이썬 파일 52개) |
 | `love_fortune/static/` | 화면 (바닐라 JS, 빌드 도구 없음) |
-| `tests/` | 시험 802개. 외부 기준값 파일은 `tests/data/` |
+| `tests/` | 시험 844개. 외부 기준값 파일은 `tests/data/` |
 | `tools/` | 기준값·데이터 생성 도구 (개발할 때만 외부 패키지 사용) |
 | `db/` | 해석 데이터·AI 풀이 저장소의 표 만들기 스크립트 (SQLite, Supabase) |
 | `docs/GUIDE.md` | 자세한 실행법, 운세 체계, 데이터 출처 |
